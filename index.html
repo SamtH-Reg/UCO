@@ -43,7 +43,7 @@ function _cDelPfx(p){ Object.keys(_mc).forEach(k=>{ if(k.startsWith(p)) delete _
 
 // ── CLIENTE SUPABASE — inicialización lazy ──────────────────────
 let _sbClient = null;
-function _db() {
+function _sbDb() {
   if (!_sbClient) {
     if (typeof supabase === 'undefined') throw new Error('Supabase SDK no cargado aún');
     _sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -83,7 +83,7 @@ function _row(r){
 
 // ── AUDIT ────────────────────────────────────────────────────────
 async function _audit(accion,detalle){
-  try{ await _db().from('audit_log').insert({accion,detalle:detalle||'',usuario:'operario',sesion:Math.random().toString(36).slice(2)}); }
+  try{ await _sbDb().from('audit_log').insert({accion,detalle:detalle||'',usuario:'operario',sesion:Math.random().toString(36).slice(2)}); }
   catch(e){ console.warn('[AUDIT]',e.message); }
 }
 
@@ -91,7 +91,7 @@ async function _audit(accion,detalle){
 async function getListData(){
   const cKey='ld_v'+_SB_CONFIG.VERSION, cached=_cGet(cKey);
   if(cached) return cached;
-  const {data,error}=await _db().from('produccion')
+  const {data,error}=await _sbDb().from('produccion')
     .select('especie,funcion,producto,proceso,operacion,responsable,linea,linea_especial,funcion_especial')
     .eq('activo',true);
   if(error){ console.error('[LISTAS]',error.message); return {especies:[],lineas:[],responsables:[],mapaEspecie:{},mapaProducto:{},mapaLinea:{}}; }
@@ -131,7 +131,7 @@ async function getListData(){
 async function obtenerEmpleados(){
   const cKey='emp_v'+_SB_CONFIG.VERSION, cached=_cGet(cKey);
   if(cached) return cached;
-  const {data,error}=await _db().from('empleados').select('codigo,nombre,centro_costo,contrato').eq('activo',true).order('nombre');
+  const {data,error}=await _sbDb().from('empleados').select('codigo,nombre,centro_costo,contrato').eq('activo',true).order('nombre');
   if(error){ console.error('[EMP]',error.message); return []; }
   const result=(data||[]).map(r=>({codigo:r.codigo,nombre:r.nombre,centroCosto:r.centro_costo,contrato:r.contrato}));
   _cPut(cKey,result,_SB_CONFIG.CACHE_EMP);
@@ -160,7 +160,7 @@ async function guardarAsistencia(data){
     if(!data.turno)  return _err('Turno requerido','VAL_TURNO');
     if(!data.linea)  return _err('Línea requerida','VAL_LINEA');
     const mes=_MESES[new Date(data.fecha+'T12:00:00').getMonth()];
-    const {data:ins,error}=await _db().from('registros').insert({
+    const {data:ins,error}=await _sbDb().from('registros').insert({
       mes,fecha:data.fecha,responsable:data.responsable||'',turno:data.turno,linea:data.linea,
       codigo:data.codigo,nombre:data.nombre||'',tipo_contrato:data.tipoContrato||'',
       funcion:data.funcion||'',centro_costo:data.centroCosto||'',
@@ -190,7 +190,7 @@ async function obtenerRegistrosSemana(semana,anio){
     const lun=new Date(jan4); lun.setUTCDate(jan4.getUTCDate()-day4+1+(semana-1)*7);
     const dom=new Date(lun); dom.setUTCDate(lun.getUTCDate()+6);
     const desde=lun.toISOString().slice(0,10), hasta=dom.toISOString().slice(0,10);
-    const {data,error}=await _db().from('registros').select('*').gte('fecha',desde).lte('fecha',hasta)
+    const {data,error}=await _sbDb().from('registros').select('*').gte('fecha',desde).lte('fecha',hasta)
       .order('fecha',{ascending:false}).order('created_at',{ascending:false});
     if(error){ console.error('[SEM]',error.message); return []; }
     const result=(data||[]).map(_row);
@@ -205,7 +205,7 @@ async function obtenerRegistrosFiltrados(filtros,pagina,porPagina){
     pagina=Math.max(1,parseInt(pagina)||1);
     porPagina=Math.min(2000,parseInt(porPagina)||50);
     filtros=filtros||{};
-    let q=_db().from('registros').select('*',{count:'exact'});
+    let q=_sbDb().from('registros').select('*',{count:'exact'});
     if(filtros.desde) q=q.gte('fecha',filtros.desde);
     if(filtros.hasta) q=q.lte('fecha',filtros.hasta);
     if(filtros.turno) q=q.ilike('turno','%'+filtros.turno+'%');
@@ -226,7 +226,7 @@ async function editarRegistro(id,rowData){
     if(!Array.isArray(rowData)||!rowData.length) return _err('Datos requeridos','VAL_DATA');
     const fechaStr=rowData[1]||'';
     const mes=fechaStr?_MESES[new Date(fechaStr+'T12:00:00').getMonth()]:rowData[0];
-    const {error}=await _db().from('registros').update({
+    const {error}=await _sbDb().from('registros').update({
       mes,fecha:fechaStr,responsable:rowData[2]||'',turno:rowData[3]||'',linea:rowData[4]||'',
       codigo:rowData[5]||'',nombre:rowData[6]||'',tipo_contrato:rowData[7]||'',funcion:rowData[8]||'',
       centro_costo:rowData[9]||'',especie:rowData[10]||'',producto:rowData[11]||'',
@@ -249,8 +249,8 @@ async function editarRegistro(id,rowData){
 async function eliminarRegistro(id){
   try{
     if(!id) return _err('ID requerido','VAL_IDX');
-    const {data:antes}=await _db().from('registros').select('codigo,nombre,fecha,turno').eq('id',id).single();
-    const {error}=await _db().from('registros').delete().eq('id',id);
+    const {data:antes}=await _sbDb().from('registros').select('codigo,nombre,fecha,turno').eq('id',id).single();
+    const {error}=await _sbDb().from('registros').delete().eq('id',id);
     if(error) return _err('Error al eliminar: '+error.message,'ERR_DELETE');
     if(antes?.fecha){const [s,a]=_isoSem(new Date(antes.fecha+'T12:00:00')); _cDel('sem_'+s+'_'+a);}
     await _audit('DELETE',`id ${id} | ${antes?.codigo} ${antes?.nombre} | ${antes?.fecha}`);
@@ -262,11 +262,11 @@ async function eliminarRegistro(id){
 async function obtenerAusentesDia(fechaStr){
   try{
     if(!fechaStr){ const h=new Date(); fechaStr=`${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`; }
-    const {data:noRegData}=await _db().from('noregistrar').select('codigo,nombre');
+    const {data:noRegData}=await _sbDb().from('noregistrar').select('codigo,nombre');
     const nrC=new Set((noRegData||[]).map(r=>r.codigo.trim().toLowerCase()).filter(Boolean));
     const nrN=new Set((noRegData||[]).map(r=>r.nombre.trim().toLowerCase()).filter(Boolean));
     const empleados=(await obtenerEmpleados()).filter(e=>!nrC.has(e.codigo.toLowerCase())&&!nrN.has(e.nombre.toLowerCase()));
-    const {data:regsHoy}=await _db().from('registros').select('codigo').eq('fecha',fechaStr);
+    const {data:regsHoy}=await _sbDb().from('registros').select('codigo').eq('fecha',fechaStr);
     const conReg=new Set((regsHoy||[]).map(r=>r.codigo));
     const ausentes=empleados.filter(e=>!conReg.has(e.codigo));
     if(!ausentes.length) return [];
@@ -305,9 +305,9 @@ function limpiarCache(){ invalidarCache(); return _ok(null,'✅ Caché limpiado.
 async function obtenerEstadisticas(){
   try{
     const [{count:r},{count:e},{count:a}]=await Promise.all([
-      _db().from('registros').select('*',{count:'exact',head:true}),
-      _db().from('empleados').select('*',{count:'exact',head:true}).eq('activo',true),
-      _db().from('audit_log').select('*',{count:'exact',head:true}),
+      _sbDb().from('registros').select('*',{count:'exact',head:true}),
+      _sbDb().from('empleados').select('*',{count:'exact',head:true}).eq('activo',true),
+      _sbDb().from('audit_log').select('*',{count:'exact',head:true}),
     ]);
     return _ok({totalRegistros:r||0,totalEmpleados:e||0,totalAcciones:a||0,version:_SB_CONFIG.VERSION});
   }catch(e){ return _err('Error: '+e.message,'ERR_STATS'); }
