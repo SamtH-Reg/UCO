@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Panel Admin — Registro de Asistencia · Friosur</title>
+<title>Admin — Sistema de Asistencia</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -738,48 +738,43 @@ body {
         </div>
       </div>
       <div class="settings-wrap">
-
-        <!-- Instrucciones -->
         <div class="settings-section">
-          <div class="settings-section-title"><span class="sticon">📋</span> ¿Cómo preparar el archivo?</div>
-          <div style="padding:16px 20px;display:flex;flex-direction:column;gap:10px">
-            <div style="display:flex;gap:16px;flex-wrap:wrap">
-              <div style="background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:14px;flex:1;min-width:200px">
-                <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;font-family:var(--mono)">👥 EMPLEADOS</div>
-                <div style="font-size:12px;color:var(--muted);line-height:1.8">
-                  La primera fila debe tener estos encabezados exactos:<br>
-                  <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-size:11px">codigo | nombre | centro_costo | contrato</code>
-                </div>
-              </div>
-              <div style="background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:14px;flex:1;min-width:200px">
-                <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;font-family:var(--mono)">🏭 PRODUCCIÓN</div>
-                <div style="font-size:12px;color:var(--muted);line-height:1.8">
-                  La primera fila debe tener:<br>
-                  <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-size:11px">especie | producto | funcion | proceso | operacion | responsable | linea</code>
-                </div>
+          <div class="settings-section-title"><span class="sticon">📋</span> Encabezados requeridos en el archivo</div>
+          <div style="padding:16px 20px;display:flex;gap:16px;flex-wrap:wrap">
+            <div style="background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:14px;flex:1;min-width:220px">
+              <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px;font-family:var(--mono);letter-spacing:.5px">👥 EMPLEADOS</div>
+              <div style="font-size:12px;color:var(--muted);line-height:1.9">
+                <code style="background:var(--surface);border:1px solid var(--border);padding:2px 7px;border-radius:4px;font-size:11px;display:block;margin-bottom:4px">codigo</code>
+                <code style="background:var(--surface);border:1px solid var(--border);padding:2px 7px;border-radius:4px;font-size:11px;display:block;margin-bottom:4px">nombre</code>
+                <code style="background:var(--surface);border:1px solid var(--border);padding:2px 7px;border-radius:4px;font-size:11px;display:block;margin-bottom:4px">centro_costo</code>
+                <code style="background:var(--surface);border:1px solid var(--border);padding:2px 7px;border-radius:4px;font-size:11px;display:block">contrato</code>
               </div>
             </div>
-            <div style="display:flex;gap:8px">
-              <button class="btn btn-secondary btn-sm" onclick="descargarPlantilla('empleados')">⬇ Plantilla Empleados (.xlsx)</button>
-              <button class="btn btn-secondary btn-sm" onclick="descargarPlantilla('produccion')">⬇ Plantilla Producción (.xlsx)</button>
+            <div style="background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:14px;flex:1;min-width:220px">
+              <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px;font-family:var(--mono);letter-spacing:.5px">🏭 PRODUCCIÓN</div>
+              <div style="font-size:12px;color:var(--muted);line-height:1.9">
+                <code style="background:var(--surface);border:1px solid var(--border);padding:2px 7px;border-radius:4px;font-size:11px;display:block;margin-bottom:4px">especie · producto · funcion</code>
+                <code style="background:var(--surface);border:1px solid var(--border);padding:2px 7px;border-radius:4px;font-size:11px;display:block;margin-bottom:4px">proceso · operacion</code>
+                <code style="background:var(--surface);border:1px solid var(--border);padding:2px 7px;border-radius:4px;font-size:11px;display:block">responsable · linea</code>
+              </div>
             </div>
           </div>
+          <div style="padding:0 20px 16px;display:flex;gap:8px">
+            <button class="btn btn-secondary btn-sm" onclick="descargarPlantilla('empleados')">⬇ Plantilla Empleados.xlsx</button>
+            <button class="btn btn-secondary btn-sm" onclick="descargarPlantilla('produccion')">⬇ Plantilla Producción.xlsx</button>
+          </div>
         </div>
-
-        <!-- Upload zone -->
         <div class="settings-section">
-          <div class="settings-section-title"><span class="sticon">📤</span> Subir archivo</div>
+          <div class="settings-section-title"><span class="sticon">📤</span> Subir archivo Excel o CSV</div>
           <div style="padding:20px">
-            <div style="margin-bottom:14px;display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap">
-              <div>
-                <label class="form-label">Tabla destino</label>
-                <select class="form-select" id="importTabla" style="margin-top:6px;width:180px">
-                  <option value="empleados">👥 Empleados</option>
-                  <option value="produccion">🏭 Producción</option>
-                </select>
-              </div>
+            <div style="margin-bottom:16px">
+              <label class="form-label">Tabla destino</label>
+              <select class="form-select" id="importTabla" style="margin-top:6px;width:200px">
+                <option value="empleados">👥 Empleados</option>
+                <option value="produccion">🏭 Producción</option>
+              </select>
             </div>
-            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" onchange="handleFileSelect(event)">
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" onchange="handleFileSelect(event)" style="display:none">
             <div class="import-zone" id="importZone"
               onclick="document.getElementById('fileInput').click()"
               ondragover="event.preventDefault();this.classList.add('drag')"
@@ -787,104 +782,66 @@ body {
               ondrop="handleFileDrop(event)">
               <div class="import-zone-icon">📊</div>
               <div class="import-zone-title">Arrastra tu archivo Excel o CSV aquí</div>
-              <div class="import-zone-sub">Formatos aceptados: .xlsx · .xls · .csv — o haz clic para seleccionar</div>
+              <div class="import-zone-sub">Formatos: .xlsx · .xls · .csv — o haz clic para seleccionar</div>
             </div>
             <div id="importPreview" style="display:none;margin-top:16px">
-              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px">
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;overflow-x:auto">
                 <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:10px;font-family:var(--mono);letter-spacing:.8px">VISTA PREVIA — PRIMERAS 5 FILAS</div>
-                <div style="overflow-x:auto">
-                  <table id="importPreviewTable" style="width:100%;border-collapse:collapse;font-size:12px"></table>
-                </div>
+                <table id="importPreviewTable" style="border-collapse:collapse;font-size:12px;min-width:100%"></table>
                 <div id="importInfo" style="font-size:12px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"></div>
               </div>
-              <div style="display:flex;gap:10px;align-items:center">
-                <button class="btn btn-primary" id="btnImportar" onclick="ejecutarImport()">
-                  📥 Importar a Supabase
-                </button>
-                <button class="btn btn-secondary btn-sm" onclick="cancelarImport()">✕ Cancelar</button>
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <button class="btn btn-primary" id="btnImportar" onclick="ejecutarImport()">📥 Importar a Supabase</button>
+                <button class="btn btn-secondary" onclick="cancelarImport()">✕ Cancelar</button>
                 <span id="importProgress" style="font-size:12px;color:var(--muted)"></span>
               </div>
             </div>
           </div>
         </div>
-
       </div>
     </div>
 
     <!-- ══ PÁGINA: EXPORTAR ══ -->
     <div class="page" id="page-exportar">
       <div class="page-header">
-        <div><h1>📤 Exportar Datos</h1><p>Descarga los datos en Excel (.xlsx) o CSV — compatible con cualquier versión de Excel</p></div>
+        <div><h1>📤 Exportar Datos</h1><p>Descarga en Excel (.xlsx) o CSV — abre directamente en Excel</p></div>
       </div>
       <div class="settings-wrap">
-
-        <!-- Registros -->
         <div class="settings-section">
           <div class="settings-section-title"><span class="sticon">📝</span> Registros de Asistencia</div>
           <div style="padding:16px 20px">
-            <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Exporta todos los registros o filtra por fecha antes de descargar.</p>
-            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
-              <div>
-                <label class="form-label">Desde</label>
-                <input type="date" class="form-input" id="expDesde" style="margin-top:4px;width:150px">
-              </div>
-              <div>
-                <label class="form-label">Hasta</label>
-                <input type="date" class="form-input" id="expHasta" style="margin-top:4px;width:150px">
-              </div>
-              <div>
-                <label class="form-label">Turno</label>
+            <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
+              <div><label class="form-label">Desde</label><input type="date" class="form-input" id="expDesde" style="margin-top:4px;width:155px"></div>
+              <div><label class="form-label">Hasta</label><input type="date" class="form-input" id="expHasta" style="margin-top:4px;width:155px"></div>
+              <div><label class="form-label">Turno</label>
                 <select class="form-select" id="expTurno" style="margin-top:4px">
-                  <option value="">Todos</option>
+                  <option value="">Todos los turnos</option>
                   <option>Día</option>
                   <option>Noche</option>
                 </select>
               </div>
-              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('expDesde').value='';document.getElementById('expHasta').value='';document.getElementById('expTurno').value='';">✕ Limpiar</button>
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('expDesde').value='';document.getElementById('expHasta').value='';document.getElementById('expTurno').value=''">✕ Limpiar</button>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
-              <button class="btn btn-primary" onclick="exportarExcel('registros')">
-                <span>🟢</span> Descargar Registros (.xlsx)
-              </button>
-              <button class="btn btn-secondary" onclick="exportarCSV('registros')">
-                📄 Descargar Registros (.csv)
-              </button>
+              <button class="btn btn-primary" onclick="exportarExcel('registros')">🟢 Registros.xlsx</button>
+              <button class="btn btn-secondary" onclick="exportarCSV('registros')">📄 Registros.csv</button>
             </div>
           </div>
         </div>
-
-        <!-- Empleados -->
         <div class="settings-section">
           <div class="settings-section-title"><span class="sticon">👥</span> Empleados</div>
-          <div style="padding:16px 20px">
-            <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Lista completa de trabajadores activos e inactivos.</p>
-            <div style="display:flex;gap:10px;flex-wrap:wrap">
-              <button class="btn btn-primary" onclick="exportarExcel('empleados')">
-                <span>🟢</span> Descargar Empleados (.xlsx)
-              </button>
-              <button class="btn btn-secondary" onclick="exportarCSV('empleados')">
-                📄 Descargar Empleados (.csv)
-              </button>
-            </div>
+          <div style="padding:16px 20px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="exportarExcel('empleados')">🟢 Empleados.xlsx</button>
+            <button class="btn btn-secondary" onclick="exportarCSV('empleados')">📄 Empleados.csv</button>
           </div>
         </div>
-
-        <!-- Producción -->
         <div class="settings-section">
           <div class="settings-section-title"><span class="sticon">🏭</span> Catálogo de Producción</div>
-          <div style="padding:16px 20px">
-            <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Especies, productos, procesos, líneas y responsables.</p>
-            <div style="display:flex;gap:10px;flex-wrap:wrap">
-              <button class="btn btn-primary" onclick="exportarExcel('produccion')">
-                <span>🟢</span> Descargar Producción (.xlsx)
-              </button>
-              <button class="btn btn-secondary" onclick="exportarCSV('produccion')">
-                📄 Descargar Producción (.csv)
-              </button>
-            </div>
+          <div style="padding:16px 20px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="exportarExcel('produccion')">🟢 Produccion.xlsx</button>
+            <button class="btn btn-secondary" onclick="exportarCSV('produccion')">📄 Produccion.csv</button>
           </div>
         </div>
-
       </div>
     </div>
 
@@ -1733,54 +1690,36 @@ async function ejecutarEliminar() {
 }
 
 // ════════════════════════════════════════════════════
-//  ═══ IMPORTAR ═══
-// ════════════════════════════════════════════════════
-let _importData = null;
-
-// ════════════════════════════════════════════════════
 //  IMPORTAR — Excel y CSV con SheetJS
 // ════════════════════════════════════════════════════
-let _importData = null;
-let _importFileName = '';
+var _importData = null;
+var _importFileName = '';
 
-// Mapeo de encabezados Excel → columnas Supabase
-const COLUMNAS_TABLA = {
+var COLUMNAS_TABLA = {
   empleados: {
-    'codigo'       : 'codigo',
-    'nombre'       : 'nombre',
-    'centro_costo' : 'centro_costo',
-    'centro costo' : 'centro_costo',
-    'centrocosto'  : 'centro_costo',
-    'contrato'     : 'contrato',
-    'tipo_contrato': 'contrato',
-    'tipo contrato': 'contrato',
-    'activo'       : 'activo',
+    'codigo': 'codigo', 'nombre': 'nombre',
+    'centro_costo': 'centro_costo', 'centro costo': 'centro_costo',
+    'centrocosto': 'centro_costo', 'contrato': 'contrato',
+    'tipo_contrato': 'contrato', 'tipo contrato': 'contrato', 'activo': 'activo',
   },
   produccion: {
-    'especie'          : 'especie',
-    'producto'         : 'producto',
-    'funcion'          : 'funcion',
-    'función'          : 'funcion',
-    'proceso'          : 'proceso',
-    'operacion'        : 'operacion',
-    'operación'        : 'operacion',
-    'responsable'      : 'responsable',
-    'linea'            : 'linea',
-    'línea'            : 'linea',
-    'linea_especial'   : 'linea_especial',
-    'funcion_especial' : 'funcion_especial',
+    'especie': 'especie', 'producto': 'producto',
+    'funcion': 'funcion', 'función': 'funcion',
+    'proceso': 'proceso', 'operacion': 'operacion', 'operación': 'operacion',
+    'responsable': 'responsable', 'linea': 'linea', 'línea': 'linea',
+    'linea_especial': 'linea_especial', 'funcion_especial': 'funcion_especial',
   },
 };
 
 function handleFileSelect(e) {
-  const file = e.target.files[0];
+  var file = e.target.files[0];
   if (file) procesarArchivo(file);
 }
 
 function handleFileDrop(e) {
   e.preventDefault();
   e.currentTarget.classList.remove('drag');
-  const file = e.dataTransfer.files[0];
+  var file = e.dataTransfer.files[0];
   if (file) procesarArchivo(file);
 }
 
@@ -1795,225 +1734,176 @@ function cancelarImport() {
 function procesarArchivo(file) {
   if (!file) return;
   _importFileName = file.name;
-  const ext = file.name.split('.').pop().toLowerCase();
-
   if (typeof XLSX === 'undefined') {
-    toast('Error: librería Excel no cargada. Recarga la página.', 'error', 5000);
+    toast('Librería Excel no cargada — recarga la página', 'error', 5000);
     return;
   }
-
-  const reader = new FileReader();
-  reader.onload = e => {
+  var reader = new FileReader();
+  reader.onload = function(ev) {
     try {
-      let rows = [];
-      if (ext === 'csv') {
-        // Leer CSV con encoding correcto (BOM support)
-        const text = new TextDecoder('utf-8').decode(e.target.result);
-        const wb = XLSX.read(text, { type: 'string' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      } else {
-        const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-      }
+      var wb = XLSX.read(ev.target.result, { type: 'array', cellDates: true });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
-      if (!rows.length) { toast('El archivo está vacío o no tiene datos válidos.', 'error'); return; }
+      if (!rows.length) { toast('El archivo está vacío o no tiene datos válidos', 'error'); return; }
 
-      // Normalizar encabezados → columnas Supabase
-      const tabla = document.getElementById('importTabla').value;
-      const mapeo = COLUMNAS_TABLA[tabla] || {};
-      const rawHeaders = Object.keys(rows[0]);
+      var tabla = document.getElementById('importTabla').value;
+      var mapeo = COLUMNAS_TABLA[tabla] || {};
+      var rawHeaders = Object.keys(rows[0]);
 
-      _importData = rows.map(row => {
-        const mapped = {};
-        rawHeaders.forEach(h => {
-          const norm = h.toLowerCase().trim().replace(/\s+/g, '_');
-          const col  = mapeo[h.toLowerCase().trim()] || mapeo[norm] || h.toLowerCase().trim().replace(/\s+/g, '_');
-          let val = row[h];
-          // Convertir fechas de Excel a string
-          if (val instanceof Date) {
-            val = val.toISOString().substring(0, 10);
-          }
-          mapped[col] = val === undefined || val === null ? '' : String(val).trim();
+      _importData = rows.map(function(row) {
+        var mapped = {};
+        rawHeaders.forEach(function(h) {
+          var hNorm = h.toLowerCase().trim();
+          var col = mapeo[hNorm] || hNorm.replace(/\s+/g, '_');
+          var val = row[h];
+          if (val instanceof Date) val = val.toISOString().substring(0, 10);
+          mapped[col] = (val === undefined || val === null) ? '' : String(val).trim();
         });
-        // Asegurar activo=true por defecto en empleados
-        if (tabla === 'empleados' && !('activo' in mapped)) {
-          mapped.activo = true;
-        }
+        if (tabla === 'empleados' && !('activo' in mapped)) mapped.activo = true;
         return mapped;
       });
 
-      // Mostrar preview tabla
-      const cols = Object.keys(_importData[0]);
-      const preview = _importData.slice(0, 5);
-      const thHtml  = cols.map(c => `<th style="padding:5px 10px;background:var(--surface3);font-size:10px;font-weight:700;text-align:left;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">${esc(c)}</th>`).join('');
-      const trHtml  = preview.map(r =>
-        `<tr>${cols.map(c => `<td style="padding:5px 10px;font-size:12px;border-bottom:1px solid var(--border);white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis">${esc(String(r[c]||''))}</td>`).join('')}</tr>`
-      ).join('');
-      document.getElementById('importPreviewTable').innerHTML = `<thead><tr>${thHtml}</tr></thead><tbody>${trHtml}</tbody>`;
+      // Vista previa
+      var cols = Object.keys(_importData[0]);
+      var preview = _importData.slice(0, 5);
+      var thHtml = cols.map(function(c) {
+        return '<th style="padding:5px 10px;background:var(--surface3);font-size:10px;font-weight:700;text-align:left;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">' + esc(c) + '</th>';
+      }).join('');
+      var trHtml = preview.map(function(r) {
+        return '<tr>' + cols.map(function(c) {
+          return '<td style="padding:5px 10px;font-size:12px;border-bottom:1px solid var(--border);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(String(r[c] || '')) + '</td>';
+        }).join('') + '</tr>';
+      }).join('');
+      document.getElementById('importPreviewTable').innerHTML = '<thead><tr>' + thHtml + '</tr></thead><tbody>' + trHtml + '</tbody>';
       document.getElementById('importInfo').innerHTML =
-        `<strong>Archivo:</strong> ${esc(file.name)} &nbsp;·&nbsp; <strong>Filas:</strong> ${_importData.length} &nbsp;·&nbsp; <strong>Columnas detectadas:</strong> ${cols.join(', ')}`;
+        '<strong>Archivo:</strong> ' + esc(file.name) + ' &nbsp;·&nbsp; <strong>Filas:</strong> ' + _importData.length + ' &nbsp;·&nbsp; <strong>Columnas:</strong> ' + cols.join(', ');
       document.getElementById('importPreview').style.display = 'block';
-
     } catch(err) {
       toast('Error al leer el archivo: ' + err.message, 'error', 5000);
       console.error(err);
     }
   };
-
-  if (ext === 'csv') {
-    reader.readAsArrayBuffer(file);
-  } else {
-    reader.readAsArrayBuffer(file);
-  }
+  reader.readAsArrayBuffer(file);
 }
 
 async function ejecutarImport() {
-  const db = getClient(); if (!db || !_importData || !_importData.length) return;
-  const tabla  = document.getElementById('importTabla').value;
-  const btn    = document.getElementById('btnImportar');
-  const prog   = document.getElementById('importProgress');
+  var db = getClient(); if (!db || !_importData || !_importData.length) return;
+  var tabla = document.getElementById('importTabla').value;
+  var btn   = document.getElementById('btnImportar');
+  var prog  = document.getElementById('importProgress');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Importando…';
-
-  let ok = 0, errCount = 0;
-  const CHUNK = 50;
-  for (let i = 0; i < _importData.length; i += CHUNK) {
-    const chunk = _importData.slice(i, i + CHUNK);
-    const { error } = await db.from(tabla).upsert(chunk, { ignoreDuplicates: false });
-    if (error) { errCount += chunk.length; console.error('[IMPORT]', error.message); }
-    else ok += chunk.length;
-    const pct = Math.round(((i + CHUNK) / _importData.length) * 100);
-    prog.textContent = `${Math.min(pct,100)}% — ${ok} ok, ${errCount} errores`;
-    btn.innerHTML = `<span class="spinner"></span>${Math.min(i+CHUNK, _importData.length)}/${_importData.length}`;
+  var okCount = 0, errCount = 0;
+  var CHUNK = 50;
+  for (var i = 0; i < _importData.length; i += CHUNK) {
+    var chunk = _importData.slice(i, i + CHUNK);
+    var result = await db.from(tabla).upsert(chunk, { ignoreDuplicates: false });
+    if (result.error) { errCount += chunk.length; console.error('[IMPORT]', result.error.message); }
+    else okCount += chunk.length;
+    prog.textContent = Math.min(i + CHUNK, _importData.length) + '/' + _importData.length + ' — ' + okCount + ' ok';
+    btn.innerHTML = '<span class="spinner"></span>' + Math.min(i + CHUNK, _importData.length) + '/' + _importData.length;
   }
-
   btn.disabled = false;
   btn.innerHTML = '📥 Importar a Supabase';
   if (errCount === 0) {
-    toast(`✅ ${ok} registros importados correctamente`, 'success', 5000);
+    toast('✅ ' + okCount + ' registros importados correctamente', 'success', 5000);
     cancelarImport();
   } else {
-    toast(`⚠️ ${ok} importados, ${errCount} con error — revisa la consola`, 'warn', 6000);
+    toast('⚠️ ' + okCount + ' importados, ' + errCount + ' con error', 'warn', 6000);
   }
   loadCounts();
 }
 
-// Descargar plantilla vacía
 function descargarPlantilla(tabla) {
-  if (typeof XLSX === 'undefined') { toast('Error: librería Excel no cargada', 'error'); return; }
-  const cols = {
-    empleados:  ['codigo', 'nombre', 'centro_costo', 'contrato'],
-    produccion: ['especie', 'producto', 'funcion', 'proceso', 'operacion', 'responsable', 'linea', 'linea_especial', 'funcion_especial'],
+  if (typeof XLSX === 'undefined') { toast('Librería Excel no cargada', 'error'); return; }
+  var cols = {
+    empleados:  [['codigo', 'nombre', 'centro_costo', 'contrato']],
+    produccion: [['especie', 'producto', 'funcion', 'proceso', 'operacion', 'responsable', 'linea', 'linea_especial', 'funcion_especial']],
   };
-  const ws = XLSX.utils.aoa_to_sheet([cols[tabla]]);
-  // Ancho de columnas
-  ws['!cols'] = cols[tabla].map(() => ({ wch: 22 }));
-  const wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.aoa_to_sheet(cols[tabla]);
+  ws['!cols'] = cols[tabla][0].map(function() { return { wch: 22 }; });
+  var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, tabla);
-  XLSX.writeFile(wb, `plantilla_${tabla}.xlsx`);
-  toast(`✅ Plantilla ${tabla}.xlsx descargada`);
+  XLSX.writeFile(wb, 'plantilla_' + tabla + '.xlsx');
+  toast('✅ plantilla_' + tabla + '.xlsx descargada');
 }
 
 // ════════════════════════════════════════════════════
 //  EXPORTAR — Excel y CSV con SheetJS
 // ════════════════════════════════════════════════════
-async function _fetchParaExportar(tabla) {
-  const db = getClient(); if (!db) return null;
-  toast('⏳ Descargando datos…', 'info');
-
-  let q = db.from(tabla).select('*');
-
-  // Filtros de registros
-  if (tabla === 'registros') {
-    const desde = document.getElementById('expDesde')?.value;
-    const hasta  = document.getElementById('expHasta')?.value;
-    const turno  = document.getElementById('expTurno')?.value;
-    if (desde) q = q.gte('fecha', desde);
-    if (hasta)  q = q.lte('fecha', hasta);
-    if (turno)  q = q.eq('turno', turno);
-    q = q.order('fecha', {ascending: false}).order('created_at', {ascending: false});
-  } else {
-    q = q.order('created_at', {ascending: false});
-  }
-
-  const { data, error } = await q;
-  if (error) { toast('Error al obtener datos: ' + error.message, 'error'); return null; }
-  if (!data || !data.length) { toast('No hay datos para exportar', 'warn'); return null; }
-  return data;
-}
-
-// Columnas visibles por tabla (excluir id, created_at, updated_at para Excel legible)
-const COLS_EXCEL = {
+var COLS_EXCEL = {
   registros:  ['mes','fecha','responsable','turno','linea','codigo','nombre','tipo_contrato','funcion','centro_costo','especie','producto','proceso','operacion','proceso_inicio','proceso_termino','atraso_inicio','descanso_inicio','descanso_termino','desayuno_programado','colacion_inicio','colacion_termino','colacion_programado'],
   empleados:  ['codigo','nombre','centro_costo','contrato','activo'],
   produccion: ['especie','producto','funcion','proceso','operacion','responsable','linea','linea_especial','funcion_especial'],
 };
 
+async function _fetchParaExportar(tabla) {
+  var db = getClient(); if (!db) return null;
+  toast('⏳ Obteniendo datos de Supabase…', 'info');
+  var q = db.from(tabla).select('*');
+  if (tabla === 'registros') {
+    var desde = (document.getElementById('expDesde') || {}).value || '';
+    var hasta  = (document.getElementById('expHasta') || {}).value || '';
+    var turno  = (document.getElementById('expTurno') || {}).value || '';
+    if (desde) q = q.gte('fecha', desde);
+    if (hasta) q = q.lte('fecha', hasta);
+    if (turno) q = q.eq('turno', turno);
+    q = q.order('fecha', { ascending: false }).order('created_at', { ascending: false });
+  } else {
+    q = q.order('created_at', { ascending: false });
+  }
+  var res = await q;
+  if (res.error) { toast('Error: ' + res.error.message, 'error'); return null; }
+  if (!res.data || !res.data.length) { toast('No hay datos para exportar', 'warn'); return null; }
+  return res.data;
+}
+
 async function exportarExcel(tabla) {
-  if (typeof XLSX === 'undefined') { toast('Error: librería Excel no cargada. Recarga la página.', 'error'); return; }
-  const data = await _fetchParaExportar(tabla);
+  if (typeof XLSX === 'undefined') { toast('Librería Excel no cargada — recarga la página', 'error'); return; }
+  var data = await _fetchParaExportar(tabla);
   if (!data) return;
-
-  const cols = COLS_EXCEL[tabla] || Object.keys(data[0]).filter(c => c !== 'id');
-  const header = cols;
-  const rows   = data.map(r => cols.map(c => {
-    const v = r[c];
-    if (v === null || v === undefined) return '';
-    // Timestamps: quitar la parte T y Z para legibilidad en Excel
-    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
-      return v.replace('T', ' ').substring(0, 16);
-    }
-    return v;
-  }));
-
-  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-
-  // Estilo de ancho de columnas
-  ws['!cols'] = cols.map(c => {
-    const maxLen = Math.max(c.length, ...rows.map(r => String(r[cols.indexOf(c)] || '').length));
+  var cols = COLS_EXCEL[tabla] || Object.keys(data[0]).filter(function(c) { return c !== 'id'; });
+  var header = cols;
+  var rows = data.map(function(r) {
+    return cols.map(function(c) {
+      var v = r[c];
+      if (v === null || v === undefined) return '';
+      if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) return v.replace('T', ' ').substring(0, 16);
+      return v;
+    });
+  });
+  var ws = XLSX.utils.aoa_to_sheet([header].concat(rows));
+  ws['!cols'] = cols.map(function(c) {
+    var maxLen = Math.max(c.length, rows.reduce(function(m, r) { return Math.max(m, String(r[cols.indexOf(c)] || '').length); }, 0));
     return { wch: Math.min(Math.max(maxLen + 2, 10), 40) };
   });
-
-  // Fila de encabezado en negrita (solo si el navegador soporta estilos XLSX)
-  if (ws['A1']) {
-    const range = XLSX.utils.decode_range(ws['!ref']);
-    for (let C = range.s.c; C <= range.e.c; C++) {
-      const cellAddr = XLSX.utils.encode_cell({ r: 0, c: C });
-      if (!ws[cellAddr]) continue;
-      ws[cellAddr].s = { font: { bold: true }, fill: { fgColor: { rgb: '0077B6' } } };
-    }
-  }
-
-  const wb = XLSX.utils.book_new();
+  var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, tabla.charAt(0).toUpperCase() + tabla.slice(1));
-  const fecha = new Date().toISOString().substring(0, 10);
-  XLSX.writeFile(wb, `${tabla}_${fecha}.xlsx`);
-  toast(`✅ ${data.length} filas exportadas → ${tabla}_${fecha}.xlsx`, 'success', 4000);
+  var fecha = new Date().toISOString().substring(0, 10);
+  XLSX.writeFile(wb, tabla + '_' + fecha + '.xlsx');
+  toast('✅ ' + data.length + ' filas → ' + tabla + '_' + fecha + '.xlsx', 'success', 4000);
 }
 
 async function exportarCSV(tabla) {
-  const data = await _fetchParaExportar(tabla);
+  var data = await _fetchParaExportar(tabla);
   if (!data) return;
-
-  const cols = COLS_EXCEL[tabla] || Object.keys(data[0]).filter(c => c !== 'id');
-  const csvRows = data.map(r =>
-    cols.map(c => {
-      const v = String(r[c] ?? '');
-      const clean = v.replace(/"/g, '""');
-      return `"${clean}"`;
-    }).join(',')
-  );
-  // BOM para que Excel abra UTF-8 correctamente
-  const content = '\uFEFF' + cols.join(',') + '\n' + csvRows.join('\n');
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
+  var cols = COLS_EXCEL[tabla] || Object.keys(data[0]).filter(function(c) { return c !== 'id'; });
+  var csvRows = data.map(function(r) {
+    return cols.map(function(c) {
+      var v = String(r[c] !== null && r[c] !== undefined ? r[c] : '');
+      return '"' + v.replace(/"/g, '""') + '"';
+    }).join(',');
+  });
+  // BOM para que Excel abra UTF-8 correctamente sin problemas de tildes
+  var content = '\uFEFF' + cols.join(',') + '\n' + csvRows.join('\n');
+  var blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  const fecha = new Date().toISOString().substring(0, 10);
-  a.download = `${tabla}_${fecha}.csv`;
+  var fecha = new Date().toISOString().substring(0, 10);
+  a.download = tabla + '_' + fecha + '.csv';
   a.click();
-  toast(`✅ ${data.length} filas exportadas → ${tabla}_${fecha}.csv`, 'success', 4000);
+  toast('✅ ' + data.length + ' filas → ' + tabla + '_' + fecha + '.csv', 'success', 4000);
 }
 
 // ════════════════════════════════════════════════════
