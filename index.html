@@ -1089,6 +1089,33 @@ body.noche-mode tbody tr:hover td:first-child{background:#0a1f35}
 
 /* Acciones por fila */
 .row-actions{display:flex;gap:5px;justify-content:center}
+/* Checkbox de selección — relleno rojo */
+input.chk-reg{
+  appearance:none; -webkit-appearance:none;
+  width:17px; height:17px;
+  border:2px solid #c0c8d4;
+  border-radius:4px;
+  cursor:pointer;
+  background:#fff;
+  display:inline-flex; align-items:center; justify-content:center;
+  vertical-align:middle;
+  transition:all .15s;
+  flex-shrink:0;
+}
+input.chk-reg:checked{
+  background:#e05252;
+  border-color:#c0392b;
+}
+input.chk-reg:checked::after{
+  content:'';
+  display:block;
+  width:4px; height:8px;
+  border:2px solid #fff;
+  border-top:none; border-left:none;
+  transform:rotate(45deg) translateY(-1px);
+}
+input.chk-reg:hover:not(:checked){ border-color:#e05252; }
+
 .btn-edit,.btn-del{border:none;border-radius:6px;padding:4px 9px;cursor:pointer;
   font-size:12px;font-weight:600;transition:all .2s;white-space:nowrap}
 .btn-edit{background:rgba(0,152,212,.12);color:var(--accent2)}
@@ -2091,11 +2118,7 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
   <div class="table-wrap">
     <table id="tablaReg">
       <thead><tr>
-        <th class="no-sort" style="width:36px;text-align:center;padding:6px">
-          <input type="checkbox" id="chkTodos" title="Seleccionar todos"
-            onchange="toggleTodosSel(this.checked)"
-            style="width:15px;height:15px;cursor:pointer;accent-color:#e05252;vertical-align:middle">
-        </th>
+        <th class="no-sort" style="width:36px;text-align:center;padding:6px"></th>
         <th class="no-sort" style="min-width:90px;text-align:center">Acciones</th>
         <th onclick="sortTable('estado')" style="min-width:100px;text-align:center;cursor:pointer" id="thEstado">Estado ↕</th>
         <th onclick="sortTable(1)">Fecha ↕</th>
@@ -2176,7 +2199,7 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
     <p>¿Estás seguro? Esta acción no se puede deshacer.</p>
     <div class="confirm-btns">
       <button class="btn btn-secondary" onclick="cerrarConfirm()">Cancelar</button>
-      <button class="btn-danger" onclick="confirmarEliminar()">🗑 Sí, eliminar</button>
+      <button class="btn-danger" onclick="despacharEliminar()">🗑 Sí, eliminar</button>
     </div>
   </div>
 </div>
@@ -3741,8 +3764,6 @@ function renderTabla(rows){
   }).join('');
 
   // Reset checkbox maestro tras renderizar
-  var cm = document.getElementById('chkTodos');
-  if(cm){ cm.checked=false; cm.indeterminate=false; }
   actualizarSelReg();
 }
 
@@ -3870,7 +3891,10 @@ function guardarEdicion(){
 function abrirEliminar(idx, id){
   elimIdx=idx;
   elimId=id||'';
-  window._idsEliminar = []; // limpiar selección múltiple
+  window._idsEliminar = []; // modo individual
+  // Restaurar texto original del modal
+  var p = document.querySelector('#confirmElim .confirm-box p');
+  if(p) p.textContent = '¿Estás seguro? Esta acción no se puede deshacer.';
   document.getElementById('confirmElim').classList.add('open');
 }
 
@@ -3878,6 +3902,16 @@ function cerrarConfirm(){
   document.getElementById('confirmElim').classList.remove('open');
   elimIdx=-1;
   elimId='';
+}
+
+// Despachador: decide si eliminar uno o varios
+function despacharEliminar(){
+  var ids = window._idsEliminar || [];
+  if(ids.length > 0){
+    ejecutarEliminarSeleccion();
+  } else {
+    confirmarEliminar();
+  }
 }
 
 function confirmarEliminar(){
@@ -5046,13 +5080,8 @@ function actualizarSelReg(){
   var marcados = checks.filter(function(c){ return c.checked; });
   var btn = document.getElementById('btnEliminarSel');
   var cnt = document.getElementById('cntSel');
-  var master = document.getElementById('chkTodos');
   if(cnt) cnt.textContent = marcados.length;
   if(btn) btn.style.display = marcados.length > 0 ? '' : 'none';
-  if(master){
-    master.checked       = marcados.length > 0 && marcados.length === checks.length;
-    master.indeterminate = marcados.length > 0 && marcados.length < checks.length;
-  }
   // Resaltar filas seleccionadas
   checks.forEach(function(c){
     var fila = document.getElementById('regfila-' + c.value);
@@ -5060,27 +5089,19 @@ function actualizarSelReg(){
   });
 }
 
-function toggleTodosSel(checked){
-  document.querySelectorAll('.chk-reg').forEach(function(c){ c.checked = checked; });
-  actualizarSelReg();
-}
+
 
 function confirmarEliminarSeleccion(){
   var ids = Array.from(document.querySelectorAll('.chk-reg:checked')).map(function(c){ return c.value; });
-  if(!ids.length) return;
+  if(!ids.length){ showToast('Selecciona al menos un registro','warning'); return; }
   window._idsEliminar = ids;
+  // Actualizar texto del modal
+  var p = document.querySelector('#confirmElim .confirm-box p');
+  if(p) p.textContent = '¿Eliminar ' + ids.length + ' registro' + (ids.length!==1?'s':'') + ' seleccionado'+(ids.length!==1?'s':'')+'? Esta acción no se puede deshacer.';
   document.getElementById('confirmElim').classList.add('open');
-  // Guardar referencia al texto del confirm
-  var msg = document.querySelector('#confirmElim p, #confirmElim .confirm-msg');
-  if(msg) msg.textContent = '¿Eliminar ' + ids.length + ' registro' + (ids.length!==1?'s':'') + ' seleccionado'+(ids.length!==1?'s':'')+'? Esta acción no se puede deshacer.';
 }
 
-// Override de confirmarEliminar para detectar si es selección múltiple
-var _origConfirmarEliminar = null;
-document.addEventListener('DOMContentLoaded', function(){
-  // Sobreescribir el botón de confirmar eliminación
-  var btnConf = document.querySelector('#confirmElim .btn-danger, #confirmElim [onclick*="confirmarEliminar"]');
-});
+// Selección múltiple — inicialización
 
 async function ejecutarEliminarSeleccion(){
   var ids = window._idsEliminar || [];
