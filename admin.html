@@ -692,15 +692,15 @@ body {
             <thead>
               <tr>
                 <th style="width:80px">Acciones</th>
-                <th>Especie</th>
-                <th>Función</th>
-                <th>Producto</th>
-                <th>Proceso</th>
-                <th>Operación</th>
-                <th>Responsable</th>
-                <th>Línea</th>
-                <th>Línea Especial</th>
-                <th>Función Especial</th>
+                <th onclick="sortProd('especie')"        style="cursor:pointer;user-select:none" id="thp-especie">Especie <span id="arr-especie">↕</span></th>
+                <th onclick="sortProd('funcion')"        style="cursor:pointer;user-select:none" id="thp-funcion">Función <span id="arr-funcion">↕</span></th>
+                <th onclick="sortProd('producto')"       style="cursor:pointer;user-select:none" id="thp-producto">Producto <span id="arr-producto">↕</span></th>
+                <th onclick="sortProd('proceso')"        style="cursor:pointer;user-select:none" id="thp-proceso">Proceso <span id="arr-proceso">↕</span></th>
+                <th onclick="sortProd('operacion')"      style="cursor:pointer;user-select:none" id="thp-operacion">Operación <span id="arr-operacion">↕</span></th>
+                <th onclick="sortProd('responsable')"    style="cursor:pointer;user-select:none" id="thp-responsable">Responsable <span id="arr-responsable">↕</span></th>
+                <th onclick="sortProd('linea')"          style="cursor:pointer;user-select:none" id="thp-linea">Línea <span id="arr-linea">↕</span></th>
+                <th onclick="sortProd('linea_especial')" style="cursor:pointer;user-select:none" id="thp-linea_especial">Línea Especial <span id="arr-linea_especial">↕</span></th>
+                <th onclick="sortProd('funcion_especial')" style="cursor:pointer;user-select:none" id="thp-funcion_especial">Función Especial <span id="arr-funcion_especial">↕</span></th>
               </tr>
             </thead>
             <tbody id="tbodyProd">
@@ -1576,8 +1576,8 @@ async function guardarEmpleado() {
 // ════════════════════════════════════════════════════
 //  ═══ PRODUCCIÓN ═══
 // ════════════════════════════════════════════════════
-let _prodPage = 1;
-const PROD_PER_PAGE = 50;
+let _prodSortCol = 'especie';
+let _prodSortAsc = true;
 
 async function loadProduccion() {
   const db = getClient(); if (!db) return;
@@ -1585,16 +1585,25 @@ async function loadProduccion() {
   tbody.innerHTML = '<tr class="loading-row"><td colspan="10"><span class="spinner"></span>Cargando…</td></tr>';
 
   const search = document.getElementById('prodSearch').value.trim();
-  let q = db.from('produccion').select('*', { count:'exact' }).order('especie').order('producto');
-  if (search) q = q.or(`especie.ilike.%${search}%,producto.ilike.%${search}%,responsable.ilike.%${search}%,proceso.ilike.%${search}%,funcion.ilike.%${search}%,linea.ilike.%${search}%,linea_especial.ilike.%${search}%,funcion_especial.ilike.%${search}%`);
 
-  const from = (_prodPage - 1) * PROD_PER_PAGE;
-  q = q.range(from, from + PROD_PER_PAGE - 1);
+  // Traer TODOS los registros sin paginación (limit 2000)
+  let q = db.from('produccion').select('*', { count:'exact' })
+    .order(_prodSortCol, { ascending: _prodSortAsc })
+    .limit(2000);
+  if (search) q = q.or(`especie.ilike.%${search}%,producto.ilike.%${search}%,responsable.ilike.%${search}%,proceso.ilike.%${search}%,funcion.ilike.%${search}%,linea.ilike.%${search}%,linea_especial.ilike.%${search}%,funcion_especial.ilike.%${search}%`);
 
   const { data, error, count } = await q;
   if (error) { toast('Error: '+error.message,'error'); return; }
 
   document.getElementById('prodCountBadge').textContent = `${count ?? 0} entradas`;
+
+  // Actualizar flechas
+  ['especie','funcion','producto','proceso','operacion','responsable','linea','linea_especial','funcion_especial'].forEach(col => {
+    const el = document.getElementById('arr-'+col);
+    if (!el) return;
+    if (col === _prodSortCol) el.textContent = _prodSortAsc ? '↑' : '↓';
+    else el.textContent = '↕';
+  });
 
   if (!data?.length) {
     tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="ei">🏭</div><p>Sin datos de producción</p></div></td></tr>';
@@ -1620,7 +1629,14 @@ async function loadProduccion() {
       <td>${esc(r.funcion_especial)}</td>
     </tr>`).join('');
 
-  renderPagination('prodPagination', count, _prodPage, PROD_PER_PAGE, p => { _prodPage = p; loadProduccion(); });
+  // Sin paginación — ocultar paginador
+  document.getElementById('prodPagination').innerHTML = '';
+}
+
+function sortProd(col) {
+  if (_prodSortCol === col) _prodSortAsc = !_prodSortAsc;
+  else { _prodSortCol = col; _prodSortAsc = true; }
+  loadProduccion();
 }
 
 function abrirModalProduccion(r = null) {
