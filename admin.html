@@ -693,12 +693,14 @@ body {
               <tr>
                 <th style="width:80px">Acciones</th>
                 <th>Especie</th>
-                <th>Producto</th>
                 <th>Función</th>
+                <th>Producto</th>
                 <th>Proceso</th>
                 <th>Operación</th>
                 <th>Responsable</th>
                 <th>Línea</th>
+                <th>Línea Especial</th>
+                <th>Función Especial</th>
               </tr>
             </thead>
             <tbody id="tbodyProd">
@@ -1580,11 +1582,11 @@ const PROD_PER_PAGE = 50;
 async function loadProduccion() {
   const db = getClient(); if (!db) return;
   const tbody = document.getElementById('tbodyProd');
-  tbody.innerHTML = '<tr class="loading-row"><td colspan="8"><span class="spinner"></span>Cargando…</td></tr>';
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="10"><span class="spinner"></span>Cargando…</td></tr>';
 
   const search = document.getElementById('prodSearch').value.trim();
   let q = db.from('produccion').select('*', { count:'exact' }).order('especie').order('producto');
-  if (search) q = q.or(`especie.ilike.%${search}%,producto.ilike.%${search}%,responsable.ilike.%${search}%,proceso.ilike.%${search}%`);
+  if (search) q = q.or(`especie.ilike.%${search}%,producto.ilike.%${search}%,responsable.ilike.%${search}%,proceso.ilike.%${search}%,funcion.ilike.%${search}%,linea.ilike.%${search}%,linea_especial.ilike.%${search}%,funcion_especial.ilike.%${search}%`);
 
   const from = (_prodPage - 1) * PROD_PER_PAGE;
   q = q.range(from, from + PROD_PER_PAGE - 1);
@@ -1595,7 +1597,7 @@ async function loadProduccion() {
   document.getElementById('prodCountBadge').textContent = `${count ?? 0} entradas`;
 
   if (!data?.length) {
-    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="ei">🏭</div><p>Sin datos de producción</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="ei">🏭</div><p>Sin datos de producción</p></div></td></tr>';
     return;
   }
 
@@ -1608,12 +1610,14 @@ async function loadProduccion() {
         </div>
       </td>
       <td>${esc(r.especie)}</td>
-      <td>${esc(r.producto)}</td>
       <td>${esc(r.funcion)}</td>
+      <td>${esc(r.producto)}</td>
       <td>${esc(r.proceso)}</td>
       <td>${esc(r.operacion)}</td>
       <td>${esc(r.responsable)}</td>
       <td>${esc(r.linea)}</td>
+      <td>${esc(r.linea_especial)}</td>
+      <td>${esc(r.funcion_especial)}</td>
     </tr>`).join('');
 
   renderPagination('prodPagination', count, _prodPage, PROD_PER_PAGE, p => { _prodPage = p; loadProduccion(); });
