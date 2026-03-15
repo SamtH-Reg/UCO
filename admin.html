@@ -1896,29 +1896,63 @@ function procesarArchivo(file) {
 }
 
 async function ejecutarImport() {
-  var db = getClient(); if (!db || !_importData || !_importData.length) return;
+  var db = getClient();
+  if (!db) { toast('Sin conexión a Supabase — ve a Configuración', 'error', 5000); return; }
+  if (!_importData || !_importData.length) { toast('No hay datos para importar', 'warn'); return; }
+
   var tabla = document.getElementById('importTabla').value;
   var btn   = document.getElementById('btnImportar');
   var prog  = document.getElementById('importProgress');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Importando…';
-  var okCount = 0, errCount = 0;
+
+  var okCount = 0, errCount = 0, errMsg = '';
   var CHUNK = 50;
+
   for (var i = 0; i < _importData.length; i += CHUNK) {
     var chunk = _importData.slice(i, i + CHUNK);
-    var result = await db.from(tabla).upsert(chunk, { ignoreDuplicates: false });
-    if (result.error) { errCount += chunk.length; console.error('[IMPORT]', result.error.message); }
-    else okCount += chunk.length;
-    prog.textContent = Math.min(i + CHUNK, _importData.length) + '/' + _importData.length + ' — ' + okCount + ' ok';
-    btn.innerHTML = '<span class="spinner"></span>' + Math.min(i + CHUNK, _importData.length) + '/' + _importData.length;
+
+    // Limpiar campos vacíos para que Supabase use sus defaults
+    var chunkLimpio = chunk.map(function(row) {
+      var r = {};
+      Object.keys(row).forEach(function(k) {
+        // No enviar campo id — lo genera Supabase automáticamente
+        if (k === 'id' || k === 'created_at' || k === 'updated_at') return;
+        // No enviar campos vacíos en tablas con NOT NULL que tienen default
+        if (row[k] !== '' && row[k] !== null && row[k] !== undefined) {
+          r[k] = row[k];
+        } else {
+          r[k] = row[k]; // mantener vacíos — la tabla lo maneja
+        }
+      });
+      return r;
+    });
+
+    var result = await db.from(tabla).insert(chunkLimpio);
+    if (result.error) {
+      errCount += chunk.length;
+      errMsg = result.error.message;
+      console.error('[IMPORT]', tabla, result.error.message);
+    } else {
+      okCount += chunk.length;
+    }
+    var progNum = Math.min(i + CHUNK, _importData.length);
+    prog.textContent = progNum + '/' + _importData.length + ' — ' + okCount + ' ok' + (errCount ? ', ' + errCount + ' error' : '');
+    btn.innerHTML = '<span class="spinner"></span>' + progNum + '/' + _importData.length;
   }
+
   btn.disabled = false;
   btn.innerHTML = '📥 Importar a Supabase';
+
   if (errCount === 0) {
     toast('✅ ' + okCount + ' registros importados correctamente', 'success', 5000);
     cancelarImport();
+    if (tabla === 'empleados')  loadEmpleados();
+    if (tabla === 'produccion') loadProduccion();
+  } else if (okCount > 0) {
+    toast('⚠️ ' + okCount + ' importados, ' + errCount + ' con error: ' + errMsg, 'warn', 8000);
   } else {
-    toast('⚠️ ' + okCount + ' importados, ' + errCount + ' con error', 'warn', 6000);
+    toast('❌ Error al importar: ' + errMsg, 'error', 8000);
   }
   loadCounts();
 }
@@ -2397,8 +2431,15 @@ async function ejecutarImportRegistros() {
   var ok = 0, errCount = 0;
   var CHUNK = 50;
   for (var i = 0; i < _importRegData.length; i += CHUNK) {
-    var chunk = _importRegData.slice(i, i+CHUNK);
-    var result = await db.from('registros').upsert(chunk, { ignoreDuplicates: false });
+    var chunk = _importRegData.slice(i, i+CHUNK).map(function(row){
+      var r = {};
+      Object.keys(row).forEach(function(k){
+        if(k==='id'||k==='created_at'||k==='updated_at') return;
+        r[k] = row[k];
+      });
+      return r;
+    });
+    var result = await db.from('registros').insert(chunk);
     if (result.error) { errCount += chunk.length; console.error('[IMPORT REG]', result.error.message); }
     else ok += chunk.length;
     prog.textContent = Math.min(i+CHUNK, _importRegData.length)+'/'+_importRegData.length+' — '+ok+' ok';
