@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Sistema de Asistencia</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -24,8 +24,8 @@
   --danger:   #d63031;
   --warn:     #e17055;
   --success:  #00b894;
-  --mono:     'JetBrains Mono', monospace;
-  --sans:     'Syne', sans-serif;
+  --mono:     'Courier New', 'Lucida Console', monospace;
+  --sans:     'Calibri', 'Trebuchet MS', 'Segoe UI', sans-serif;
 }
 
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -571,6 +571,7 @@ body {
         <div class="page-header-actions">
           <button class="btn btn-secondary" onclick="loadRegistros()">🔄 Recargar</button>
           <button class="btn btn-secondary" id="btnExportarReg" onclick="exportarRegistrosExcel()" title="Exporta los registros filtrados en pantalla a Excel">🟢 Exportar Excel</button>
+          <button class="btn btn-secondary" onclick="abrirImportarRegistros()" title="Importar registros desde Excel">📥 Importar Excel</button>
           <button class="btn btn-danger"    id="btnEliminarSel" onclick="confirmarEliminarSeleccion()" style="display:none">
             🗑 Eliminar seleccionados (<span id="cntSel">0</span>)
           </button>
@@ -619,6 +620,7 @@ body {
                 <th>Especie</th>
                 <th>Proceso</th>
                 <th>Centro Costo</th>
+                <th>Hora Envío</th>
               </tr>
             </thead>
             <tbody id="tbodyReg">
@@ -968,6 +970,54 @@ body {
 <!-- ══ TOAST ══ -->
 <div id="toast"></div>
 
+<!-- ══ MODAL IMPORTAR REGISTROS ══ -->
+<div class="modal-overlay" id="modalImportReg">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <h2>📥 Importar Registros desde Excel</h2>
+      <button class="modal-close" onclick="cerrarModal('modalImportReg')">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Instrucciones -->
+      <div style="background:var(--surface3);border:1px solid var(--border);border-radius:9px;padding:14px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.8">
+        <strong style="color:var(--text);font-size:13px">Encabezados requeridos en el archivo Excel:</strong><br>
+        <code style="background:var(--surface);border:1px solid var(--border);padding:2px 7px;border-radius:4px;font-size:11px">
+          fecha · responsable · turno · linea · codigo · nombre · tipo_contrato · funcion · centro_costo · especie · producto · proceso · operacion
+        </code><br><br>
+        Las columnas de horarios son opcionales:<br>
+        <code style="background:var(--surface);border:1px solid var(--border);padding:2px 7px;border-radius:4px;font-size:11px">
+          proceso_inicio · proceso_termino · atraso_inicio · descanso_inicio · descanso_termino · desayuno_programado · colacion_inicio · colacion_termino · colacion_programado
+        </code>
+      </div>
+      <!-- Selector tabla (fijo en registros) -->
+      <input type="file" id="fileInputReg" accept=".xlsx,.xls,.csv" onchange="procesarArchivoRegistros(event)" style="display:none">
+      <!-- Drop zone -->
+      <div class="import-zone" id="importZoneReg"
+        onclick="document.getElementById('fileInputReg').click()"
+        ondragover="event.preventDefault();this.classList.add('drag')"
+        ondragleave="this.classList.remove('drag')"
+        ondrop="handleFileDropReg(event)">
+        <div class="import-zone-icon">📊</div>
+        <div class="import-zone-title">Arrastra tu archivo Excel o CSV aquí</div>
+        <div class="import-zone-sub">Formatos: .xlsx · .xls · .csv — o haz clic para seleccionar</div>
+      </div>
+      <!-- Preview -->
+      <div id="importRegPreview" style="display:none;margin-top:14px">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;overflow-x:auto">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px;font-family:var(--mono);letter-spacing:.8px">VISTA PREVIA — PRIMERAS 5 FILAS</div>
+          <table id="importRegTable" style="border-collapse:collapse;font-size:11px;min-width:100%"></table>
+          <div id="importRegInfo" style="font-size:12px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-primary" id="btnImportarReg" onclick="ejecutarImportRegistros()">📥 Importar a Supabase</button>
+          <button class="btn btn-secondary" onclick="cancelarImportReg()">✕ Cancelar</button>
+          <span id="importRegProg" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ MODAL REGISTRO ══ -->
 <div class="modal-overlay" id="modalReg">
   <div class="modal">
@@ -1262,7 +1312,7 @@ async function loadRegistros() {
   if (!db) { toast('Configura la conexión Supabase primero','error'); return; }
 
   const tbody = document.getElementById('tbodyReg');
-  tbody.innerHTML = '<tr class="loading-row"><td colspan="11"><span class="spinner"></span>Cargando…</td></tr>';
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="12"><span class="spinner"></span>Cargando…</td></tr>';
 
   const search = document.getElementById('regSearch').value.trim();
   const turno  = document.getElementById('regTurno').value;
@@ -1285,7 +1335,7 @@ async function loadRegistros() {
   renderRegStats(count);
 
   if (!data?.length) {
-    tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div class="ei">🔍</div><p>Sin resultados</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div class="ei">🔍</div><p>Sin resultados</p></div></td></tr>';
     return;
   }
 
@@ -1314,6 +1364,7 @@ async function loadRegistros() {
       <td>${esc(r.especie)}</td>
       <td>${esc(r.proceso)}</td>
       <td>${esc(r.centro_costo)}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap">${fmtHoraEnvio(r.created_at)}</td>
     </tr>`).join('');
 
   // Reset checkbox maestro
@@ -2182,6 +2233,157 @@ async function borrarTodoRegistros() {
   if (error) { toast('Error: '+error.message,'error'); return; }
   toast('🗑 Todos los registros eliminados','warn');
   loadCounts();
+}
+
+// ════════════════════════════════════════════════════
+//  HORA DE ENVÍO — formatea created_at como HH:MM
+// ════════════════════════════════════════════════════
+function fmtHoraEnvio(v) {
+  if (!v) return '—';
+  try {
+    const d = new Date(v);
+    const h = String(d.getHours()).padStart(2,'0');
+    const m = String(d.getMinutes()).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    return dd+'/'+mm+' '+h+':'+m;
+  } catch { return '—'; }
+}
+
+// ════════════════════════════════════════════════════
+//  IMPORTAR REGISTROS DESDE EXCEL
+// ════════════════════════════════════════════════════
+var _importRegData = null;
+
+function abrirImportarRegistros() {
+  cancelarImportReg();
+  document.getElementById('modalImportReg').classList.add('open');
+}
+
+function cancelarImportReg() {
+  _importRegData = null;
+  document.getElementById('importRegPreview').style.display = 'none';
+  document.getElementById('fileInputReg').value = '';
+  document.getElementById('importRegProg').textContent = '';
+}
+
+function handleFileDropReg(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag');
+  var file = e.dataTransfer.files[0];
+  if (file) procesarArchivoRegistros({ target: { files: [file] } });
+}
+
+// Mapeo de columnas del Excel → campos de Supabase
+var MAPA_REG = {
+  'mes':'mes','fecha':'fecha','responsable':'responsable','turno':'turno','linea':'linea',
+  'codigo':'codigo','nombre':'nombre','tipo_contrato':'tipo_contrato','tipo contrato':'tipo_contrato',
+  'funcion':'funcion','función':'funcion','centro_costo':'centro_costo','centro costo':'centro_costo',
+  'centrodecosto':'centro_costo','especie':'especie','producto':'producto','proceso':'proceso',
+  'operacion':'operacion','operación':'operacion',
+  'proceso_inicio':'proceso_inicio','proceso inicio':'proceso_inicio',
+  'proceso_termino':'proceso_termino','proceso termino':'proceso_termino','proceso término':'proceso_termino',
+  'atraso_inicio':'atraso_inicio','atraso inicio':'atraso_inicio','atraso':'atraso_inicio',
+  'descanso_inicio':'descanso_inicio','descanso inicio':'descanso_inicio',
+  'descanso_termino':'descanso_termino','descanso termino':'descanso_termino',
+  'desayuno_programado':'desayuno_programado','desayuno':'desayuno_programado',
+  'colacion_inicio':'colacion_inicio','colación inicio':'colacion_inicio','colacion inicio':'colacion_inicio',
+  'colacion_termino':'colacion_termino','colación termino':'colacion_termino','colacion termino':'colacion_termino',
+  'colacion_programado':'colacion_programado','colación programado':'colacion_programado',
+};
+var MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function procesarArchivoRegistros(ev) {
+  var file = ev.target.files[0];
+  if (!file) return;
+  if (typeof XLSX === 'undefined') { toast('Librería Excel no cargada — recarga la página','error',5000); return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var wb = XLSX.read(e.target.result, { type:'array', cellDates:true });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, { defval:'' });
+      if (!rows.length) { toast('El archivo está vacío','error'); return; }
+
+      var rawHeaders = Object.keys(rows[0]);
+      _importRegData = rows.map(function(row) {
+        var mapped = {};
+        rawHeaders.forEach(function(h) {
+          var hNorm = h.toLowerCase().trim().replace(/\s+/g,'_');
+          var col = MAPA_REG[h.toLowerCase().trim()] || MAPA_REG[hNorm] || hNorm;
+          var val = row[h];
+          if (val instanceof Date) {
+            // Si tiene hora, guardar como datetime; si no, solo fecha
+            var hasTime = val.getHours()!==0 || val.getMinutes()!==0;
+            if (hasTime) {
+              val = val.toISOString().substring(0,16);
+            } else {
+              val = val.getFullYear()+'-'+String(val.getMonth()+1).padStart(2,'0')+'-'+String(val.getDate()).padStart(2,'0');
+            }
+          }
+          mapped[col] = (val===null||val===undefined) ? '' : String(val).trim();
+        });
+        // Auto-calcular mes si no viene
+        if (!mapped.mes && mapped.fecha) {
+          try {
+            var partes = mapped.fecha.substring(0,10).split('-');
+            mapped.mes = MESES[parseInt(partes[1])-1] || '';
+          } catch(e2){}
+        }
+        return mapped;
+      });
+
+      // Vista previa
+      var cols = Object.keys(_importRegData[0]);
+      var preview = _importRegData.slice(0,5);
+      var thHtml = cols.map(function(c) {
+        return '<th style="padding:4px 8px;background:var(--surface3);font-size:10px;font-weight:700;text-align:left;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">'+esc(c)+'</th>';
+      }).join('');
+      var trHtml = preview.map(function(r) {
+        return '<tr>'+cols.map(function(c) {
+          return '<td style="padding:4px 8px;font-size:11px;border-bottom:1px solid var(--border);white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+esc(String(r[c]||''))+'</td>';
+        }).join('')+'</tr>';
+      }).join('');
+      document.getElementById('importRegTable').innerHTML = '<thead><tr>'+thHtml+'</tr></thead><tbody>'+trHtml+'</tbody>';
+      document.getElementById('importRegInfo').innerHTML =
+        '<strong>Archivo:</strong> '+esc(file.name)+' &nbsp;·&nbsp; <strong>Filas:</strong> '+_importRegData.length+' &nbsp;·&nbsp; <strong>Columnas:</strong> '+cols.join(', ');
+      document.getElementById('importRegPreview').style.display = 'block';
+    } catch(err) {
+      toast('Error al leer el archivo: '+err.message,'error',5000);
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function ejecutarImportRegistros() {
+  var db = getClient();
+  if (!db || !_importRegData || !_importRegData.length) return;
+  var btn  = document.getElementById('btnImportarReg');
+  var prog = document.getElementById('importRegProg');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Importando…';
+  var ok = 0, errCount = 0;
+  var CHUNK = 50;
+  for (var i = 0; i < _importRegData.length; i += CHUNK) {
+    var chunk = _importRegData.slice(i, i+CHUNK);
+    var result = await db.from('registros').upsert(chunk, { ignoreDuplicates: false });
+    if (result.error) { errCount += chunk.length; console.error('[IMPORT REG]', result.error.message); }
+    else ok += chunk.length;
+    prog.textContent = Math.min(i+CHUNK, _importRegData.length)+'/'+_importRegData.length+' — '+ok+' ok';
+    btn.innerHTML = '<span class="spinner"></span>'+Math.min(i+CHUNK, _importRegData.length)+'/'+_importRegData.length;
+  }
+  btn.disabled = false;
+  btn.innerHTML = '📥 Importar a Supabase';
+  if (errCount === 0) {
+    toast('✅ '+ok+' registros importados correctamente','success',5000);
+    cerrarModal('modalImportReg');
+    cancelarImportReg();
+    loadRegistros();
+    loadCounts();
+  } else {
+    toast('⚠️ '+ok+' importados, '+errCount+' con error — revisa la consola','warn',6000);
+  }
 }
 
 // ════════════════════════════════════════════════════
