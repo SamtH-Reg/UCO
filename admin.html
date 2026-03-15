@@ -482,6 +482,31 @@ body {
 .page-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
 .page-btn:disabled { opacity: .35; cursor: default; }
 
+/* ══ SORT HEADER ══ */
+.th-sort {
+  cursor: pointer; user-select: none;
+  white-space: nowrap;
+}
+.th-sort:hover { color: var(--text); }
+.sort-arrow { font-size: 10px; margin-left: 4px; opacity: .5; }
+.th-sort.asc  .sort-arrow::after { content: '↑'; opacity: 1; color: var(--accent); }
+.th-sort.desc .sort-arrow::after { content: '↓'; opacity: 1; color: var(--accent); }
+.th-sort:not(.asc):not(.desc) .sort-arrow::after { content: '↕'; }
+
+/* Celdas apiladas (responsable / línea / línea especial / función especial) */
+.cell-stack { display: flex; flex-direction: column; gap: 3px; min-width: 120px; }
+.cell-stack-main { font-size: 12px; color: var(--text); }
+.cell-stack-sub  {
+  font-size: 10px; color: var(--muted);
+  background: var(--surface3);
+  border-radius: 4px;
+  padding: 1px 6px;
+  display: inline-block;
+  max-width: 160px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cell-stack-sub:empty { display: none; }
+
 /* ══ BADGE ══ */
 .badge {
   display: inline-flex; align-items: center;
@@ -692,13 +717,12 @@ body {
             <thead>
               <tr>
                 <th style="width:80px">Acciones</th>
-                <th>Especie</th>
-                <th>Producto</th>
-                <th>Función</th>
-                <th>Proceso</th>
-                <th>Operación</th>
-                <th>Responsable</th>
-                <th>Línea</th>
+                <th class="th-sort" onclick="sortProd('especie')"   id="thp-especie">Especie<span class="sort-arrow"></span></th>
+                <th class="th-sort" onclick="sortProd('producto')"  id="thp-producto">Producto<span class="sort-arrow"></span></th>
+                <th class="th-sort" onclick="sortProd('funcion')"   id="thp-funcion">Función<span class="sort-arrow"></span></th>
+                <th class="th-sort" onclick="sortProd('proceso')"   id="thp-proceso">Proceso<span class="sort-arrow"></span></th>
+                <th class="th-sort" onclick="sortProd('operacion')" id="thp-operacion">Operación<span class="sort-arrow"></span></th>
+                <th class="th-sort" onclick="sortProd('responsable')" id="thp-responsable">Responsable / Línea<span class="sort-arrow"></span></th>
               </tr>
             </thead>
             <tbody id="tbodyProd">
@@ -1574,17 +1598,23 @@ async function guardarEmpleado() {
 // ════════════════════════════════════════════════════
 //  ═══ PRODUCCIÓN ═══
 // ════════════════════════════════════════════════════
-let _prodPage = 1;
+let _prodPage    = 1;
+let _prodSortCol = 'especie';
+let _prodSortAsc = true;
 const PROD_PER_PAGE = 50;
 
 async function loadProduccion() {
   const db = getClient(); if (!db) return;
   const tbody = document.getElementById('tbodyProd');
-  tbody.innerHTML = '<tr class="loading-row"><td colspan="8"><span class="spinner"></span>Cargando…</td></tr>';
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="7"><span class="spinner"></span>Cargando…</td></tr>';
 
   const search = document.getElementById('prodSearch').value.trim();
-  let q = db.from('produccion').select('*', { count:'exact' }).order('especie').order('producto');
-  if (search) q = q.or(`especie.ilike.%${search}%,producto.ilike.%${search}%,responsable.ilike.%${search}%,proceso.ilike.%${search}%`);
+  let q = db.from('produccion').select('*', { count:'exact' })
+    .order(_prodSortCol, { ascending: _prodSortAsc });
+  // Segundo orden siempre para desempate
+  if (_prodSortCol !== 'especie')  q = q.order('especie',  { ascending: true });
+  if (_prodSortCol !== 'producto') q = q.order('producto', { ascending: true });
+  if (search) q = q.or(`especie.ilike.%${search}%,producto.ilike.%${search}%,responsable.ilike.%${search}%,proceso.ilike.%${search}%,funcion.ilike.%${search}%,operacion.ilike.%${search}%,linea.ilike.%${search}%`);
 
   const from = (_prodPage - 1) * PROD_PER_PAGE;
   q = q.range(from, from + PROD_PER_PAGE - 1);
@@ -1594,8 +1624,15 @@ async function loadProduccion() {
 
   document.getElementById('prodCountBadge').textContent = `${count ?? 0} entradas`;
 
+  // Actualizar flechas de ordenamiento
+  document.querySelectorAll('.th-sort[id^="thp-"]').forEach(th => {
+    th.classList.remove('asc','desc');
+  });
+  const activeTh = document.getElementById('thp-' + _prodSortCol);
+  if (activeTh) activeTh.classList.add(_prodSortAsc ? 'asc' : 'desc');
+
   if (!data?.length) {
-    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="ei">🏭</div><p>Sin datos de producción</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="ei">🏭</div><p>Sin datos de producción</p></div></td></tr>';
     return;
   }
 
@@ -1612,11 +1649,28 @@ async function loadProduccion() {
       <td>${esc(r.funcion)}</td>
       <td>${esc(r.proceso)}</td>
       <td>${esc(r.operacion)}</td>
-      <td>${esc(r.responsable)}</td>
-      <td>${esc(r.linea)}</td>
+      <td>
+        <div class="cell-stack">
+          <span class="cell-stack-main">${esc(r.responsable)}</span>
+          <span class="cell-stack-sub">${esc(r.linea)}</span>
+          <span class="cell-stack-sub">${esc(r.linea_especial)}</span>
+          <span class="cell-stack-sub">${esc(r.funcion_especial)}</span>
+        </div>
+      </td>
     </tr>`).join('');
 
   renderPagination('prodPagination', count, _prodPage, PROD_PER_PAGE, p => { _prodPage = p; loadProduccion(); });
+}
+
+function sortProd(col) {
+  if (_prodSortCol === col) {
+    _prodSortAsc = !_prodSortAsc;
+  } else {
+    _prodSortCol = col;
+    _prodSortAsc = true;
+  }
+  _prodPage = 1;
+  loadProduccion();
 }
 
 function abrirModalProduccion(r = null) {
