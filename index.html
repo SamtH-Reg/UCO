@@ -29,8 +29,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
     });
   }
 })();
-const SHEETS_API_VACACIONES = ''; // opcional
-const SHEETS_API_PERMISOS   = ''; // opcional
+const SHEETS_API_VACACIONES = 'https://script.google.com/macros/s/AKfycbw2meDcRnusRCJmI-IzBmPfk7CWgigQzp_Uy2Dt7KmLB4u_CZ6mvLa1-ihFQjvvABhm4g/exec?tipo=vacaciones';
+const SHEETS_API_PERMISOS   = 'https://script.google.com/macros/s/AKfycbwMnLr8CmkQVw4oS2Myct7njFQjAfbWZLBUn6uR8mL96lslWNdUy04GheM9dgapiOh5/exec?tipo=permisos';
 // ────────────────────────────────────────────────────────────────
 
 const _SB_CONFIG = { VERSION:'3.1', MAX_BUSQUEDA:20, CACHE_TTL:300, CACHE_EMP:600, CACHE_EXT:600 };
@@ -263,46 +263,77 @@ async function eliminarRegistro(id){
 async function obtenerAusentesDia(fechaStr){
   try{
     if(!fechaStr){ const h=new Date(); fechaStr=`${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`; }
-    const {data:noRegData}=await _sbDb().from('noregistrar').select('codigo,nombre');
+    const db = _sbDb();
+
+    // 1. Lista noregistrar
+    const {data:noRegData}=await db.from('noregistrar').select('codigo,nombre');
     const nrC=new Set((noRegData||[]).map(r=>r.codigo.trim().toLowerCase()).filter(Boolean));
     const nrN=new Set((noRegData||[]).map(r=>r.nombre.trim().toLowerCase()).filter(Boolean));
-    const empleados=(await obtenerEmpleados()).filter(e=>!nrC.has(e.codigo.toLowerCase())&&!nrN.has(e.nombre.toLowerCase()));
-    const {data:regsHoy}=await _sbDb().from('registros').select('codigo').eq('fecha',fechaStr);
+
+    // 2. Empleados activos filtrados
+    const empleados=(await obtenerEmpleados()).filter(e=>
+      !nrC.has(e.codigo.toLowerCase())&&!nrN.has(e.nombre.toLowerCase())
+    );
+
+    // 3. Registros del día
+    const {data:regsHoy}=await db.from('registros').select('codigo').eq('fecha',fechaStr);
     const conReg=new Set((regsHoy||[]).map(r=>r.codigo));
+
     const ausentes=empleados.filter(e=>!conReg.has(e.codigo));
     if(!ausentes.length) return [];
-    // Vacaciones y permisos externos (opcionales)
-    let vacSet=new Set(), permP=new Set(), permM=new Set(), permJ=new Set();
-    if(SHEETS_API_VACACIONES){
-      try{ const vCached=_cGet('ext_vac'); if(vCached){ vacSet=new Set(vCached); }
-        else{ const r=await fetch(SHEETS_API_VACACIONES); if(r.ok){ const j=await r.json(); vacSet=new Set(j.codigosEnCurso||[]); _cPut('ext_vac',[...vacSet],_SB_CONFIG.CACHE_EXT); } }
-      }catch(e){ console.warn('[VAC]',e.message); }
-    }
-    if(SHEETS_API_PERMISOS){
-      try{ const pCached=_cGet('ext_perm_'+fechaStr);
-        if(pCached){ permP=new Set(pCached.personal||[]); permM=new Set(pCached.medico||[]); permJ=new Set(pCached.judicial||[]); }
-        else{ const r=await fetch(SHEETS_API_PERMISOS+'&fecha='+fechaStr);
-          if(r.ok){ const j=await r.json(); permP=new Set(j.personal||[]); permM=new Set(j.medico||[]); permJ=new Set(j.judicial||[]);
-            _cPut('ext_perm_'+fechaStr,{personal:[...permP],medico:[...permM],judicial:[...permJ]},_SB_CONFIG.CACHE_EXT); } }
-      }catch(e){ console.warn('[PERM]',e.message); }
-    }
+
+    // 4. Vacaciones — leer desde tabla Supabase (sin CORS)
+    let vacSet=new Set();
+    try{
+      const vacCached=_cGet('ext_vac');
+      if(vacCached){
+        vacSet=new Set(vacCached);
+      } else {
+        const {data:vacData}=await db.from('vacaciones').select('codigo').eq('estado','EN CURSO');
+        const codigos=(vacData||[]).map(r=>r.codigo);
+        vacSet=new Set(codigos);
+        _cPut('ext_vac',codigos,_SB_CONFIG.CACHE_EXT);
+      }
+    }catch(e){ console.warn('[VAC]',e.message); }
+
+    // 5. Permisos — leer desde tabla Supabase (sin CORS)
+    let permP=new Set(), permM=new Set(), permJ=new Set();
+    try{
+      const permCacheKey='ext_perm_'+fechaStr;
+      const permCached=_cGet(permCacheKey);
+      if(permCached){
+        permP=new Set(permCached.personal||[]);
+        permM=new Set(permCached.medico||[]);
+        permJ=new Set(permCached.judicial||[]);
+      } else {
+        const {data:permData}=await db.from('permisos').select('codigo,tipo').eq('fecha',fechaStr);
+        (permData||[]).forEach(r=>{
+          const t=(r.tipo||'').toLowerCase();
+          if(t.includes('judicial'))    permJ.add(r.codigo);
+          else if(t.includes('médico')||t.includes('medico')) permM.add(r.codigo);
+          else                           permP.add(r.codigo);
+        });
+        _cPut(permCacheKey,{personal:[...permP],medico:[...permM],judicial:[...permJ]},_SB_CONFIG.CACHE_EXT);
+      }
+    }catch(e){ console.warn('[PERM]',e.message); }
+
+    // 6. Asignar estado a cada ausente
     const ord={'Sin registro':0,'Permiso Personal':1,'Permiso Médico':2,'Permiso Judicial':3,'Vacaciones en curso':4};
     return ausentes.map(e=>{
       let estado='Sin registro';
-      if(vacSet.has(e.codigo)) estado='Vacaciones en curso';
+      if(vacSet.has(e.codigo))  estado='Vacaciones en curso';
       else if(permJ.has(e.codigo)) estado='Permiso Judicial';
       else if(permM.has(e.codigo)) estado='Permiso Médico';
       else if(permP.has(e.codigo)) estado='Permiso Personal';
       return{...e,estado};
-    }).sort((a,b)=>{ const oa=ord[a.estado]??9,ob=ord[b.estado]??9; if(oa!==ob) return oa-ob; return a.nombre.localeCompare(b.nombre,'es'); });
+    }).sort((a,b)=>{
+      const oa=ord[a.estado]??9,ob=ord[b.estado]??9;
+      if(oa!==ob) return oa-ob;
+      return a.nombre.localeCompare(b.nombre,'es');
+    });
   }catch(e){ console.error('[AUSENTES]',e.message); return []; }
 }
 
-// ── CACHÉ ───────────────────────────────────────────────────────
-function invalidarCache(){ _cDelPfx('ld_v'); _cDelPfx('emp_v'); _cDel('ext_vac'); _cDelPfx('ext_perm_'); _cDelPfx('sem_'); }
-function limpiarCache(){ invalidarCache(); return _ok(null,'✅ Caché limpiado.'); }
-
-// ── ESTADÍSTICAS ─────────────────────────────────────────────────
 async function obtenerEstadisticas(){
   try{
     const [{count:r},{count:e},{count:a}]=await Promise.all([
