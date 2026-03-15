@@ -2687,10 +2687,7 @@ function onLineaChange(linea){
 //  Líneas especiales: Col H → Línea, Col I → Función
 // ══════════════════════════════════════════
 function cargarListas(){
-  google.script.run
-    .withSuccessHandler(aplicarListas)
-    .withFailureHandler(e=>showToast('❌ Error al cargar listas: '+e.message,'error'))
-    .getListData();
+  getListData().then(aplicarListas).catch(e=>showToast('❌ Error al cargar listas: '+(e.message||e),'error'));
 }
 
 function aplicarListas(d){
@@ -2772,10 +2769,7 @@ let _respAbierto  = false;
 function respCargar(){
   const cnt = document.getElementById('respContador');
   if(cnt) cnt.textContent = 'Cargando responsables…';
-  google.script.run
-    .withSuccessHandler(lista => { _respLista = lista||[]; respActualizarContador(_respLista.length,''); })
-    .withFailureHandler(()   => { _respLista = [];         respActualizarContador(0,''); })
-    .obtenerResponsables();
+  obtenerResponsables().then(lista=>{ _respLista=lista||[]; respActualizarContador(_respLista.length,''); }).catch(()=>{ _respLista=[]; respActualizarContador(0,''); });
 }
 
 function respActualizarContador(n, q){
@@ -2940,17 +2934,14 @@ let _empAbierto  = false;
 function empCargar(){
   const cnt = document.getElementById('empContador');
   if(cnt) cnt.textContent = 'Cargando empleados…';
-  google.script.run
-    .withSuccessHandler(lista => {
-      _empLista = lista || [];
-      empActualizarContador(_empLista.length, '');
-    })
-    .withFailureHandler(() => {
-      _empLista = [];
-      empActualizarContador(0, '');
-      showToast('⚠️ No se pudo cargar la lista de empleados','error');
-    })
-    .obtenerEmpleados();
+  obtenerEmpleados().then(lista=>{
+    _empLista = lista||[];
+    empActualizarContador(_empLista.length,'');
+  }).catch(()=>{
+    _empLista=[];
+    empActualizarContador(0,'');
+    showToast('⚠️ No se pudo cargar la lista de empleados','error');
+  });
 }
 
 function empActualizarContador(n, q){
@@ -3428,30 +3419,26 @@ function guardarRegistro(){
   const btn=document.getElementById('btnGuardar');
   btn.classList.add('loading');
   btn.innerHTML='<span class="spinner"></span> GUARDANDO...';
-  google.script.run
-    .withSuccessHandler(res=>{
-      btn.classList.remove('loading'); btn.innerHTML='💾 GUARDAR REGISTRO';
-      if(res && res.success){
-        showToast('✅ '+res.message,'success',3500);
+  guardarAsistencia(data).then(res=>{
+    btn.classList.remove('loading'); btn.innerHTML='💾 GUARDAR REGISTRO';
+    if(res && res.success){
+      showToast('✅ '+(res.mensaje||'Registro guardado'),'success',3500);
+      limpiarTrasGuardar();
+    } else {
+      showToast('⚠️ '+(res?res.mensaje:'Error desconocido'),'error',4000);
+    }
+  }).catch(e=>{
+    btn.classList.remove('loading'); btn.innerHTML='💾 GUARDAR REGISTRO';
+    if(!navigator.onLine || (e.message||'').toLowerCase().includes('network')){
+      dbGuardar(data).then(()=>{
+        offlineActualizarBadge();
+        showToast('📡 Sin red — guardado localmente para sync automático','warning',5000);
         limpiarTrasGuardar();
-      } else {
-        showToast('⚠️ '+(res?res.message:'Error desconocido'),'error',4000);
-      }
-    })
-    .withFailureHandler(e=>{
-      btn.classList.remove('loading'); btn.innerHTML='💾 GUARDAR REGISTRO';
-      // Si falla por red, guardar localmente
-      if(!navigator.onLine || (e.message||'').toLowerCase().includes('network')){
-        dbGuardar(data).then(()=>{
-          offlineActualizarBadge();
-          showToast('📡 Sin red — guardado localmente para sync automático','warning',5000);
-          limpiarTrasGuardar();
-        });
-      } else {
-        showToast('❌ Error de red: '+(e.message||e),'error',4000);
-      }
-    })
-    .guardarAsistencia(data);
+      });
+    } else {
+      showToast('❌ Error de red: '+(e.message||e),'error',4000);
+    }
+  });
 }
 
 // ── Tras guardar: solo limpia el empleado y la Función
@@ -3561,18 +3548,15 @@ function _aplicarFiltrosServidor(pagina){
     busq:  (document.getElementById('filtroTabla').value||'').trim(),
   };
 
-  google.script.run
-    .withSuccessHandler(res=>{
-      if(!res || !res.success){ renderTabla([]); return; }
-      todosRegistros = res.data.registros || [];
-      _registrosCargados = true;
-      renderTabla(todosRegistros);
-      _actualizarPaginadorServidor(res.data, filtros, pagina);
-    })
-    .withFailureHandler(e=>{
-      tbody.innerHTML='<tr><td colspan="25"><div class="empty-state"><div class="ei">⚠️</div><p>'+escTxt(e.message)+'</p></div></td></tr>';
-    })
-    .obtenerRegistrosFiltrados(filtros, pagina, 2000);
+  obtenerRegistrosFiltrados(filtros, pagina, 2000).then(res=>{
+    if(!res || !res.success){ renderTabla([]); return; }
+    todosRegistros = res.data.registros || [];
+    _registrosCargados = true;
+    renderTabla(todosRegistros);
+    _actualizarPaginadorServidor(res.data, filtros, pagina);
+  }).catch(e=>{
+    tbody.innerHTML='<tr><td colspan="26"><div class="empty-state"><div class="ei">⚠️</div><p>'+escTxt(e.message||e)+'</p></div></td></tr>';
+  });
 }
 
 function _actualizarPaginadorServidor(data, filtros, paginaActual){ return; // paginador desactivado
@@ -3904,14 +3888,11 @@ function guardarEdicion(){
   r[20]=document.getElementById('m_colIni').value;
   r[21]=document.getElementById('m_colTer').value;
 
-  google.script.run
-      .withSuccessHandler(res=>{
-        if(res && res.success) showToast('✅ Registro actualizado correctamente','success');
-        else showToast('❌ '+(res?res.mensaje:'Error al actualizar'),'error');
-        cargarRegistros();
-      })
-      .withFailureHandler(e=>showToast('❌ Error al actualizar: '+e.message,'error'))
-      .editarRegistro(editId, r);
+  editarRegistro(editId, r).then(res=>{
+    if(res && res.success) showToast('✅ Registro actualizado correctamente','success');
+    else showToast('❌ '+(res?res.mensaje:'Error al actualizar'),'error');
+    cargarRegistros();
+  }).catch(e=>showToast('❌ Error al actualizar: '+(e.message||e),'error'));
   cerrarModal();
   aplicarFiltros();
 }
@@ -3947,14 +3928,11 @@ function despacharEliminar(){
 
 function confirmarEliminar(){
   if(!elimId) return;
-  google.script.run
-    .withSuccessHandler(res=>{
-      if(res && res.success) showToast('🗑 Registro eliminado correctamente','success');
-      else showToast('❌ '+(res?res.mensaje:'Error al eliminar'),'error');
-      cargarRegistros();
-    })
-    .withFailureHandler(e=>showToast('❌ Error al eliminar: '+e.message,'error'))
-    .eliminarRegistro(elimId);
+  eliminarRegistro(elimId).then(res=>{
+    if(res && res.success) showToast('🗑 Registro eliminado correctamente','success');
+    else showToast('❌ '+(res?res.mensaje:'Error al eliminar'),'error');
+    cargarRegistros();
+  }).catch(e=>showToast('❌ Error al eliminar: '+(e.message||e),'error'));
   cerrarConfirm();
   aplicarFiltros();
 }
@@ -4094,7 +4072,7 @@ function fmtFechaCL(d){
 const DIAS_CORTOS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 
 // ── Cargar Dashboard
-function cargarDashboard(){
+async function cargarDashboard(){
   const si=document.getElementById('dashSemana');
   const sem=parseInt(si.value)||getNumSemana(new Date());
   si.value=sem;
@@ -4107,15 +4085,17 @@ function cargarDashboard(){
     _dashDias.push({fecha:localDate(d), label:DIAS_CORTOS[i]+' '+d.getDate()});
   }
   document.getElementById('dashRango').textContent=fmtFechaCL(lun)+' – '+fmtFechaCL(dom);
-
   document.getElementById('kpiTotal').textContent='…';
-  google.script.run
-    .withSuccessHandler(rows=>{
-      todosRegistros = rows || [];
-      _aplicarFiltroDashLocal();
-    })
-    .withFailureHandler(()=>_aplicarFiltroDashLocal())
-    .obtenerRegistrosSemana(sem, year);
+
+  try {
+    // Llamar directamente a la función del backend (sin pasar por polyfill)
+    const rows = await obtenerRegistrosSemana(sem, year);
+    todosRegistros = rows || [];
+  } catch(e) {
+    console.error('[DASH]', e.message);
+    todosRegistros = [];
+  }
+  _aplicarFiltroDashLocal();
 }
 
 function _aplicarFiltroDashLocal(){
@@ -4557,32 +4537,30 @@ function cargarAusenciasSemana(){
   // Consultar Supabase para cada día de la semana
   let pendientes = dias.length;
   dias.forEach(d => {
-    google.script.run
-      .withSuccessHandler(result => {
-        const arr = result || [];
-        const grp = k => arr.filter(e=>e.estado===k).map(e=>({codigo:e.codigo,nombre:e.nombre}));
-        _ausenciasSemanales[d.fecha] = {
-          sinRegistro: arr.filter(e=>e.estado==='Sin registro').length,
-          permiso:     arr.filter(e=>e.estado==='Permiso Personal').length,
-          medico:      arr.filter(e=>e.estado==='Permiso Médico').length,
-          judicial:    arr.filter(e=>e.estado==='Permiso Judicial').length,
-          vacaciones:  arr.filter(e=>e.estado==='Vacaciones en curso').length,
-          _detalle:{
-            sinRegistro: grp('Sin registro'),
-            permiso:     grp('Permiso Personal'),
-            medico:      grp('Permiso Médico'),
-            judicial:    grp('Permiso Judicial'),
-            vacaciones:  grp('Vacaciones en curso'),
-          }
-        };
-        pendientes--;
-        if(pendientes === 0) renderAusenciasEstado();
-      })
-      .withFailureHandler(() => {
-        pendientes--;
-        if(pendientes === 0) renderAusenciasEstado();
-      })
-      .obtenerAusentesDia(d.fecha);
+    // Llamar directamente al backend (sin polyfill)
+    obtenerAusentesDia(d.fecha).then(arr => {
+      arr = arr || [];
+      const grp = k => arr.filter(e=>e.estado===k).map(e=>({codigo:e.codigo,nombre:e.nombre}));
+      _ausenciasSemanales[d.fecha] = {
+        sinRegistro: arr.filter(e=>e.estado==='Sin registro').length,
+        permiso:     arr.filter(e=>e.estado==='Permiso Personal').length,
+        medico:      arr.filter(e=>e.estado==='Permiso Médico').length,
+        judicial:    arr.filter(e=>e.estado==='Permiso Judicial').length,
+        vacaciones:  arr.filter(e=>e.estado==='Vacaciones en curso').length,
+        _detalle:{
+          sinRegistro: grp('Sin registro'),
+          permiso:     grp('Permiso Personal'),
+          medico:      grp('Permiso Médico'),
+          judicial:    grp('Permiso Judicial'),
+          vacaciones:  grp('Vacaciones en curso'),
+        }
+      };
+      pendientes--;
+      if(pendientes === 0) renderAusenciasEstado();
+    }).catch(() => {
+      pendientes--;
+      if(pendientes === 0) renderAusenciasEstado();
+    });
   });
 }
 
@@ -4593,16 +4571,14 @@ function cargarAusentes(){
 
   document.getElementById('listAusentes').innerHTML =
     '<div class="dash-loading">Consultando registros y hojas externas...</div>';
-  google.script.run
-    .withSuccessHandler(result => {
-      _ausentesData = result || [];
-      renderAusentes(_ausentesData);
-    })
-    .withFailureHandler(e => {
-      document.getElementById('listAusentes').innerHTML =
-        '<div class="dash-empty"><div class="di">⚠️</div>Error: ' + escTxt(e.message) + '</div>';
-    })
-    .obtenerAusentesDia(fecha);
+  // Llamar directamente al backend
+  obtenerAusentesDia(fecha).then(result => {
+    _ausentesData = result || [];
+    renderAusentes(_ausentesData);
+  }).catch(e => {
+    document.getElementById('listAusentes').innerHTML =
+      '<div class="dash-empty"><div class="di">⚠️</div>Error: ' + escTxt(e.message||e) + '</div>';
+  });
 }
 
 // ── Ordenar al hacer clic en encabezado ──────────────────
@@ -5063,16 +5039,9 @@ async function offlineSync(){
 
   for(const item of todos){
     const {_id, _ts, ...data} = item;
-    await new Promise(res =>{
-      google.script.run
-        .withSuccessHandler(r=>{
-          if(r && r.success){ dbEliminar(_id); ok++; }
-          else err++;
-          res();
-        })
-        .withFailureHandler(()=>{ err++; res(); })
-        .guardarAsistencia(data);
-    });
+    await guardarAsistencia(data)
+      .then(r=>{ if(r && r.success){ dbEliminar(_id); ok++; } else err++; })
+      .catch(()=>{ err++; });
   }
 
   await offlineActualizarBadge();
