@@ -570,6 +570,10 @@ body {
         </div>
         <div class="page-header-actions">
           <button class="btn btn-secondary" onclick="loadRegistros()">🔄 Recargar</button>
+          <button class="btn btn-secondary" id="btnExportarReg" onclick="exportarRegistrosExcel()" title="Exporta los registros filtrados en pantalla a Excel">🟢 Exportar Excel</button>
+          <button class="btn btn-danger"    id="btnEliminarSel" onclick="confirmarEliminarSeleccion()" style="display:none">
+            🗑 Eliminar seleccionados (<span id="cntSel">0</span>)
+          </button>
           <button class="btn btn-primary" onclick="abrirModalRegistro()">＋ Nuevo registro</button>
         </div>
       </div>
@@ -600,6 +604,11 @@ body {
           <table class="data-table">
             <thead>
               <tr>
+                <th style="width:36px;text-align:center">
+                  <input type="checkbox" id="chkTodos" title="Seleccionar todos"
+                    onchange="toggleTodos(this.checked)"
+                    style="width:15px;height:15px;cursor:pointer;accent-color:var(--danger)">
+                </th>
                 <th style="width:80px">Acciones</th>
                 <th>Fecha</th>
                 <th>Código</th>
@@ -1112,10 +1121,14 @@ function saveCfg(cfg) {
 // ════════════════════════════════════════════════════
 let _sb = null;
 
+// Valores por defecto embebidos (se sobreescriben con Settings)
+const _DEFAULT_URL = 'https://qvtztwqbbbzortkodtla.supabase.co';
+const _DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2dHp0d3FiYmJ6b3J0a29kdGxhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0NDA4NTMsImV4cCI6MjA4OTAxNjg1M30.zMcRweclE46qwOCTduo7sLfduZxXjKvFLmim7nZyiok';
+
 function getClient() {
   const cfg = getCfg();
-  const url = cfg.url || '';
-  const key = cfg.key || '';
+  const url = cfg.url || _DEFAULT_URL;
+  const key = cfg.key || _DEFAULT_KEY;
   if (!url || !key) return null;
   if (!_sb || _sb._url !== url) {
     _sb = supabase.createClient(url, key);
@@ -1249,7 +1262,7 @@ async function loadRegistros() {
   if (!db) { toast('Configura la conexión Supabase primero','error'); return; }
 
   const tbody = document.getElementById('tbodyReg');
-  tbody.innerHTML = '<tr class="loading-row"><td colspan="10"><span class="spinner"></span>Cargando…</td></tr>';
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="11"><span class="spinner"></span>Cargando…</td></tr>';
 
   const search = document.getElementById('regSearch').value.trim();
   const turno  = document.getElementById('regTurno').value;
@@ -1272,12 +1285,20 @@ async function loadRegistros() {
   renderRegStats(count);
 
   if (!data?.length) {
-    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="ei">🔍</div><p>Sin resultados</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div class="ei">🔍</div><p>Sin resultados</p></div></td></tr>';
     return;
   }
 
+  // Guardar datos actuales para exportar
+  window._regDataActual = data;
+
   tbody.innerHTML = data.map(r => `
-    <tr>
+    <tr id="fila-${r.id}">
+      <td style="text-align:center;padding:6px">
+        <input type="checkbox" class="chk-reg" value="${r.id}"
+          onchange="actualizarSeleccion()"
+          style="width:15px;height:15px;cursor:pointer;accent-color:var(--danger)">
+      </td>
       <td>
         <div class="td-actions">
           <button class="btn btn-secondary btn-sm" onclick="editarRegistro('${r.id}')">✏️</button>
@@ -1294,6 +1315,11 @@ async function loadRegistros() {
       <td>${esc(r.proceso)}</td>
       <td>${esc(r.centro_costo)}</td>
     </tr>`).join('');
+
+  // Reset checkbox maestro
+  var chkTodos = document.getElementById('chkTodos');
+  if (chkTodos) { chkTodos.checked = false; chkTodos.indeterminate = false; }
+  actualizarSeleccion();
 
   renderPagination('regPagination', count, _regPage, REG_PER_PAGE, p => { _regPage = p; loadRegistros(); });
 }
@@ -1907,6 +1933,170 @@ async function exportarCSV(tabla) {
 }
 
 // ════════════════════════════════════════════════════
+//  SELECCIÓN MÚLTIPLE Y ELIMINACIÓN MASIVA
+// ════════════════════════════════════════════════════
+function actualizarSeleccion() {
+  var checks  = Array.from(document.querySelectorAll('.chk-reg'));
+  var marcados = checks.filter(function(c) { return c.checked; });
+  var btn     = document.getElementById('btnEliminarSel');
+  var cnt     = document.getElementById('cntSel');
+  var master  = document.getElementById('chkTodos');
+  if (cnt)  cnt.textContent = marcados.length;
+  if (btn)  btn.style.display = marcados.length > 0 ? '' : 'none';
+  if (master) {
+    master.checked       = marcados.length > 0 && marcados.length === checks.length;
+    master.indeterminate = marcados.length > 0 && marcados.length < checks.length;
+  }
+  // Resaltar filas seleccionadas
+  checks.forEach(function(c) {
+    var fila = document.getElementById('fila-' + c.value);
+    if (fila) fila.style.background = c.checked ? 'rgba(208,48,48,.06)' : '';
+  });
+}
+
+function toggleTodos(checked) {
+  document.querySelectorAll('.chk-reg').forEach(function(c) { c.checked = checked; });
+  actualizarSeleccion();
+}
+
+function confirmarEliminarSeleccion() {
+  var ids = Array.from(document.querySelectorAll('.chk-reg:checked')).map(function(c) { return c.value; });
+  if (!ids.length) return;
+  document.getElementById('confirmMsg').textContent =
+    '¿Eliminar ' + ids.length + ' registro' + (ids.length !== 1 ? 's' : '') + ' seleccionado' + (ids.length !== 1 ? 's' : '') + '? Esta acción no se puede deshacer.';
+  window._idsParaEliminar = ids;
+  document.getElementById('modalConfirm').classList.add('open');
+  // Reemplazar acción del botón confirmar temporalmente
+  document.getElementById('modalConfirm').querySelector('.btn-danger').onclick = ejecutarEliminarSeleccion;
+}
+
+async function ejecutarEliminarSeleccion() {
+  var db = getClient();
+  var ids = window._idsParaEliminar || [];
+  if (!db || !ids.length) return;
+  cerrarModal('modalConfirm');
+
+  toast('⏳ Eliminando ' + ids.length + ' registros…', 'info');
+  var ok = 0, errCount = 0;
+  // Eliminar en lotes de 50
+  var CHUNK = 50;
+  for (var i = 0; i < ids.length; i += CHUNK) {
+    var lote = ids.slice(i, i + CHUNK);
+    var res = await db.from('registros').delete().in('id', lote);
+    if (res.error) { errCount += lote.length; console.error(res.error.message); }
+    else ok += lote.length;
+  }
+  window._idsParaEliminar = [];
+  // Restaurar acción original del botón
+  document.getElementById('modalConfirm').querySelector('.btn-danger').onclick = ejecutarEliminar;
+  if (errCount === 0) {
+    toast('🗑 ' + ok + ' registros eliminados correctamente', 'success', 4000);
+  } else {
+    toast('⚠️ ' + ok + ' eliminados, ' + errCount + ' con error', 'warn', 5000);
+  }
+  loadRegistros();
+  loadCounts();
+}
+
+// ════════════════════════════════════════════════════
+//  EXPORTAR REGISTROS A EXCEL (solo filtro actual)
+// ════════════════════════════════════════════════════
+async function exportarRegistrosExcel() {
+  if (typeof XLSX === 'undefined') {
+    toast('Librería Excel no cargada — recarga la página', 'error'); return;
+  }
+  var db = getClient(); if (!db) return;
+
+  // Obtener filtros actuales
+  var search = document.getElementById('regSearch').value.trim();
+  var turno  = document.getElementById('regTurno').value;
+  var desde  = document.getElementById('regDesde').value;
+  var hasta  = document.getElementById('regHasta').value;
+
+  toast('⏳ Preparando Excel…', 'info');
+
+  // Traer TODOS los registros del filtro (sin paginación)
+  var q = db.from('registros').select('*');
+  if (turno)  q = q.eq('turno', turno);
+  if (desde)  q = q.gte('fecha', desde);
+  if (hasta)  q = q.lte('fecha', hasta);
+  if (search) q = q.or('codigo.ilike.%' + search + '%,nombre.ilike.%' + search + '%,responsable.ilike.%' + search + '%');
+  q = q.order('fecha', { ascending: false }).order('created_at', { ascending: false });
+
+  var res = await q;
+  if (res.error) { toast('Error: ' + res.error.message, 'error'); return; }
+  var data = res.data || [];
+  if (!data.length) { toast('No hay registros para exportar con los filtros actuales', 'warn'); return; }
+
+  // Encabezados exactamente como se muestran en el formulario de registro
+  var COLS = [
+    { key: 'mes',                label: 'Mes'                   },
+    { key: 'fecha',              label: 'Fecha'                  },
+    { key: 'responsable',        label: 'Responsable'            },
+    { key: 'turno',              label: 'Turno'                  },
+    { key: 'linea',              label: 'Línea'                  },
+    { key: 'codigo',             label: 'Código'                 },
+    { key: 'nombre',             label: 'Nombre'                 },
+    { key: 'tipo_contrato',      label: 'Tipo Contrato'          },
+    { key: 'funcion',            label: 'Función'                },
+    { key: 'centro_costo',       label: 'Centro de Costo'        },
+    { key: 'especie',            label: 'Especie'                },
+    { key: 'producto',           label: 'Producto'               },
+    { key: 'proceso',            label: 'Proceso'                },
+    { key: 'operacion',          label: 'Operación'              },
+    { key: 'proceso_inicio',     label: 'Proceso Inicio'         },
+    { key: 'proceso_termino',    label: 'Proceso Término'        },
+    { key: 'atraso_inicio',      label: 'Atraso Inicio (min)'    },
+    { key: 'descanso_inicio',    label: 'Descanso Inicio'        },
+    { key: 'descanso_termino',   label: 'Descanso Término'       },
+    { key: 'desayuno_programado',label: 'Desayuno Programado'    },
+    { key: 'colacion_inicio',    label: 'Colación Inicio'        },
+    { key: 'colacion_termino',   label: 'Colación Término'       },
+    { key: 'colacion_programado',label: 'Colación Programado'    },
+  ];
+
+  function fmtVal(key, val) {
+    if (val === null || val === undefined) return '';
+    // Timestamps → legible sin T ni Z
+    if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(val)) {
+      return val.replace('T', ' ').substring(0, 16);
+    }
+    return val;
+  }
+
+  // Construir array 2D: encabezados + filas
+  var header = COLS.map(function(c) { return c.label; });
+  var rows = data.map(function(r) {
+    return COLS.map(function(c) { return fmtVal(c.key, r[c.key]); });
+  });
+
+  var ws = XLSX.utils.aoa_to_sheet([header].concat(rows));
+
+  // ── Ancho de columnas automático ──
+  ws['!cols'] = COLS.map(function(c, ci) {
+    var maxLen = c.label.length;
+    rows.forEach(function(r) { var v = String(r[ci] || ''); if (v.length > maxLen) maxLen = v.length; });
+    return { wch: Math.min(Math.max(maxLen + 2, 10), 35) };
+  });
+
+  // ── Fijar primera fila (encabezados) ──
+  ws['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft', state: 'frozen' };
+
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Registros');
+
+  // Nombre del archivo con rango de fechas
+  var sufijo = '';
+  if (desde && hasta) sufijo = '_' + desde + '_a_' + hasta;
+  else if (desde)     sufijo = '_desde_' + desde;
+  else if (hasta)     sufijo = '_hasta_' + hasta;
+  else                sufijo = '_' + new Date().toISOString().substring(0, 10);
+
+  XLSX.writeFile(wb, 'registros' + sufijo + '.xlsx');
+  toast('✅ ' + data.length + ' registros exportados → registros' + sufijo + '.xlsx', 'success', 5000);
+}
+
+// ════════════════════════════════════════════════════
 //  ═══ PAGINATION ═══
 // ════════════════════════════════════════════════════
 function renderPagination(containerId, total, current, perPage, onPage) {
@@ -1933,8 +2123,8 @@ function renderPagination(containerId, total, current, perPage, onPage) {
 // ════════════════════════════════════════════════════
 function cargarSettings() {
   const cfg = getCfg();
-  document.getElementById('cfg-url').value  = cfg.url  ?? '';
-  document.getElementById('cfg-key').value  = cfg.key  ?? '';
+  document.getElementById('cfg-url').value  = cfg.url  || _DEFAULT_URL;
+  document.getElementById('cfg-key').value  = cfg.key  || _DEFAULT_KEY;
   document.getElementById('cfg-vac').value  = cfg.vac  ?? '';
   document.getElementById('cfg-perm').value = cfg.perm ?? '';
 }
