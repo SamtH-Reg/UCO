@@ -2537,13 +2537,32 @@ async function ejecutarImportRegistros() {
       'tipo_contrato','funcion','centro_costo','especie','producto','proceso','operacion',
       'proceso_inicio','proceso_termino','atraso_inicio','descanso_inicio','descanso_termino',
       'desayuno_programado','colacion_inicio','colacion_termino','colacion_programado'];
+    // Campos timestamp — si vienen vacíos o "No aplica" deben enviarse como null
+    var TIMESTAMP_COLS = ['proceso_inicio','proceso_termino','descanso_inicio',
+      'descanso_termino','colacion_inicio','colacion_termino'];
+
     var chunk = _importRegData.slice(i, i+CHUNK).map(function(row){
       var r = {};
       Object.keys(row).forEach(function(k){
         if(k==='id'||k==='created_at'||k==='updated_at') return;
         if(!k||k.startsWith('_')||k.startsWith('__')) return;
         if(!COLS_REG.includes(k)) return;
-        r[k] = (row[k]===null||row[k]===undefined) ? '' : row[k];
+        var v = (row[k]===null||row[k]===undefined) ? '' : String(row[k]).trim();
+        // Timestamps: vacío o "No aplica" → null
+        if(TIMESTAMP_COLS.includes(k)){
+          if(!v || v==='' || v.toLowerCase()==='no aplica' || v==='-' || v==='—'){
+            r[k] = null;
+          } else {
+            // Normalizar formato: reemplazar espacio por T si viene "yyyy-MM-dd HH:MM"
+            if(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(v)){
+              r[k] = v.replace(' ','T') + ':00';
+            } else {
+              r[k] = v;
+            }
+          }
+        } else {
+          r[k] = v;
+        }
       });
       return r;
     });
