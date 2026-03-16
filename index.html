@@ -366,10 +366,14 @@ async function obtenerAusentesDia(fechaStr){
       if(vacCached){
         vacSet=new Set(vacCached);
       } else {
-        const {data:vacData}=await db.from('vacaciones').select('codigo').eq('estado','EN CURSO');
+        const {data:vacData}=await db.from('vacaciones').select('codigo,fecha_inicio,fecha_fin').eq('estado','EN CURSO');
         const codigos=(vacData||[]).map(r=>r.codigo);
         vacSet=new Set(codigos);
+        // Guardar mapa codigo → fechas para mostrar en badge
+        const vacFechas={};
+        (vacData||[]).forEach(r=>{ vacFechas[r.codigo]={ini:r.fecha_inicio||'',fin:r.fecha_fin||''}; });
         _cPut('ext_vac',codigos,_SB_CONFIG.CACHE_EXT);
+        _cPut('ext_vac_fechas',vacFechas,_SB_CONFIG.CACHE_EXT);
       }
     }catch(e){ console.warn('[VAC]',e.message); }
 
@@ -416,14 +420,22 @@ async function obtenerAusentesDia(fechaStr){
 
     // 7. Asignar estado a cada ausente (licencia tiene prioridad sobre permisos)
     const ord={'Sin registro':0,'Permiso Personal':1,'Permiso Médico':2,'Permiso Judicial':3,'Vacaciones en curso':4,'Licencia Médica':5};
+    // Recuperar mapa de fechas vacaciones del cache
+    const vacFechasMap = _cGet('ext_vac_fechas') || {};
+
     return ausentes.map(e=>{
       let estado='Sin registro';
-      if(licSet.has(e.codigo))   estado='Licencia Médica';
-      else if(vacSet.has(e.codigo))  estado='Vacaciones en curso';
-      else if(permJ.has(e.codigo)) estado='Permiso Judicial';
+      let estadoFechas={ini:'',fin:''};
+      if(licSet.has(e.codigo)){
+        estado='Licencia Médica';
+        estadoFechas={ini:e.licenciaInicio||'',fin:e.licenciaFin||''};
+      } else if(vacSet.has(e.codigo)){
+        estado='Vacaciones en curso';
+        estadoFechas=vacFechasMap[e.codigo]||{ini:'',fin:''};
+      } else if(permJ.has(e.codigo)) estado='Permiso Judicial';
       else if(permM.has(e.codigo)) estado='Permiso Médico';
       else if(permP.has(e.codigo)) estado='Permiso Personal';
-      return{...e,estado};
+      return{...e,estado,estadoFechas};
     }).sort((a,b)=>{
       const oa=ord[a.estado]??9,ob=ord[b.estado]??9;
       if(oa!==ob) return oa-ob;
@@ -4785,9 +4797,18 @@ function renderAusentes(ausentes){
   const cont = document.getElementById('listAusentes');
   const x    = v => String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  const badgeEstado = estado => {
+  const fmtFechaRango = (ini, fin) => {
+    if(!ini) return '';
+    const f = v => v ? v.substring(0,10) : '';
+    return fin
+      ? `<span style="font-size:10px;font-weight:500;margin-left:6px;opacity:.85">📅 ${f(ini)} → ${f(fin)}</span>`
+      : `<span style="font-size:10px;font-weight:500;margin-left:6px;opacity:.85">📅 desde ${f(ini)}</span>`;
+  };
+
+  const badgeEstado = (estado, fechas) => {
+    fechas = fechas || {ini:'',fin:''};
     if(estado === 'Vacaciones en curso')
-      return `<span class="ausente-tag" style="background:rgba(0,152,212,.12);color:var(--t-accent2,#0098d4);border-color:rgba(0,152,212,.25)">🏖 Vacaciones</span>`;
+      return `<span class="ausente-tag" style="background:rgba(0,152,212,.12);color:var(--t-accent2,#0098d4);border-color:rgba(0,152,212,.25)">🏖 Vacaciones${fmtFechaRango(fechas.ini,fechas.fin)}</span>`;
     if(estado === 'Permiso Personal')
       return `<span class="ausente-tag" style="background:rgba(39,174,96,.12);color:var(--t-success,#27ae60);border-color:rgba(39,174,96,.25)">📋 Permiso Personal</span>`;
     if(estado === 'Permiso Médico')
@@ -4795,7 +4816,7 @@ function renderAusentes(ausentes){
     if(estado === 'Permiso Judicial')
       return `<span class="ausente-tag" style="background:rgba(142,68,173,.12);color:#8e44ad;border-color:rgba(142,68,173,.25)">⚖️ Permiso Judicial</span>`;
     if(estado === 'Licencia Médica')
-      return `<span class="ausente-tag" style="background:rgba(255,193,7,.15);color:#a07800;border-color:rgba(255,193,7,.4)">🏥 Licencia Médica</span>`;
+      return `<span class="ausente-tag" style="background:rgba(255,193,7,.15);color:#a07800;border-color:rgba(255,193,7,.4)">🏥 Licencia Médica${fmtFechaRango(fechas.ini,fechas.fin)}</span>`;
     return `<span class="ausente-tag">⚠️ Sin registro</span>`;
   };
 
@@ -4838,7 +4859,7 @@ function renderAusentes(ausentes){
           </td>
           <td style="padding:8px 12px;font-size:12px;color:var(--t-muted)">${x(e.centroCosto)}</td>
           <td style="padding:8px 12px;font-size:11px;color:var(--t-muted)">${x(e.contrato)}</td>
-          <td style="padding:8px 12px">${badgeEstado(e.estado)}</td>
+          <td style="padding:8px 12px">${badgeEstado(e.estado, e.estadoFechas)}</td>
         </tr>`).join('');
 
   cont.innerHTML = `
