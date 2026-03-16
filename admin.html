@@ -2393,20 +2393,67 @@ function handleFileDropReg(e) {
 
 // Mapeo de columnas del Excel → campos de Supabase
 var MAPA_REG = {
-  'mes':'mes','fecha':'fecha','responsable':'responsable','turno':'turno','linea':'linea',
-  'codigo':'codigo','nombre':'nombre','tipo_contrato':'tipo_contrato','tipo contrato':'tipo_contrato',
-  'funcion':'funcion','función':'funcion','centro_costo':'centro_costo','centro costo':'centro_costo',
-  'centrodecosto':'centro_costo','especie':'especie','producto':'producto','proceso':'proceso',
-  'operacion':'operacion','operación':'operacion',
+  // Mes
+  'mes':'mes',
+  // Fecha
+  'fecha':'fecha',
+  // Responsable
+  'responsable':'responsable',
+  // Turno
+  'turno':'turno',
+  // Línea
+  'linea':'linea','línea':'linea','linea ':'linea',
+  // Código
+  'codigo':'codigo','código':'codigo','Código':'codigo','Codigo':'codigo',
+  // Nombre
+  'nombre':'nombre',
+  // Tipo Contrato
+  'tipo_contrato':'tipo_contrato','tipo contrato':'tipo_contrato','tipocontrato':'tipo_contrato',
+  'tipo contrato':'tipo_contrato','tipo de contrato':'tipo_contrato',
+  // Función
+  'funcion':'funcion','función':'funcion','Función':'funcion','Funcion':'funcion',
+  // Centro de Costo
+  'centro_costo':'centro_costo','centro costo':'centro_costo','centrodecosto':'centro_costo',
+  'centro de costo':'centro_costo','c. costo':'centro_costo','centrocosto':'centro_costo',
+  // Especie
+  'especie':'especie',
+  // Producto
+  'producto':'producto',
+  // Proceso
+  'proceso':'proceso',
+  // Operación
+  'operacion':'operacion','operación':'operacion','Operación':'operacion','Operacion':'operacion',
+  // Proceso Inicio
   'proceso_inicio':'proceso_inicio','proceso inicio':'proceso_inicio',
-  'proceso_termino':'proceso_termino','proceso termino':'proceso_termino','proceso término':'proceso_termino',
-  'atraso_inicio':'atraso_inicio','atraso inicio':'atraso_inicio','atraso':'atraso_inicio',
+  'p. inicio':'proceso_inicio','p.inicio':'proceso_inicio','proceso - inicio':'proceso_inicio',
+  // Proceso Término
+  'proceso_termino':'proceso_termino','proceso termino':'proceso_termino',
+  'proceso término':'proceso_termino','p. término':'proceso_termino',
+  'p.termino':'proceso_termino','proceso - término':'proceso_termino',
+  // Atraso
+  'atraso_inicio':'atraso_inicio','atraso inicio':'atraso_inicio','atraso (min)':'atraso_inicio',
+  'atraso inicio (min)':'atraso_inicio','atraso':'atraso_inicio',
+  // Descanso Inicio
   'descanso_inicio':'descanso_inicio','descanso inicio':'descanso_inicio',
+  'd. inicio':'descanso_inicio','descanso - inicio':'descanso_inicio',
+  // Descanso Término
   'descanso_termino':'descanso_termino','descanso termino':'descanso_termino',
+  'descanso término':'descanso_termino','d. término':'descanso_termino',
+  'descanso - término':'descanso_termino',
+  // Desayuno
   'desayuno_programado':'desayuno_programado','desayuno':'desayuno_programado',
-  'colacion_inicio':'colacion_inicio','colación inicio':'colacion_inicio','colacion inicio':'colacion_inicio',
-  'colacion_termino':'colacion_termino','colación termino':'colacion_termino','colacion termino':'colacion_termino',
+  'desayuno programado':'desayuno_programado',
+  // Colación Inicio
+  'colacion_inicio':'colacion_inicio','colación inicio':'colacion_inicio',
+  'colacion inicio':'colacion_inicio','c. inicio':'colacion_inicio',
+  'colación - inicio':'colacion_inicio',
+  // Colación Término
+  'colacion_termino':'colacion_termino','colación termino':'colacion_termino',
+  'colacion termino':'colacion_termino','c. término':'colacion_termino',
+  'colación - término':'colacion_termino',
+  // Colación Programado
   'colacion_programado':'colacion_programado','colación programado':'colacion_programado',
+  'colacion programado':'colacion_programado','colación':'colacion_programado',
 };
 var MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
@@ -2426,8 +2473,11 @@ function procesarArchivoRegistros(ev) {
       _importRegData = rows.map(function(row) {
         var mapped = {};
         rawHeaders.forEach(function(h) {
-          var hNorm = h.toLowerCase().trim().replace(/\s+/g,'_');
-          var col = MAPA_REG[h.toLowerCase().trim()] || MAPA_REG[hNorm] || hNorm;
+          // Normalizar: minúsculas + quitar espacios extra
+          var hLow  = h.toLowerCase().trim();
+          // Versión con tildes normalizadas (á→a, é→e, etc.)
+          var hNorm = hLow.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'_');
+          var col = MAPA_REG[hLow] || MAPA_REG[hNorm] || MAPA_REG[hLow.replace(/\s+/g,'_')] || hNorm;
           var val = row[h];
           if (val instanceof Date) {
             // Si tiene hora, guardar como datetime; si no, solo fecha
