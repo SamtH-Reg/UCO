@@ -2480,12 +2480,18 @@ function procesarArchivoRegistros(ev) {
           var col = MAPA_REG[hLow] || MAPA_REG[hNorm] || MAPA_REG[hLow.replace(/\s+/g,'_')] || hNorm;
           var val = row[h];
           if (val instanceof Date) {
-            // Si tiene hora, guardar como datetime; si no, solo fecha
-            var hasTime = val.getHours()!==0 || val.getMinutes()!==0;
+            // Usar hora LOCAL (no UTC) para evitar desfase horario
+            var pad = function(n){ return String(n).padStart(2,'0'); };
+            var yy  = val.getFullYear();
+            var mo  = pad(val.getMonth()+1);
+            var dd  = pad(val.getDate());
+            var hh  = val.getHours();
+            var mi  = val.getMinutes();
+            var hasTime = hh !== 0 || mi !== 0;
             if (hasTime) {
-              val = val.toISOString().substring(0,16);
+              val = yy+'-'+mo+'-'+dd+'T'+pad(hh)+':'+pad(mi)+':00';
             } else {
-              val = val.getFullYear()+'-'+String(val.getMonth()+1).padStart(2,'0')+'-'+String(val.getDate()).padStart(2,'0');
+              val = yy+'-'+mo+'-'+dd;
             }
           }
           mapped[col] = (val===null||val===undefined) ? '' : String(val).trim();
@@ -2555,7 +2561,11 @@ async function ejecutarImportRegistros() {
           } else {
             // Normalizar formato: reemplazar espacio por T si viene "yyyy-MM-dd HH:MM"
             if(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(v)){
+              // Viene como "yyyy-MM-dd HH:MM" — convertir a ISO sin zona horaria
               r[k] = v.replace(' ','T') + ':00';
+            } else if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)){
+              // Ya viene en formato ISO — asegurarse que tiene segundos
+              r[k] = v.length === 16 ? v + ':00' : v;
             } else {
               r[k] = v;
             }
