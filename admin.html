@@ -1548,8 +1548,8 @@ async function loadEmpleados() {
   tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr>';
 
   const search = document.getElementById('empSearch').value.trim();
-  let q = db.from('empleados').select('*', { count:'exact' }).order('nombre');
-  if (search) q = q.or(`codigo.ilike.%${search}%,nombre.ilike.%${search}%`);
+  let q = db.from('empleados').select('*', { count:'exact' }).order('nombre'); // licencia_inicio y licencia_fin vienen en *
+  if (search) q = q.or(`codigo.ilike.%${search}%,nombre.ilike.%${search}%,centro_costo.ilike.%${search}%`);
 
   const from = (_empPage - 1) * EMP_PER_PAGE;
   q = q.range(from, from + EMP_PER_PAGE - 1);
@@ -1565,7 +1565,9 @@ async function loadEmpleados() {
   }
 
   tbody.innerHTML = data.map(r => {
-    const esLicencia = r.activo === 'licencia' || r.licencia_inicio;
+    const hoyStr = new Date().toISOString().substring(0,10);
+    const esLicencia = r.licencia_inicio && hoyStr >= r.licencia_inicio &&
+      (!r.licencia_fin || hoyStr <= r.licencia_fin);
     const badgeClass = esLicencia ? 'badge-licencia' : (r.activo && r.activo !== 'false' ? 'badge-active' : 'badge');
     const badgeText  = esLicencia ? '🏥 Licencia' : (r.activo && r.activo !== 'false' ? 'Activo' : 'Inactivo');
     const trClass    = esLicencia ? 'tr-licencia' : '';
@@ -1598,8 +1600,10 @@ function abrirModalEmpleado(r = null) {
   document.getElementById('ef-nombre').value   = r?.nombre   ?? '';
   document.getElementById('ef-cc').value       = r?.centro_costo ?? '';
   document.getElementById('ef-contrato').value = r?.contrato ?? '';
-  // Detectar si tiene licencia médica
-  const esLicencia = r?.licencia_inicio || r?.activo === 'licencia';
+  // Detectar si tiene licencia médica vigente (o sin fecha fin = sigue en licencia)
+  const hoyModal = new Date().toISOString().substring(0,10);
+  const esLicencia = r?.licencia_inicio && hoyModal >= r.licencia_inicio &&
+    (!r?.licencia_fin || hoyModal <= r.licencia_fin);
   const activoVal  = esLicencia ? 'licencia' : String(r?.activo ?? 'true');
   document.getElementById('ef-activo').value      = activoVal;
   document.getElementById('ef-lic-inicio').value  = r?.licencia_inicio ?? '';
@@ -1622,13 +1626,15 @@ async function guardarEmpleado() {
 
   const activoVal = document.getElementById('ef-activo').value;
   const esLicencia = activoVal === 'licencia';
+  const licIni = document.getElementById('ef-lic-inicio').value || null;
+  const licFin = document.getElementById('ef-lic-fin').value    || null;
   const payload = {
     codigo, nombre,
     centro_costo:    document.getElementById('ef-cc').value.trim(),
     contrato:        document.getElementById('ef-contrato').value.trim(),
-    activo:          esLicencia ? true : activoVal === 'true',
-    licencia_inicio: esLicencia ? (document.getElementById('ef-lic-inicio').value || null) : null,
-    licencia_fin:    esLicencia ? (document.getElementById('ef-lic-fin').value    || null) : null,
+    activo:          activoVal !== 'false',
+    licencia_inicio: esLicencia ? licIni : null,
+    licencia_fin:    esLicencia ? licFin : null,
   };
 
   let error;
