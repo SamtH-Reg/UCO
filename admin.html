@@ -491,7 +491,10 @@ body {
 }
 .badge-dia    { background: rgba(255,213,80,.12); color: #d4a800; border: 1px solid rgba(255,213,80,.25); }
 .badge-noche  { background: rgba(56,189,248,.12);  color: #38bdf8; border: 1px solid rgba(56,189,248,.25); }
-.badge-active { background: rgba(62,207,142,.12); color: var(--success); border: 1px solid rgba(62,207,142,.25); }
+.badge-active   { background: rgba(62,207,142,.12); color: var(--success); border: 1px solid rgba(62,207,142,.25); }
+.badge-licencia { background: rgba(255,193,7,.18);  color: #a07800;             border: 1px solid rgba(255,193,7,.4); }
+.tr-licencia    { background: rgba(255,248,196,.55) !important; }
+.tr-licencia:hover { background: rgba(255,241,150,.7) !important; }
 
 @media (max-width: 768px) {
   .sidebar { display: none; }
@@ -1099,7 +1102,25 @@ body {
             <option value="">—</option><option>Indefinido</option><option>Plazo Fijo</option><option>Temporeros</option><option>Honorarios</option>
           </select></div>
         <div class="form-field"><label class="form-label">Activo</label>
-          <select class="form-select" id="ef-activo"><option value="true">Sí</option><option value="false">No</option></select></div>
+          <select class="form-select" id="ef-activo" onchange="toggleLicencia(this.value)">
+            <option value="true">Sí</option>
+            <option value="false">No</option>
+            <option value="licencia">🏥 Licencia Médica</option>
+          </select>
+        </div>
+        <div id="ef-licencia-block" style="display:none;grid-column:1/-1;background:rgba(255,248,196,.6);border:1px solid rgba(255,193,7,.5);border-radius:9px;padding:14px 16px;margin-top:4px">
+          <div style="font-size:11px;font-weight:700;color:#a07800;margin-bottom:10px;letter-spacing:.5px">📋 FECHAS DE LICENCIA MÉDICA</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="form-field" style="margin:0">
+              <label class="form-label">Inicio Licencia</label>
+              <input type="date" class="form-input" id="ef-lic-inicio">
+            </div>
+            <div class="form-field" style="margin:0">
+              <label class="form-label">Término Licencia</label>
+              <input type="date" class="form-input" id="ef-lic-fin">
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1543,8 +1564,16 @@ async function loadEmpleados() {
     return;
   }
 
-  tbody.innerHTML = data.map(r => `
-    <tr>
+  tbody.innerHTML = data.map(r => {
+    const esLicencia = r.activo === 'licencia' || r.licencia_inicio;
+    const badgeClass = esLicencia ? 'badge-licencia' : (r.activo && r.activo !== 'false' ? 'badge-active' : 'badge');
+    const badgeText  = esLicencia ? '🏥 Licencia' : (r.activo && r.activo !== 'false' ? 'Activo' : 'Inactivo');
+    const trClass    = esLicencia ? 'tr-licencia' : '';
+    const licFechas  = esLicencia && r.licencia_inicio
+      ? `<div style="font-size:10px;color:#a07800;margin-top:3px">📅 ${r.licencia_inicio}${r.licencia_fin?' → '+r.licencia_fin:''}</div>`
+      : '';
+    return `
+    <tr class="${trClass}">
       <td>
         <div class="td-actions">
           <button class="btn btn-secondary btn-sm" onclick="editarEmpleado('${r.id}')">✏️</button>
@@ -1555,8 +1584,9 @@ async function loadEmpleados() {
       <td>${esc(r.nombre)}</td>
       <td>${esc(r.centro_costo)}</td>
       <td>${esc(r.contrato)}</td>
-      <td><span class="badge badge-active">${r.activo?'Activo':'Inactivo'}</span></td>
-    </tr>`).join('');
+      <td><span class="badge ${badgeClass}">${badgeText}</span>${licFechas}</td>
+    </tr>`;
+  }).join('');
 
   renderPagination('empPagination', count, _empPage, EMP_PER_PAGE, p => { _empPage = p; loadEmpleados(); });
 }
@@ -1568,7 +1598,13 @@ function abrirModalEmpleado(r = null) {
   document.getElementById('ef-nombre').value   = r?.nombre   ?? '';
   document.getElementById('ef-cc').value       = r?.centro_costo ?? '';
   document.getElementById('ef-contrato').value = r?.contrato ?? '';
-  document.getElementById('ef-activo').value   = String(r?.activo ?? 'true');
+  // Detectar si tiene licencia médica
+  const esLicencia = r?.licencia_inicio || r?.activo === 'licencia';
+  const activoVal  = esLicencia ? 'licencia' : String(r?.activo ?? 'true');
+  document.getElementById('ef-activo').value      = activoVal;
+  document.getElementById('ef-lic-inicio').value  = r?.licencia_inicio ?? '';
+  document.getElementById('ef-lic-fin').value     = r?.licencia_fin    ?? '';
+  toggleLicencia(activoVal);
   document.getElementById('modalEmp').classList.add('open');
 }
 
@@ -1584,11 +1620,15 @@ async function guardarEmpleado() {
   const nombre = document.getElementById('ef-nombre').value.trim();
   if (!codigo || !nombre) { toast('Código y nombre son obligatorios','error'); return; }
 
+  const activoVal = document.getElementById('ef-activo').value;
+  const esLicencia = activoVal === 'licencia';
   const payload = {
     codigo, nombre,
-    centro_costo: document.getElementById('ef-cc').value.trim(),
-    contrato:     document.getElementById('ef-contrato').value.trim(),
-    activo:       document.getElementById('ef-activo').value === 'true',
+    centro_costo:    document.getElementById('ef-cc').value.trim(),
+    contrato:        document.getElementById('ef-contrato').value.trim(),
+    activo:          esLicencia ? true : activoVal === 'true',
+    licencia_inicio: esLicencia ? (document.getElementById('ef-lic-inicio').value || null) : null,
+    licencia_fin:    esLicencia ? (document.getElementById('ef-lic-fin').value    || null) : null,
   };
 
   let error;
@@ -2653,6 +2693,19 @@ async function ejecutarEliminarSelProd() {
   else toast('⚠️ ' + ok + ' eliminadas, ' + errCount + ' con error', 'warn', 5000);
   loadProduccion();
   loadCounts();
+}
+
+// ════════════════════════════════════════════════════
+//  LICENCIA MÉDICA — mostrar/ocultar campos de fecha
+// ════════════════════════════════════════════════════
+function toggleLicencia(val) {
+  var block = document.getElementById('ef-licencia-block');
+  if (!block) return;
+  block.style.display = val === 'licencia' ? 'block' : 'none';
+  if (val !== 'licencia') {
+    document.getElementById('ef-lic-inicio').value = '';
+    document.getElementById('ef-lic-fin').value    = '';
+  }
 }
 
 // ════════════════════════════════════════════════════
