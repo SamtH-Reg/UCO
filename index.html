@@ -78,12 +78,21 @@ function _toISO(v){
 }
 function _fmtTs(v){
   // Mostrar el valor RAW de Supabase sin convertir zona horaria
-  // igual que admin: String(v).replace('T',' ').substring(0,16)
+  // Para timestamps sin zona horaria (proceso_inicio, etc.)
   if(!v) return '';
   var s = String(v);
-  // Quitar zona horaria (+00:00 o Z) antes de mostrar
   s = s.replace(/([+-]\d{2}:\d{2}|Z)$/, '');
   return s.replace('T',' ').substring(0,16);
+}
+function _fmtTsLocal(v){
+  // Para created_at que viene con timezone UTC — convertir a hora local
+  if(!v) return '';
+  try{
+    var d=new Date(v);
+    var pad=function(n){return String(n).padStart(2,'0');};
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+
+           ' '+pad(d.getHours())+':'+pad(d.getMinutes());
+  }catch(e){ return ''; }
 }
 function _isoSem(d){
   const f=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
@@ -99,7 +108,7 @@ function _row(r){
     _fmtTs(r.proceso_inicio),_fmtTs(r.proceso_termino),r.atraso_inicio||'0',
     _fmtTs(r.descanso_inicio),_fmtTs(r.descanso_termino),r.desayuno_programado||'',
     _fmtTs(r.colacion_inicio),_fmtTs(r.colacion_termino),r.colacion_programado||'',
-    r.created_at?_fmtTs(r.created_at):'',r.id||''
+    r.created_at?_fmtTsLocal(r.created_at):'',r.id||''
   ];
 }
 
@@ -217,7 +226,7 @@ async function obtenerRegistrosSemana(semana,anio){
       .limit(5000);  // Supabase default es 1000 — una semana puede tener más
     if(error){ console.error('[SEM]',error.message); return []; }
     const result=(data||[]).map(_row);
-    _cPut(cKey,result,120);
+    _cPut(cKey,result,300); // 5 min cache
     return result;
   }catch(e){ console.error('[SEM]',e.message); return []; }
 }
@@ -4127,6 +4136,13 @@ async function cargarDashboard(){
     // Llamar directamente a la función del backend (sin pasar por polyfill)
     const rows = await obtenerRegistrosSemana(sem, year);
     todosRegistros = rows || [];
+    console.log('[Dashboard] Semana '+sem+'/'+year+': '+todosRegistros.length+' registros');
+    if(todosRegistros.length > 0){
+      // Mostrar distribución por fecha
+      var porFecha = {};
+      todosRegistros.forEach(function(r){ var f=String(r[1]||'').substring(0,10); porFecha[f]=(porFecha[f]||0)+1; });
+      console.log('[Dashboard] Por fecha:', JSON.stringify(porFecha));
+    }
   } catch(e) {
     console.error('[DASH]', e.message);
     todosRegistros = [];
