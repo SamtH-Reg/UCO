@@ -4799,7 +4799,11 @@ function renderAusentes(ausentes){
 
   const fmtFechaRango = (ini, fin) => {
     if(!ini) return '';
-    const f = v => v ? v.substring(0,10) : '';
+    const f = v => {
+      if(!v) return '';
+      const p = v.substring(0,10).split('-');
+      return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0] : v.substring(0,10);
+    };
     return fin
       ? `<span style="font-size:10px;font-weight:500;margin-left:6px;opacity:.85">📅 ${f(ini)} → ${f(fin)}</span>`
       : `<span style="font-size:10px;font-weight:500;margin-left:6px;opacity:.85">📅 desde ${f(ini)}</span>`;
