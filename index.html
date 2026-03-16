@@ -56,7 +56,26 @@ function _sbDb() {
 const _MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 function _ok(data,msg){ return {success:true,mensaje:msg||'OK',data:data||null,ts:new Date().toISOString()}; }
 function _err(msg,cod){ console.error('[API]',cod,msg); return {success:false,mensaje:msg,codigo:cod||'ERR',ts:new Date().toISOString()}; }
-function _toISO(v){ if(!v||v==='No aplica') return null; try{ return new Date(v).toISOString(); }catch{ return null; } }
+function _toISO(v){
+  if(!v||v===''||v==='No aplica') return null;
+  // Mantener hora local — NO usar toISOString() que convierte a UTC
+  // Si ya viene en formato "yyyy-MM-ddTHH:mm" usarlo directo
+  var s = String(v).trim();
+  if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)){
+    // Agregar segundos si faltan
+    return s.length === 16 ? s+':00' : s.substring(0,19);
+  }
+  if(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(s)){
+    return s.replace(' ','T').substring(0,16)+':00';
+  }
+  // Si es un objeto Date (no debería llegar aquí, pero por si acaso)
+  try {
+    var d = new Date(v);
+    var pad = function(n){ return String(n).padStart(2,'0'); };
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+
+           'T'+pad(d.getHours())+':'+pad(d.getMinutes())+':00';
+  } catch(e){ return null; }
+}
 function _fmtTs(v){
   if(!v) return '';
   try {
