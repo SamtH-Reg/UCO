@@ -167,14 +167,15 @@ async function obtenerEmpleados(){
   while(empHasMore){
     const ini=empPage*1000;
     const {data,error}=await _sbDb().from('empleados')
-      .select('codigo,nombre,centro_costo,contrato').eq('activo',true)
+      .select('codigo,nombre,centro_costo,contrato,licencia_inicio,licencia_fin').eq('activo',true)
       .order('nombre').range(ini,ini+999);
     if(error){ console.error('[EMP]',error.message); empHasMore=false; break; }
     if(!data||data.length===0){ empHasMore=false; break; }
     empAll=empAll.concat(data);
     if(data.length<1000) empHasMore=false; else empPage++;
   }
-  const result=empAll.map(r=>({codigo:r.codigo,nombre:r.nombre,centroCosto:r.centro_costo,contrato:r.contrato}));
+  const result=empAll.map(r=>({codigo:r.codigo,nombre:r.nombre,centroCosto:r.centro_costo,contrato:r.contrato,
+    licenciaInicio:r.licencia_inicio||null,licenciaFin:r.licencia_fin||null}));
   _cPut(cKey,result,_SB_CONFIG.CACHE_EMP);
   return result;
 }
@@ -402,11 +403,23 @@ async function obtenerAusentesDia(fechaStr){
       }
     }catch(e){ console.warn('[PERM]',e.message); }
 
-    // 6. Asignar estado a cada ausente
-    const ord={'Sin registro':0,'Permiso Personal':1,'Permiso Médico':2,'Permiso Judicial':3,'Vacaciones en curso':4};
+    // 6. Licencias médicas — leer desde empleados (ya cargados con licencia_inicio/fin)
+    const licSet=new Set();
+    ausentes.forEach(e=>{
+      if(e.licenciaInicio){
+        // Está en licencia si: fecha >= inicio Y (sin fin O fecha <= fin)
+        const enLicencia = fechaStr >= e.licenciaInicio &&
+          (!e.licenciaFin || fechaStr <= e.licenciaFin);
+        if(enLicencia) licSet.add(e.codigo);
+      }
+    });
+
+    // 7. Asignar estado a cada ausente (licencia tiene prioridad sobre permisos)
+    const ord={'Sin registro':0,'Permiso Personal':1,'Permiso Médico':2,'Permiso Judicial':3,'Vacaciones en curso':4,'Licencia Médica':5};
     return ausentes.map(e=>{
       let estado='Sin registro';
-      if(vacSet.has(e.codigo))  estado='Vacaciones en curso';
+      if(licSet.has(e.codigo))   estado='Licencia Médica';
+      else if(vacSet.has(e.codigo))  estado='Vacaciones en curso';
       else if(permJ.has(e.codigo)) estado='Permiso Judicial';
       else if(permM.has(e.codigo)) estado='Permiso Médico';
       else if(permP.has(e.codigo)) estado='Permiso Personal';
@@ -2437,6 +2450,7 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
           background:var(--t-bg);color:var(--t-text);font-size:12px;min-width:140px">
         <option value="">Todos los estados</option>
         <option value="Sin registro">⚠️ Sin registro</option>
+        <option value="Licencia Médica">🏥 Licencia Médica</option>
         <option value="Permiso Personal">📋 Permiso Personal</option>
         <option value="Permiso Médico">🏥 Permiso Médico</option>
         <option value="Permiso Judicial">⚖️ Permiso Judicial</option>
@@ -4567,6 +4581,7 @@ function renderAusenciasEstado(){
     { key:'medico',       label:'🏥 Permiso Médico',   color:'rgba(230,126,34,.12)', txt:'#e67e22',                 soloHastaHoy:false },
     { key:'judicial',     label:'⚖️ Permiso Judicial', color:'rgba(142,68,173,.12)', txt:'#8e44ad',                 soloHastaHoy:false },
     { key:'vacaciones',   label:'🏖 Vacaciones',       color:'rgba(0,152,212,.12)',  txt:'var(--t-accent2,#0098d4)',soloHastaHoy:false },
+    { key:'licencia',     label:'🏥 Licencia Médica',  color:'rgba(255,193,7,.12)',  txt:'#a07800',                 soloHastaHoy:false },
   ];
 
   let totalGeneral = 0;
@@ -4631,8 +4646,8 @@ function cargarAusenciasSemana(){
   if(!dias.length) return;
 
   _ausenciasSemanales = {};
-  dias.forEach(d=>{ _ausenciasSemanales[d.fecha] = {sinRegistro:0, permiso:0, medico:0, judicial:0, vacaciones:0,
-    _detalle:{sinRegistro:[], permiso:[], medico:[], judicial:[], vacaciones:[]}}; });
+  dias.forEach(d=>{ _ausenciasSemanales[d.fecha] = {sinRegistro:0, permiso:0, medico:0, judicial:0, vacaciones:0, licencia:0,
+    _detalle:{sinRegistro:[], permiso:[], medico:[], judicial:[], vacaciones:[], licencia:[]}}; });
 
   // Consultar Supabase para cada día de la semana
   let pendientes = dias.length;
@@ -4647,12 +4662,14 @@ function cargarAusenciasSemana(){
         medico:      arr.filter(e=>e.estado==='Permiso Médico').length,
         judicial:    arr.filter(e=>e.estado==='Permiso Judicial').length,
         vacaciones:  arr.filter(e=>e.estado==='Vacaciones en curso').length,
+        licencia:    arr.filter(e=>e.estado==='Licencia Médica').length,
         _detalle:{
           sinRegistro: grp('Sin registro'),
           permiso:     grp('Permiso Personal'),
           medico:      grp('Permiso Médico'),
           judicial:    grp('Permiso Judicial'),
           vacaciones:  grp('Vacaciones en curso'),
+          licencia:    grp('Licencia Médica'),
         }
       };
       pendientes--;
@@ -4749,7 +4766,7 @@ function renderAusentes(ausentes){
   // ── Ordenar ───────────────────────────────────────────
   const col = _ausentesSortCol;
   const asc = _ausentesSortAsc;
-  const ordenEstado = {'Sin registro':0,'Permiso Personal':1,'Permiso Médico':2,'Permiso Judicial':3,'Vacaciones en curso':4};
+  const ordenEstado = {'Sin registro':0,'Permiso Personal':1,'Permiso Médico':2,'Permiso Judicial':3,'Vacaciones en curso':4,'Licencia Médica':5};
   const sorted = [...filtrado].sort((a,b) => {
     let av, bv;
     if(col === 'estado'){
@@ -4777,6 +4794,8 @@ function renderAusentes(ausentes){
       return `<span class="ausente-tag" style="background:rgba(230,126,34,.12);color:#e67e22;border-color:rgba(230,126,34,.25)">🏥 Permiso Médico</span>`;
     if(estado === 'Permiso Judicial')
       return `<span class="ausente-tag" style="background:rgba(142,68,173,.12);color:#8e44ad;border-color:rgba(142,68,173,.25)">⚖️ Permiso Judicial</span>`;
+    if(estado === 'Licencia Médica')
+      return `<span class="ausente-tag" style="background:rgba(255,193,7,.15);color:#a07800;border-color:rgba(255,193,7,.4)">🏥 Licencia Médica</span>`;
     return `<span class="ausente-tag">⚠️ Sin registro</span>`;
   };
 
@@ -4785,6 +4804,7 @@ function renderAusentes(ausentes){
     estado === 'Permiso Personal'    ? 'linear-gradient(135deg,#27ae60,#1e8449)' :
     estado === 'Permiso Médico'      ? 'linear-gradient(135deg,#e67e22,#ca6f1e)' :
     estado === 'Permiso Judicial'    ? 'linear-gradient(135deg,#8e44ad,#7d3c98)' :
+    estado === 'Licencia Médica'     ? 'linear-gradient(135deg,#f0b429,#c9890b)' :
                                        'linear-gradient(135deg,#e05252,#c0392b)';
 
   const arw = c =>
@@ -4867,7 +4887,7 @@ function exportarAusentesPDF(){
   // Ordenar igual que la vista
   const col = _ausentesSortCol;
   const asc = _ausentesSortAsc;
-  const ordenEstado = {'Sin registro':0,'Permiso Personal':1,'Permiso Médico':2,'Permiso Judicial':3,'Vacaciones en curso':4};
+  const ordenEstado = {'Sin registro':0,'Permiso Personal':1,'Permiso Médico':2,'Permiso Judicial':3,'Vacaciones en curso':4,'Licencia Médica':5};
   const sorted = [...baseData].sort((a,b) => {
     let av, bv;
     if(col === 'estado'){
