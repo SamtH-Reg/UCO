@@ -5409,23 +5409,42 @@ async function exportarRegistrosExcel(){
     var s = String(v).trim();
     if(!s) return '';
 
-    // Timestamps (fecha+hora): usar new Date() que respeta timezone
+    // Timestamps fecha+hora
     if(COLS_DATETIME.includes(k) && /^\d{4}-\d{2}-\d{2}[T ]/.test(s)) {
       try {
-        // Si tiene timezone (+00:00 o Z), new Date() convierte a hora local ✓
-        // Si NO tiene timezone, lo trata como hora local ✓
-        var iso = s.replace(' ','T');
-        // Si no tiene timezone ni Z, agregar nada (se trata como local)
-        var d = new Date(iso);
-        if(!isNaN(d.getTime())) return d;
+        var pad = function(n){ return String(n).padStart(2,'0'); };
+        var dLocal;
+        // created_at tiene timezone (+00:00) → convertir a hora local primero
+        if(k === 'created_at') {
+          dLocal = new Date(s); // respeta timezone → da hora local
+        } else {
+          // Sin timezone → tratar como local directamente
+          var clean = s.replace(/([+-]\d{2}:\d{2}|Z)$/,'').replace('T',' ');
+          var pp = clean.split(' ');
+          var dp2 = pp[0].split('-');
+          var tp2 = (pp[1]||'00:00').split(':');
+          dLocal = { // objeto simple con hora local
+            y: parseInt(dp2[0]), mo: parseInt(dp2[1])-1, d: parseInt(dp2[2]),
+            h: parseInt(tp2[0]||0), mi: parseInt(tp2[1]||0)
+          };
+          // Crear Date UTC con valores locales → SheetJS muestra hora correcta
+          return new Date(Date.UTC(dLocal.y, dLocal.mo, dLocal.d, dLocal.h, dLocal.mi, 0));
+        }
+        // Para created_at: crear Date UTC con la hora LOCAL del usuario
+        if(!isNaN(dLocal.getTime())) {
+          return new Date(Date.UTC(
+            dLocal.getFullYear(), dLocal.getMonth(), dLocal.getDate(),
+            dLocal.getHours(), dLocal.getMinutes(), 0
+          ));
+        }
       } catch(e){}
       return s;
     }
-    // Solo fecha "yyyy-MM-dd" → medianoche local
+    // Solo fecha "yyyy-MM-dd" → medianoche UTC (Excel mostrará fecha correcta)
     if(COLS_FECHA.includes(k) && /^\d{4}-\d{2}-\d{2}$/.test(s)) {
       try {
-        var dp = s.split('-');
-        return new Date(parseInt(dp[0]), parseInt(dp[1])-1, parseInt(dp[2]));
+        var dp3 = s.split('-');
+        return new Date(Date.UTC(parseInt(dp3[0]), parseInt(dp3[1])-1, parseInt(dp3[2])));
       } catch(e){ return s; }
     }
     return s;
