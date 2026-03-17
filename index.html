@@ -77,21 +77,30 @@ function _toISO(v){
   } catch(e){ return null; }
 }
 function _fmtTs(v){
-  // Mostrar el valor RAW de Supabase sin convertir zona horaria
-  // Para timestamps sin zona horaria (proceso_inicio, etc.)
+  // Formato: dd-MM-yyyy H:mm:ss
   if(!v) return '';
-  var s = String(v);
-  s = s.replace(/([+-]\d{2}:\d{2}|Z)$/, '');
-  return s.replace('T',' ').substring(0,16);
+  var s = String(v).replace(/([+-]\d{2}:\d{2}|Z)$/, '');
+  // s = "yyyy-MM-ddTHH:mm:ss" o "yyyy-MM-dd HH:mm:ss"
+  var parts = s.replace('T',' ').split(' ');
+  var dateParts = (parts[0]||'').split('-');
+  if(dateParts.length !== 3) return s.substring(0,16);
+  var timePart = parts[1] ? parts[1].substring(0,8) : '';
+  // Quitar cero inicial de hora: "08:13:00" → "8:13:00"
+  if(timePart) timePart = timePart.replace(/^0/,'');
+  return dateParts[2]+'-'+dateParts[1]+'-'+dateParts[0]+(timePart?' '+timePart:'');
 }
 function _fmtTsLocal(v){
-  // Para created_at que viene con timezone UTC — convertir a hora local
+  // Para created_at — hora local, formato dd-MM-yyyy H:mm:ss
   if(!v) return '';
   try{
     var d=new Date(v);
-    var pad=function(n){return String(n).padStart(2,'0');};
-    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+
-           ' '+pad(d.getHours())+':'+pad(d.getMinutes());
+    var dd=String(d.getDate()).padStart(2,'0');
+    var mm=String(d.getMonth()+1).padStart(2,'0');
+    var yyyy=d.getFullYear();
+    var h=String(d.getHours()); // sin cero inicial
+    var mi=String(d.getMinutes()).padStart(2,'0');
+    var ss=String(d.getSeconds()).padStart(2,'0');
+    return dd+'-'+mm+'-'+yyyy+' '+h+':'+mi+':'+ss;
   }catch(e){ return ''; }
 }
 function _isoSem(d){
@@ -3867,7 +3876,16 @@ function renderTabla(rows){
   const dupIcon = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm.75 4a.75.75 0 00-1.5 0v3.25l-1.5 1.5a.75.75 0 001.06 1.06l1.72-1.72A.75.75 0 008.75 8.5V5z"/></svg>';
 
   const fmtBool=v=>v==='Sí'?'<span class="badge-si">✓ Sí</span>':'<span class="badge-no">—</span>';
-  const fmtDt=v=>(!v||v==='')?'—':String(v).replace('T',' ').substring(0,16);
+  const fmtDt=v=>{
+    if(!v||v==='') return '—';
+    var s=String(v).replace(/([+-]\d{2}:\d{2}|Z)$/,'');
+    var parts=s.replace('T',' ').split(' ');
+    var dp=(parts[0]||'').split('-');
+    if(dp.length!==3) return s.substring(0,16);
+    var tp=parts[1]?parts[1].substring(0,8):'';
+    if(tp) tp=tp.replace(/^0/,'');
+    return dp[2]+'-'+dp[1]+'-'+dp[0]+(tp?' '+tp:'');
+  };
   const x=v=>(v==null||v==='')?'—':String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
   tbody.innerHTML=rows.map((r,i)=>{
@@ -4118,7 +4136,16 @@ function exportarPDF(){
     'C.Inicio','C.Término','Colación'];
 
   const x2=v=>String(v==null||v===''?'—':v).replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const fmtDt=v=>(!v||v==='')?'—':String(v).replace('T',' ').substring(0,16);
+  const fmtDt=v=>{
+    if(!v||v==='') return '—';
+    var s=String(v).replace(/([+-]\d{2}:\d{2}|Z)$/,'');
+    var parts=s.replace('T',' ').split(' ');
+    var dp=(parts[0]||'').split('-');
+    if(dp.length!==3) return s.substring(0,16);
+    var tp=parts[1]?parts[1].substring(0,8):'';
+    if(tp) tp=tp.replace(/^0/,'');
+    return dp[2]+'-'+dp[1]+'-'+dp[0]+(tp?' '+tp:'');
+  };
 
   const filtrosActivos=[];
   if(desde) filtrosActivos.push('Desde: '+desde);
@@ -5375,20 +5402,34 @@ async function exportarRegistrosExcel(){
     if(v === null || v === undefined) return '';
     var s = String(v);
     if(!s) return '';
-    // created_at → dd/mm/yyyy HH:MM (hora local)
+    // created_at → hora local dd-MM-yyyy H:mm:ss
     if(k === 'created_at' && /^\d{4}-\d{2}-\d{2}T/.test(s)){
       try {
         var d = new Date(s);
         var dd = String(d.getDate()).padStart(2,'0');
         var mm = String(d.getMonth()+1).padStart(2,'0');
         var yyyy = d.getFullYear();
-        var hh = String(d.getHours()).padStart(2,'0');
+        var h  = String(d.getHours());
         var mi = String(d.getMinutes()).padStart(2,'0');
-        return dd+'/'+mm+'/'+yyyy+' '+hh+':'+mi;
-      } catch(e2){ return s.replace('T',' ').substring(0,16); }
+        var ss = String(d.getSeconds()).padStart(2,'0');
+        return dd+'-'+mm+'-'+yyyy+' '+h+':'+mi+':'+ss;
+      } catch(e2){ return s.substring(0,16); }
     }
-    // Otros timestamps → yyyy-MM-dd HH:MM
-    if(/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.replace('T',' ').substring(0,16);
+    // Timestamps de proceso/descanso/colacion → dd-MM-yyyy H:mm:ss
+    if(/^\d{4}-\d{2}-\d{2}[T ]/.test(s)){
+      var clean = s.replace(/([+-]\d{2}:\d{2}|Z)$/,'').replace('T',' ');
+      var parts = clean.split(' ');
+      var dp = (parts[0]||'').split('-');
+      if(dp.length === 3){
+        var tp = parts[1] ? parts[1].substring(0,8).replace(/^0/,'') : '';
+        return dp[2]+'-'+dp[1]+'-'+dp[0]+(tp?' '+tp:'');
+      }
+    }
+    // Solo fecha yyyy-MM-dd → dd-MM-yyyy
+    if(/^\d{4}-\d{2}-\d{2}$/.test(s)){
+      var dp2 = s.split('-');
+      return dp2[2]+'-'+dp2[1]+'-'+dp2[0];
+    }
     return s;
   }
 
@@ -5429,9 +5470,11 @@ function fmtHoraEnvio(v){
     var d=new Date(v);
     var dd=String(d.getDate()).padStart(2,'0');
     var mm=String(d.getMonth()+1).padStart(2,'0');
-    var h=String(d.getHours()).padStart(2,'0');
+    var yyyy=d.getFullYear();
+    var h=String(d.getHours()); // sin cero inicial
     var mi=String(d.getMinutes()).padStart(2,'0');
-    return dd+'/'+mm+' '+h+':'+mi;
+    var ss=String(d.getSeconds()).padStart(2,'0');
+    return dd+'-'+mm+'-'+yyyy+' '+h+':'+mi+':'+ss;
   }catch(e){ return '—'; }
 }
 
