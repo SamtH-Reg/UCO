@@ -90,7 +90,7 @@ function _fmtTsLocal(v){
     var pad=function(n){return String(n).padStart(2,'0');};
     // Guardar como "yyyy-MM-dd HH:mm:ss" hora local
     return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+
-           ' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+           ' '+pad(d.getHours())+':'+pad(d.getMinutes());
   }catch(e){ return ''; }
 }
 function _isoSem(d){
@@ -3877,7 +3877,7 @@ function renderTabla(rows){
     var parts=s.replace('T',' ').split(' ');
     var dp=(parts[0]||'').split('-');
     if(dp.length!==3) return s.substring(0,16);
-    var tp=parts[1]?parts[1].substring(0,8):'';
+    var tp=parts[1]?parts[1].substring(0,5):'';
     if(tp) tp=tp.replace(/^0/,'');
     return dp[2]+'-'+dp[1]+'-'+dp[0]+(tp?' '+tp:'');
   };
@@ -4142,7 +4142,7 @@ function exportarPDF(){
     var parts=s.replace('T',' ').split(' ');
     var dp=(parts[0]||'').split('-');
     if(dp.length!==3) return s.substring(0,16);
-    var tp=parts[1]?parts[1].substring(0,8):'';
+    var tp=parts[1]?parts[1].substring(0,5):'';
     if(tp) tp=tp.replace(/^0/,'');
     return dp[2]+'-'+dp[1]+'-'+dp[0]+(tp?' '+tp:'');
   };
@@ -5421,7 +5421,7 @@ async function exportarRegistrosExcel(){
       var parts = clean.split(' ');
       var dp = (parts[0]||'').split('-');
       if(dp.length === 3){
-        var tp = parts[1] ? parts[1].substring(0,8).replace(/^0/,'') : '';
+        var tp = parts[1] ? parts[1].substring(0,5).replace(/^0/,'') : '';
         return dp[2]+'-'+dp[1]+'-'+dp[0]+(tp?' '+tp:'');
       }
     }
@@ -5471,7 +5471,7 @@ function fmtHoraEnvio(v){
   var parts = s.split(' ');
   var dp = (parts[0]||'').split('-');
   if(dp.length===3){
-    var tp = parts[1] ? parts[1].substring(0,8).replace(/^0/,'') : '';
+    var tp = parts[1] ? parts[1].substring(0,5).replace(/^0/,'') : '';
     return dp[2]+'-'+dp[1]+'-'+dp[0]+(tp?' '+tp:'');
   }
   return s;
