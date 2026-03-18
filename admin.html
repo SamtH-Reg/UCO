@@ -3559,15 +3559,19 @@ async function loginSubmit() {
     if (error) throw error;
 
     // Obtener perfil y rol
-    // Crear cliente autenticado con el token de la sesión
-    var authClient = supabase.createClient(_DEFAULT_URL, _DEFAULT_KEY, {
-      global: { headers: { Authorization: 'Bearer ' + data.session.access_token } }
+    // Usar el cliente principal con setSession
+    await ac.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token
     });
 
-    var { data: perfil, error: perfilErr } = await authClient.from('usuarios')
+    var { data: perfil, error: perfilErr } = await ac.from('usuarios')
       .select('nombre,rol,activo').eq('id', data.user.id).single();
 
-    if (perfilErr || !perfil) throw new Error('Usuario no encontrado en el sistema. Ejecuta el SQL y crea el perfil.');
+    if (perfilErr || !perfil) {
+      console.error('[LOGIN] Error perfil:', perfilErr);
+      throw new Error('Usuario no encontrado en el sistema. Ejecuta el SQL y crea el perfil.');
+    }
     if (!perfil.activo) throw new Error('Tu cuenta está desactivada. Contacta al administrador.');
 
     _sesionUsuario = {
