@@ -1878,6 +1878,16 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
       <span id="sidebarTemaNombre" style="margin-left:auto;font-size:11px;opacity:.7">Océano</span>
     </button>
   </nav>
+  <!-- Usuario actual -->
+  <div class="sidebar-user" id="sidebarUserInfo" style="display:none">
+    <div class="sidebar-user-name" id="sidebarUserName">—</div>
+    <div class="sidebar-user-rol" id="sidebarUserRol">—</div>
+  </div>
+  <button class="sidebar-item" onclick="logoutIndex()"
+    style="margin:4px 10px;border-radius:8px;color:rgba(255,100,100,.8);font-size:12px">
+    <span class="sidebar-item-icon">🚪</span>
+    <span class="sidebar-item-label">Cerrar sesión</span>
+  </button>
   <div class="sidebar-footer">
     <div class="sidebar-footer-time" id="sidebarTime">--:--</div>
     <div class="sidebar-footer-date" id="sidebarDate">—</div>
@@ -5498,6 +5508,145 @@ async function exportarRegistrosExcel(){
   showToast('✅ '+data.length+' registros → registros'+sufijo+'.xlsx','success',5000);
 }
 
+// ════════════════════════════════════════════════════════════════
+//  AUTENTICACIÓN INDEX — Supabase Auth
+// ════════════════════════════════════════════════════════════════
+var _sesionIndex = null; // { id, email, nombre, rol }
+
+function _getAuthClientIndex() {
+  var SB_URL = 'https://qvtztwqbbbzortkodtla.supabase.co';
+  var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2dHp0d3FiYmJ6b3J0a29kdGxhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0NDA4NTMsImV4cCI6MjA4OTAxNjg1M30.zMcRweclE46qwOCTduo7sLfduZxXjKvFLmim7nZyiok';
+  return supabase.createClient(SB_URL, SB_KEY);
+}
+
+async function loginIndex() {
+  var email = document.getElementById('li-email').value.trim();
+  var pass  = document.getElementById('li-pass').value;
+  var btn   = document.getElementById('li-btn');
+  var errEl = document.getElementById('li-error');
+  if (!email || !pass) { errEl.textContent = 'Ingresa email y contraseña'; return; }
+
+  btn.disabled = true; btn.textContent = 'Verificando...'; errEl.textContent = '';
+  try {
+    var ac = _getAuthClientIndex();
+    var res = await ac.auth.signInWithPassword({ email: email, password: pass });
+    if (res.error) throw res.error;
+
+    var perfilRes = await ac.from('usuarios')
+      .select('nombre,rol,activo').eq('id', res.data.user.id).single();
+
+    if (perfilRes.error || !perfilRes.data)
+      throw new Error('Usuario no encontrado. Contacta al administrador.');
+    if (!perfilRes.data.activo)
+      throw new Error('Tu cuenta está desactivada.');
+
+    _sesionIndex = {
+      id:     res.data.user.id,
+      email:  res.data.user.email,
+      nombre: perfilRes.data.nombre,
+      rol:    perfilRes.data.rol
+    };
+    localStorage.setItem('friosur_sesion_idx', JSON.stringify(_sesionIndex));
+    mostrarAppIndex();
+
+  } catch(e) {
+    var msg = e.message || 'Error al iniciar sesión';
+    if (msg.includes('Invalid login')) msg = 'Email o contraseña incorrectos';
+    errEl.textContent = msg;
+    btn.disabled = false; btn.textContent = 'Ingresar';
+  }
+}
+
+function logoutIndex() {
+  if (!confirm('¿Cerrar sesión?')) return;
+  localStorage.removeItem('friosur_sesion_idx');
+  _sesionIndex = null;
+  _getAuthClientIndex().auth.signOut();
+  location.reload();
+}
+
+function verificarSesionIndex() {
+  try {
+    var raw = localStorage.getItem('friosur_sesion_idx');
+    if (!raw) return false;
+    var s = JSON.parse(raw);
+    if (!s || !s.id || !s.rol) return false;
+    _sesionIndex = s;
+    return true;
+  } catch(e) { return false; }
+}
+
+function mostrarAppIndex() {
+  // Ocultar login
+  document.getElementById('loginScreen').classList.add('hidden');
+
+  // Mostrar info usuario en sidebar
+  var info = document.getElementById('sidebarUserInfo');
+  if (info) { info.style.display = ''; }
+  var nameEl = document.getElementById('sidebarUserName');
+  var rolEl  = document.getElementById('sidebarUserRol');
+  if (nameEl) nameEl.textContent = _sesionIndex.nombre || _sesionIndex.email;
+  if (rolEl)  rolEl.textContent  = 'Rol: ' + _sesionIndex.rol.charAt(0).toUpperCase() + _sesionIndex.rol.slice(1);
+
+  // Aplicar restricciones por rol
+  aplicarPermisosIndex(_sesionIndex.rol);
+
+  // Inicializar la app normalmente
+  iniciarApp();
+}
+
+function aplicarPermisosIndex(rol) {
+  // Operario: solo puede registrar — ocultar Registros y Dashboard
+  if (rol === 'operario') {
+    var regBtn  = document.getElementById('sidebarRegistros');
+    var dashBtn = document.getElementById('sidebarDashboard');
+    if (regBtn)  regBtn.style.display  = 'none';
+    if (dashBtn) dashBtn.style.display = 'none';
+    // Ocultar cards de inicio que llevan a esas páginas
+    document.querySelectorAll('.home-nav-card').forEach(function(c) {
+      if (c.getAttribute('onclick') && (
+        c.getAttribute('onclick').includes("registros") ||
+        c.getAttribute('onclick').includes("dashboard")
+      )) c.style.display = 'none';
+    });
+  }
+}
+
+// ── Separar la inicialización de la app del onload ──────────────
+function iniciarApp() {
+  aplicarTema(temaActual);
+
+  const hoy = localDate(new Date());
+  document.getElementById('filtroDesde').value     = hoy;
+  document.getElementById('filtroDesdeHora').value = '07:00';
+  document.getElementById('filtroHasta').value     = hoy;
+  document.getElementById('filtroHastaHora').value = '18:00';
+  document.getElementById('dashSemana').value = getNumSemana(new Date());
+  const dashAnioEl = document.getElementById('dashAnio');
+  if(dashAnioEl) dashAnioEl.value = new Date().getFullYear();
+  document.getElementById('ausentesFecha').value = hoy;
+
+  irA('inicio');
+  cargarListas();
+  empCargar();
+  respCargar();
+  initListenersVerde();
+
+  setTimeout(function(){
+    cargarDashboard();
+    cargarRegistros();
+  }, 500);
+
+  dbAbrir().then(()=>{
+    offlineActualizarBadge();
+    if(!navigator.onLine){
+      offlineMostrarBanner('📡 Sin conexión — los registros se guardarán localmente', false);
+    } else {
+      dbLeerTodos().then(p=>{ if(p.length) offlineSync(); });
+    }
+  }).catch(()=>{});
+}
+
 // Hora de envío — formatea created_at como dd/mm HH:MM
 function fmtHoraEnvio(v){
   if(!v||v===''||v==='—') return '—';
@@ -5513,47 +5662,36 @@ function fmtHoraEnvio(v){
 }
 
 window.onload=function(){
-  // Aplicar tema guardado
-  aplicarTema(temaActual);
-
-  // Inicializar fecha/hora de filtros
-  const hoy=localDate(new Date());
-  document.getElementById('filtroDesde').value     = hoy;
-  document.getElementById('filtroDesdeHora').value = '07:00';
-  document.getElementById('filtroHasta').value     = hoy;
-  document.getElementById('filtroHastaHora').value = '18:00';
-  document.getElementById('dashSemana').value = getNumSemana(new Date());
-  const dashAnioEl = document.getElementById('dashAnio');
-  if(dashAnioEl) dashAnioEl.value = new Date().getFullYear();
-  document.getElementById('ausentesFecha').value = hoy;
-
-  irA('inicio');
-
-  // Cargar TODOS los datos en paralelo al iniciar
-  // para que dashboard y registros estén listos cuando el usuario navegue
-  cargarListas();
-  empCargar();
-  respCargar();
-  initListenersVerde();
-
-  // Precargar dashboard y registros en segundo plano
-  setTimeout(function(){
-    // Cargar dashboard (semana actual)
-    cargarDashboard();
-    // Precargar registros del día
-    cargarRegistros();
-  }, 500); // pequeña pausa para que el DOM esté listo
-
-  // Abrir IndexedDB para modo offline
-  dbAbrir().then(()=>{
-    offlineActualizarBadge();
-    if(!navigator.onLine){
-      offlineMostrarBanner('📡 Sin conexión — los registros se guardarán localmente', false);
-    } else {
-      dbLeerTodos().then(p=>{ if(p.length) offlineSync(); });
-    }
-  }).catch(()=>{ /* IndexedDB no disponible — continúa sin offline */ });
+  // Verificar si hay sesión activa
+  if (verificarSesionIndex()) {
+    mostrarAppIndex();
+  }
+  // Si no hay sesión → login ya visible por defecto
 };
 </script>
+
+<!-- ══ LOGIN ══ -->
+<div id="loginScreen">
+  <div class="lcard">
+    <div class="lcard-logo">
+      <div class="licon">📋</div>
+      <h2>Registro de Asistencia</h2>
+      <p>Pesquera Friosur SpA</p>
+    </div>
+    <div class="lfield">
+      <label>CORREO ELECTRÓNICO</label>
+      <input type="email" id="li-email" placeholder="usuario@friosur.cl"
+        onkeydown="if(event.key==='Enter')document.getElementById('li-pass').focus()">
+    </div>
+    <div class="lfield">
+      <label>CONTRASEÑA</label>
+      <input type="password" id="li-pass" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter')loginIndex()">
+    </div>
+    <button class="lbtn" id="li-btn" onclick="loginIndex()">Ingresar</button>
+    <div class="lerror" id="li-error"></div>
+  </div>
+</div>
+
 </body>
 </html>
