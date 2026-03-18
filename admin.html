@@ -28,6 +28,118 @@
   --sans:     'Calibri', 'Trebuchet MS', 'Segoe UI', sans-serif;
 }
 
+/* ══ LOGIN SCREEN ══ */
+#loginScreen {
+  position:fixed; inset:0; z-index:9999;
+  background:var(--bg);
+  display:flex; align-items:center; justify-content:center;
+  flex-direction:column; gap:0;
+}
+#loginScreen.hidden { display:none; }
+.login-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:40px 36px 32px;
+  width:100%; max-width:380px;
+  box-shadow:0 8px 40px rgba(0,0,0,.12);
+}
+.login-logo {
+  text-align:center; margin-bottom:28px;
+}
+.login-logo .licon { font-size:36px; margin-bottom:8px; }
+.login-logo h2 { font-size:20px; font-weight:800; color:var(--text); margin:0; }
+.login-logo p  { font-size:12px; color:var(--muted); margin-top:4px; }
+.login-field { margin-bottom:16px; }
+.login-field label { display:block; font-size:11px; font-weight:700; color:var(--muted); letter-spacing:.5px; margin-bottom:6px; }
+.login-field input {
+  width:100%; padding:10px 14px; border-radius:8px;
+  border:1px solid var(--border); background:var(--surface2);
+  font-size:14px; color:var(--text); font-family:var(--sans);
+  outline:none; transition:border .2s;
+}
+.login-field input:focus { border-color:var(--accent); }
+.login-btn {
+  width:100%; padding:12px; border-radius:8px; border:none;
+  background:var(--accent); color:#fff; font-size:14px;
+  font-weight:700; cursor:pointer; font-family:var(--sans);
+  transition:opacity .2s; margin-top:4px;
+}
+.login-btn:hover { opacity:.88; }
+.login-btn:disabled { opacity:.5; cursor:default; }
+.login-error { color:#dc2626; font-size:12px; margin-top:10px; text-align:center; min-height:18px; }
+.login-rol-badge {
+  display:inline-block; padding:2px 10px; border-radius:20px;
+  font-size:10px; font-weight:700; letter-spacing:.5px;
+}
+.rol-admin      { background:rgba(124,58,237,.12); color:#7c3aed; }
+.rol-supervisor { background:rgba(0,119,182,.12);  color:#0077b6; }
+.rol-operario   { background:rgba(39,174,96,.12);  color:#27ae60; }
+
+/* ══ USUARIOS PAGE ══ */
+.usr-avatar {
+  width:34px; height:34px; border-radius:50%;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-weight:800; font-size:13px; color:#fff; flex-shrink:0;
+}
+
+/* ══ TEMAS ══ */
+[data-theme="oceano"] {
+  --bg:#f0f4f8; --surface:#fff; --surface2:#f8fafc; --surface3:#edf2f7;
+  --border:#d1dce8; --border2:#b0c4d8; --text:#1a2e42; --muted:#5a7a96;
+  --accent:#0077b6; --accent2:#0094d4;
+}
+[data-theme="bosque"] {
+  --bg:#f0f5f1; --surface:#fff; --surface2:#f4f9f5; --surface3:#e8f2ea;
+  --border:#c8dece; --border2:#a8c8b0; --text:#1a3020; --muted:#4a7a58;
+  --accent:#2d8653; --accent2:#3aaa6a;
+}
+[data-theme="carbon"] {
+  --bg:#13161a; --surface:#1e2228; --surface2:#252b33; --surface3:#2d3440;
+  --border:#363d48; --border2:#444d5a; --text:#e2e8f0; --muted:#8896a8;
+  --accent:#38bdf8; --accent2:#60cdff;
+}
+[data-theme="purpura"] {
+  --bg:#f5f3ff; --surface:#fff; --surface2:#faf8ff; --surface3:#ede8ff;
+  --border:#d4caf8; --border2:#b8acf0; --text:#2d1b69; --muted:#6b5aa0;
+  --accent:#7c3aed; --accent2:#9b59f0;
+}
+[data-theme="rojo"] {
+  --bg:#fff5f5; --surface:#fff; --surface2:#fff8f8; --surface3:#ffecec;
+  --border:#fecaca; --border2:#fca5a5; --text:#450a0a; --muted:#9b2626;
+  --accent:#dc2626; --accent2:#ef4444;
+}
+[data-theme="slate"] {
+  --bg:#f1f5f9; --surface:#fff; --surface2:#f8fafc; --surface3:#e2e8f0;
+  --border:#cbd5e1; --border2:#94a3b8; --text:#0f172a; --muted:#475569;
+  --accent:#334155; --accent2:#64748b;
+}
+[data-theme="aurora"] {
+  --bg:#f0fdf9; --surface:#fff; --surface2:#f0fdf9; --surface3:#ccfbef;
+  --border:#99f6e4; --border2:#5eead4; --text:#042f2e; --muted:#0d9488;
+  --accent:#0d9488; --accent2:#14b8a6;
+}
+[data-theme="amanecer"] {
+  --bg:#fff7ed; --surface:#fff; --surface2:#fff7ed; --surface3:#ffedd5;
+  --border:#fed7aa; --border2:#fdba74; --text:#431407; --muted:#c2410c;
+  --accent:#ea580c; --accent2:#f97316;
+}
+
+/* CSS tema cards */
+.theme-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:10px; padding:4px 0; }
+.theme-card {
+  border:2px solid var(--border); border-radius:12px; padding:14px 10px 10px;
+  cursor:pointer; transition:all .2s; text-align:center; background:var(--surface2);
+  position:relative;
+}
+.theme-card:hover { transform:translateY(-2px); box-shadow:0 4px 16px rgba(0,0,0,.1); }
+.theme-card.active { border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,119,182,.2); }
+.theme-card.active::after { content:'✓'; position:absolute; top:6px; right:8px; font-size:12px; color:var(--accent); font-weight:800; }
+.theme-preview { display:flex; gap:3px; justify-content:center; margin-bottom:8px; }
+.theme-preview span { width:18px; height:18px; border-radius:50%; display:inline-block; }
+.theme-name { font-size:11px; font-weight:700; color:var(--text); }
+.theme-desc { font-size:10px; color:var(--muted); margin-top:2px; }
+
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
 body {
@@ -531,6 +643,10 @@ body {
   <div class="topbar-logo">ADMIN PANEL</div>
   <div class="topbar-sep"></div>
   <div class="topbar-title">Sistema de Asistencia · Friosur</div>
+  <div id="topbarUser" style="margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)">
+    <span id="topbarNombre" style="font-weight:600;color:var(--text)"></span>
+    <span id="topbarRol" class="login-rol-badge"></span>
+  </div>
   <div class="conn-badge" id="connBadge">
     <div class="conn-dot"></div>
     <span id="connText">Conectando…</span>
@@ -577,10 +693,19 @@ body {
         <span class="si-count" id="cnt-auditlog">—</span>
       </button>
     </div>
+    <div class="sidebar-section" id="sidebarSeccionUsuarios" style="display:none">
+      <div class="sidebar-label">Usuarios</div>
+      <button class="sidebar-item" onclick="goPage('usuarios')">
+        <span class="si-icon">👤</span> Gestión usuarios
+      </button>
+    </div>
     <div class="sidebar-section">
       <div class="sidebar-label">Config</div>
       <button class="sidebar-item" onclick="goPage('settings')">
         <span class="si-icon">⚙️</span> Configuración
+      </button>
+      <button class="sidebar-item" onclick="logoutAdmin()" style="color:var(--danger)">
+        <span class="si-icon">🚪</span> Cerrar sesión
       </button>
     </div>
   </aside>
@@ -999,6 +1124,38 @@ body {
     </div>
 
     <!-- ══ PÁGINA: SETTINGS ══ -->
+    <!-- ══ PÁGINA: USUARIOS ══ -->
+    <div class="page" id="page-usuarios">
+      <div class="page-header">
+        <div>
+          <h1>👤 Gestión de Usuarios</h1>
+          <p>Administra usuarios y roles del sistema</p>
+        </div>
+        <div class="page-header-actions">
+          <button class="btn btn-primary" onclick="abrirModalNuevoUsuario()">＋ Nuevo usuario</button>
+        </div>
+      </div>
+      <div class="table-area">
+        <div class="data-table-wrap" style="overflow-x:auto">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:80px">Acciones</th>
+                <th>Usuario</th>
+                <th>Email</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                <th>Creado</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyUsuarios">
+              <tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="page-settings">
       <div class="page-header">
         <div><h1>⚙️ Configuración</h1><p>Conexión a Supabase y opciones del sistema</p></div>
@@ -1067,6 +1224,95 @@ body {
         </div>
 
         <div class="settings-section">
+          <div class="settings-section-title"><span class="sticon">🎨</span> Tema de color</div>
+          <div style="padding:16px 18px">
+            <div class="theme-grid" id="themeGrid">
+
+              <div class="theme-card" data-theme="oceano" onclick="aplicarTemaAdmin('oceano')">
+                <div class="theme-preview">
+                  <span style="background:#f0f4f8;border:1px solid #d1dce8"></span>
+                  <span style="background:#0077b6"></span>
+                  <span style="background:#1a2e42"></span>
+                </div>
+                <div class="theme-name">Océano</div>
+                <div class="theme-desc">Azul clásico</div>
+              </div>
+
+              <div class="theme-card" data-theme="bosque" onclick="aplicarTemaAdmin('bosque')">
+                <div class="theme-preview">
+                  <span style="background:#f0f5f1;border:1px solid #c8dece"></span>
+                  <span style="background:#2d8653"></span>
+                  <span style="background:#1a3020"></span>
+                </div>
+                <div class="theme-name">Bosque</div>
+                <div class="theme-desc">Verde natural</div>
+              </div>
+
+              <div class="theme-card" data-theme="carbon" onclick="aplicarTemaAdmin('carbon')">
+                <div class="theme-preview">
+                  <span style="background:#13161a;border:1px solid #363d48"></span>
+                  <span style="background:#38bdf8"></span>
+                  <span style="background:#e2e8f0"></span>
+                </div>
+                <div class="theme-name">Carbón</div>
+                <div class="theme-desc">Dark mode</div>
+              </div>
+
+              <div class="theme-card" data-theme="purpura" onclick="aplicarTemaAdmin('purpura')">
+                <div class="theme-preview">
+                  <span style="background:#f5f3ff;border:1px solid #d4caf8"></span>
+                  <span style="background:#7c3aed"></span>
+                  <span style="background:#2d1b69"></span>
+                </div>
+                <div class="theme-name">Púrpura</div>
+                <div class="theme-desc">Violeta moderno</div>
+              </div>
+
+              <div class="theme-card" data-theme="rojo" onclick="aplicarTemaAdmin('rojo')">
+                <div class="theme-preview">
+                  <span style="background:#fff5f5;border:1px solid #fecaca"></span>
+                  <span style="background:#dc2626"></span>
+                  <span style="background:#450a0a"></span>
+                </div>
+                <div class="theme-name">Rojo</div>
+                <div class="theme-desc">Intenso y directo</div>
+              </div>
+
+              <div class="theme-card" data-theme="slate" onclick="aplicarTemaAdmin('slate')">
+                <div class="theme-preview">
+                  <span style="background:#f1f5f9;border:1px solid #cbd5e1"></span>
+                  <span style="background:#334155"></span>
+                  <span style="background:#0f172a"></span>
+                </div>
+                <div class="theme-name">Slate</div>
+                <div class="theme-desc">Gris minimalista</div>
+              </div>
+
+              <div class="theme-card" data-theme="aurora" onclick="aplicarTemaAdmin('aurora')">
+                <div class="theme-preview">
+                  <span style="background:#f0fdf9;border:1px solid #99f6e4"></span>
+                  <span style="background:#0d9488"></span>
+                  <span style="background:#042f2e"></span>
+                </div>
+                <div class="theme-name">Aurora</div>
+                <div class="theme-desc">Verde agua</div>
+              </div>
+
+              <div class="theme-card" data-theme="amanecer" onclick="aplicarTemaAdmin('amanecer')">
+                <div class="theme-preview">
+                  <span style="background:#fff7ed;border:1px solid #fed7aa"></span>
+                  <span style="background:#ea580c"></span>
+                  <span style="background:#431407"></span>
+                </div>
+                <div class="theme-name">Amanecer</div>
+                <div class="theme-desc">Naranja cálido</div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
           <div class="settings-section-title"><span class="sticon">ℹ️</span> Acerca de</div>
           <div class="settings-row" style="border:none">
             <div class="settings-row-info">
@@ -1128,6 +1374,57 @@ body {
           <span id="importRegProg" style="font-size:12px;color:var(--muted)"></span>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL USUARIO ══ -->
+<div class="modal-overlay" id="modalUsuario">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <h2 id="modalUsuarioTitle">Nuevo Usuario</h2>
+      <button class="modal-close" onclick="cerrarModal('modalUsuario')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-label">Nombre completo *</label>
+          <input class="form-input" id="uf-nombre" placeholder="Nombre Apellido">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Email *</label>
+          <input class="form-input" id="uf-email" type="email" placeholder="usuario@friosur.cl">
+        </div>
+        <div class="form-field" id="uf-pass-field">
+          <label class="form-label">Contraseña *</label>
+          <input class="form-input" id="uf-pass" type="password" placeholder="Mínimo 8 caracteres">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Rol *</label>
+          <select class="form-select" id="uf-rol">
+            <option value="operario">Operario — Solo lectura</option>
+            <option value="supervisor">Supervisor — Lectura + reportes</option>
+            <option value="admin">Administrador — Acceso total</option>
+          </select>
+        </div>
+        <div class="form-field" id="uf-activo-field" style="display:none">
+          <label class="form-label">Estado</label>
+          <select class="form-select" id="uf-activo">
+            <option value="true">Activo</option>
+            <option value="false">Inactivo</option>
+          </select>
+        </div>
+      </div>
+      <div style="background:var(--surface3);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--muted);margin-top:8px">
+        <strong>Roles:</strong> &nbsp;
+        <span class="login-rol-badge rol-admin">Admin</span> acceso total · 
+        <span class="login-rol-badge rol-supervisor">Supervisor</span> lectura + exportar · 
+        <span class="login-rol-badge rol-operario">Operario</span> solo lectura
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="cerrarModal('modalUsuario')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarUsuario()">💾 Guardar</button>
     </div>
   </div>
 </div>
@@ -1373,6 +1670,7 @@ function goPage(name) {
     noregistrar:loadNoRegistrar,
     auditlog:   loadAuditLog,
     settings:   cargarSettings,
+    usuarios:   loadUsuarios,
     revision:   function() {
       // Fechas por defecto: primer y último día del mes actual
       var hoy = new Date();
@@ -2449,6 +2747,24 @@ function cargarSettings() {
   document.getElementById('cfg-perm').value = cfg.perm ?? '';
 }
 
+// ── TEMAS ──────────────────────────────────────────────────────
+var _temaActualAdmin = localStorage.getItem('friosur_admin_tema') || 'oceano';
+
+function aplicarTemaAdmin(tema) {
+  _temaActualAdmin = tema;
+  document.documentElement.setAttribute('data-theme', tema);
+  localStorage.setItem('friosur_admin_tema', tema);
+  // Marcar card activa
+  document.querySelectorAll('.theme-card').forEach(function(c) {
+    c.classList.toggle('active', c.dataset.theme === tema);
+  });
+}
+
+function iniciarTemaAdmin() {
+  var tema = localStorage.getItem('friosur_admin_tema') || 'oceano';
+  aplicarTemaAdmin(tema);
+}
+
 function guardarConfig() {
   const cfg = {
     url:  document.getElementById('cfg-url').value.trim(),
@@ -3220,6 +3536,244 @@ function exportarRevisionPDF() {
   window.print();
 }
 
+// ════════════════════════════════════════════════════════════════
+//  AUTENTICACIÓN — Supabase Auth
+// ════════════════════════════════════════════════════════════════
+var _sesionUsuario = null; // { id, email, nombre, rol }
+
+function getAuthClient() {
+  return supabase.createClient(_DEFAULT_URL, _DEFAULT_KEY);
+}
+
+async function loginSubmit() {
+  var email = document.getElementById('li-email').value.trim();
+  var pass  = document.getElementById('li-pass').value;
+  var btn   = document.getElementById('li-btn');
+  var errEl = document.getElementById('li-error');
+  if (!email || !pass) { errEl.textContent = 'Ingresa email y contraseña'; return; }
+
+  btn.disabled = true; btn.textContent = 'Verificando...'; errEl.textContent = '';
+  try {
+    var ac = getAuthClient();
+    var { data, error } = await ac.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+
+    // Obtener perfil y rol
+    var { data: perfil, error: perfilErr } = await ac.from('usuarios')
+      .select('nombre,rol,activo').eq('id', data.user.id).single();
+
+    if (perfilErr || !perfil) throw new Error('Usuario no encontrado en el sistema');
+    if (!perfil.activo) throw new Error('Tu cuenta está desactivada. Contacta al administrador.');
+
+    _sesionUsuario = {
+      id: data.user.id,
+      email: data.user.email,
+      nombre: perfil.nombre,
+      rol: perfil.rol,
+      token: data.session.access_token
+    };
+
+    // Guardar sesión en localStorage
+    localStorage.setItem('friosur_sesion', JSON.stringify(_sesionUsuario));
+    mostrarPanel();
+  } catch(e) {
+    var msg = e.message || 'Error al iniciar sesión';
+    if (msg.includes('Invalid login')) msg = 'Email o contraseña incorrectos';
+    errEl.textContent = msg;
+    btn.disabled = false; btn.textContent = 'Ingresar';
+  }
+}
+
+function logoutAdmin() {
+  if (!confirm('¿Cerrar sesión?')) return;
+  localStorage.removeItem('friosur_sesion');
+  _sesionUsuario = null;
+  // Cerrar sesión en Supabase
+  getAuthClient().auth.signOut();
+  location.reload();
+}
+
+function mostrarPanel() {
+  // Ocultar login
+  document.getElementById('loginScreen').classList.add('hidden');
+  // Mostrar nombre y rol en topbar
+  var nombre = _sesionUsuario.nombre || _sesionUsuario.email;
+  document.getElementById('topbarNombre').textContent = nombre;
+  var rolEl = document.getElementById('topbarRol');
+  rolEl.textContent = _sesionUsuario.rol.charAt(0).toUpperCase() + _sesionUsuario.rol.slice(1);
+  rolEl.className = 'login-rol-badge rol-' + _sesionUsuario.rol;
+  // Mostrar sección usuarios solo para admin
+  if (_sesionUsuario.rol === 'admin') {
+    var sec = document.getElementById('sidebarSeccionUsuarios');
+    if (sec) sec.style.display = '';
+  }
+  // Aplicar restricciones según rol
+  aplicarPermisosPorRol(_sesionUsuario.rol);
+  // Iniciar panel
+  iniciarTemaAdmin();
+  cargarSettings();
+  checkConn().then(ok => { if (ok) { loadCounts(); loadRegistros(); } });
+}
+
+function aplicarPermisosPorRol(rol) {
+  // Operario: ocultar botones de editar/eliminar/importar/exportar datos
+  if (rol === 'operario') {
+    // Ocultar en sidebar: importar, exportar, auditlog
+    document.querySelectorAll('.sidebar-item').forEach(function(btn) {
+      var txt = btn.textContent.trim();
+      if (txt.includes('Importar') || txt.includes('Exportar') ||
+          txt.includes('auditoría') || txt.includes('Configuración')) {
+        btn.style.display = 'none';
+      }
+    });
+  }
+  // Supervisor: ocultar importar y borrar, pero puede exportar
+  if (rol === 'supervisor') {
+    document.querySelectorAll('.sidebar-item').forEach(function(btn) {
+      var txt = btn.textContent.trim();
+      if (txt.includes('Importar') || txt.includes('Configuración')) {
+        btn.style.display = 'none';
+      }
+    });
+  }
+}
+
+function verificarSesionGuardada() {
+  var raw = localStorage.getItem('friosur_sesion');
+  if (!raw) return false;
+  try {
+    var sesion = JSON.parse(raw);
+    if (!sesion || !sesion.id || !sesion.rol) return false;
+    _sesionUsuario = sesion;
+    return true;
+  } catch(e) { return false; }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  GESTIÓN DE USUARIOS
+// ════════════════════════════════════════════════════════════════
+var _editingUserId = null;
+
+async function loadUsuarios() {
+  var db = getClient(); if (!db) return;
+  var tbody = document.getElementById('tbodyUsuarios');
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr>';
+
+  var { data, error } = await db.from('usuarios').select('*').order('created_at');
+  if (error) { toast('Error: '+error.message,'error'); return; }
+
+  if (!data?.length) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="ei">👤</div><p>Sin usuarios</p></div></td></tr>';
+    return;
+  }
+
+  var rolColors = { admin:'#7c3aed', supervisor:'#0077b6', operario:'#27ae60' };
+  var rolBg     = { admin:'rgba(124,58,237,.1)', supervisor:'rgba(0,119,182,.1)', operario:'rgba(39,174,96,.1)' };
+
+  tbody.innerHTML = data.map(function(u) {
+    var isSelf = _sesionUsuario && u.id === _sesionUsuario.id;
+    var inicial = (u.nombre||u.email||'?').charAt(0).toUpperCase();
+    var avatarBg = ['#0077b6','#7c3aed','#e67e22','#27ae60','#e74c3c','#16a085'][
+      u.nombre.charCodeAt(0) % 6
+    ];
+    return '<tr>'
+      + '<td><div class="td-actions">'
+      + '<button class="btn btn-secondary btn-sm" onclick="editarUsuario(''+u.id+'')">✏️</button>'
+      + (!isSelf ? '<button class="btn btn-danger btn-sm" onclick="eliminarUsuario(''+u.id+'',''+esc(u.nombre)+'')">🗑</button>' : '')
+      + '</div></td>'
+      + '<td><div style="display:flex;align-items:center;gap:10px">'
+      + '<div class="usr-avatar" style="background:'+avatarBg+'">'+inicial+'</div>'
+      + '<div><div style="font-weight:700;font-size:13px">'+esc(u.nombre)+'</div>'
+      + (isSelf ? '<div style="font-size:10px;color:var(--accent)">● Tú</div>' : '')
+      + '</div></div></td>'
+      + '<td style="color:var(--muted);font-size:12px">'+esc(u.email)+'</td>'
+      + '<td><span class="login-rol-badge rol-'+u.rol+'">'+u.rol.charAt(0).toUpperCase()+u.rol.slice(1)+'</span></td>'
+      + '<td><span class="badge '+(u.activo?'badge-active':'badge')+'">'+(u.activo?'Activo':'Inactivo')+'</span></td>'
+      + '<td style="font-size:11px;color:var(--muted)">'+(u.created_at||'').substring(0,10)+'</td>'
+      + '</tr>';
+  }).join('');
+}
+
+function abrirModalNuevoUsuario() {
+  _editingUserId = null;
+  document.getElementById('modalUsuarioTitle').textContent = 'Nuevo Usuario';
+  document.getElementById('uf-nombre').value = '';
+  document.getElementById('uf-email').value  = '';
+  document.getElementById('uf-pass').value   = '';
+  document.getElementById('uf-rol').value    = 'operario';
+  document.getElementById('uf-pass-field').style.display   = '';
+  document.getElementById('uf-activo-field').style.display = 'none';
+  document.getElementById('modalUsuario').classList.add('open');
+}
+
+async function editarUsuario(id) {
+  var db = getClient();
+  var { data } = await db.from('usuarios').select('*').eq('id', id).single();
+  if (!data) return;
+  _editingUserId = id;
+  document.getElementById('modalUsuarioTitle').textContent = 'Editar Usuario';
+  document.getElementById('uf-nombre').value = data.nombre || '';
+  document.getElementById('uf-email').value  = data.email  || '';
+  document.getElementById('uf-pass').value   = '';
+  document.getElementById('uf-rol').value    = data.rol    || 'operario';
+  document.getElementById('uf-activo').value = String(data.activo ?? true);
+  document.getElementById('uf-pass-field').style.display   = ''; // mostrar para cambio opcional
+  document.getElementById('uf-activo-field').style.display = '';
+  document.getElementById('modalUsuario').classList.add('open');
+}
+
+async function guardarUsuario() {
+  var db = getClient(); if (!db) return;
+  var nombre = document.getElementById('uf-nombre').value.trim();
+  var email  = document.getElementById('uf-email').value.trim();
+  var pass   = document.getElementById('uf-pass').value;
+  var rol    = document.getElementById('uf-rol').value;
+  var activo = document.getElementById('uf-activo').value !== 'false';
+
+  if (!nombre || !email) { toast('Nombre y email son obligatorios','error'); return; }
+
+  if (_editingUserId) {
+    // Actualizar perfil
+    var payload = { nombre, rol, activo, updated_at: new Date().toISOString() };
+    var { error } = await db.from('usuarios').update(payload).eq('id', _editingUserId);
+    if (error) { toast('Error: '+error.message,'error'); return; }
+    // Cambiar contraseña si se ingresó
+    if (pass) {
+      toast('⚠️ Para cambiar contraseña el usuario debe usar "Olvidé mi contraseña" desde el login','warn',5000);
+    }
+    toast('✅ Usuario actualizado');
+  } else {
+    // Crear nuevo usuario via Supabase Auth (requiere service role — usar función edge o API admin)
+    // Como usamos anon key, creamos el usuario invitándolo
+    if (!pass || pass.length < 8) { toast('La contraseña debe tener al menos 8 caracteres','error'); return; }
+    var ac = getAuthClient();
+    var { data: authData, error: authErr } = await ac.auth.signUp({
+      email,
+      password: pass,
+      options: { data: { nombre, rol } }
+    });
+    if (authErr) { toast('Error al crear usuario: '+authErr.message,'error'); return; }
+    // El trigger handle_new_user crea el perfil automáticamente
+    // Actualizamos el rol por si acaso
+    if (authData?.user) {
+      await db.from('usuarios').update({ nombre, rol }).eq('id', authData.user.id);
+    }
+    toast('✅ Usuario creado. El usuario debe verificar su email para activarse.');
+  }
+
+  cerrarModal('modalUsuario');
+  loadUsuarios();
+}
+
+async function eliminarUsuario(id, nombre) {
+  if (!confirm('¿Eliminar usuario "'+nombre+'"? Esta acción no se puede deshacer.')) return;
+  var db = getClient();
+  var { error } = await db.from('usuarios').update({ activo: false }).eq('id', id);
+  if (error) { toast('Error: '+error.message,'error'); return; }
+  toast('🗑 Usuario desactivado');
+  loadUsuarios();
+}
+
 // ════════════════════════════════════════════════════
 //  ═══ INIT ═══
 // ════════════════════════════════════════════════════
@@ -3233,20 +3787,37 @@ document.addEventListener('click', function(ev) {
 });
 
 window.onload = async () => {
-  cargarSettings();
-  const ok = await checkConn();
-  if (ok) {
-    loadCounts();
-    loadRegistros();
-  } else {
-    // Si no hay config, ir a Settings
-    const cfg = getCfg();
-    if (!cfg.url) {
-      setTimeout(() => goPage('settings'), 300);
-      toast('⚙️ Configura la conexión a Supabase para comenzar','info', 5000);
-    }
+  iniciarTemaAdmin();
+  // Verificar sesión guardada
+  if (verificarSesionGuardada()) {
+    mostrarPanel();
   }
+  // Si no hay sesión → mostrar login (ya visible por defecto)
 };
 </script>
+
+<!-- ══ LOGIN SCREEN ══ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="licon">🔐</div>
+      <h2>Admin · Friosur</h2>
+      <p>Sistema de Asistencia</p>
+    </div>
+    <div class="login-field">
+      <label>CORREO ELECTRÓNICO</label>
+      <input type="email" id="li-email" placeholder="usuario@friosur.cl"
+        onkeydown="if(event.key==='Enter') loginSubmit()">
+    </div>
+    <div class="login-field">
+      <label>CONTRASEÑA</label>
+      <input type="password" id="li-pass" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter') loginSubmit()">
+    </div>
+    <button class="login-btn" id="li-btn" onclick="loginSubmit()">Ingresar</button>
+    <div class="login-error" id="li-error"></div>
+  </div>
+</div>
+
 </body>
 </html>
