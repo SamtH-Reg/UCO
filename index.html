@@ -1841,6 +1841,53 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
   .home-hero{ padding:14px 18px; margin-bottom:12px; }
   :root{ --tabbar-h:54px; }
 }
+
+/* ══ LOGIN SCREEN INDEX ══ */
+#loginScreen{
+  position:fixed;inset:0;z-index:9999;
+  background:linear-gradient(135deg,#0d1b2a 0%,#1a3050 60%,#0d2137 100%);
+  display:flex;align-items:center;justify-content:center;
+}
+#loginScreen.hidden{display:none;}
+.lcard{
+  background:rgba(255,255,255,.08);backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,.12);border-radius:20px;
+  padding:40px 36px 32px;width:100%;max-width:360px;
+  box-shadow:0 20px 60px rgba(0,0,0,.4);
+}
+.lcard-logo{text-align:center;margin-bottom:28px;}
+.lcard-logo .licon{font-size:38px;margin-bottom:8px;}
+.lcard-logo h2{font-size:20px;font-weight:800;color:#fff;margin:0;}
+.lcard-logo p{font-size:12px;color:rgba(255,255,255,.5);margin-top:4px;}
+.lfield{margin-bottom:14px;}
+.lfield label{display:block;font-size:10px;font-weight:700;letter-spacing:.8px;color:rgba(255,255,255,.5);margin-bottom:6px;}
+.lfield input{
+  width:100%;padding:11px 14px;border-radius:10px;
+  border:1px solid rgba(255,255,255,.15);
+  background:rgba(255,255,255,.08);
+  color:#fff;font-size:14px;font-family:inherit;outline:none;
+  transition:border .2s;
+}
+.lfield input::placeholder{color:rgba(255,255,255,.3);}
+.lfield input:focus{border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.12);}
+.lbtn{
+  width:100%;padding:13px;border:none;border-radius:10px;
+  background:linear-gradient(135deg,#0094d4,#0077b6);
+  color:#fff;font-size:14px;font-weight:700;cursor:pointer;
+  font-family:inherit;transition:opacity .2s;margin-top:6px;
+  box-shadow:0 4px 16px rgba(0,119,182,.4);
+}
+.lbtn:hover{opacity:.88;}
+.lbtn:disabled{opacity:.45;cursor:default;}
+.lerror{color:#fca5a5;font-size:12px;margin-top:10px;text-align:center;min-height:18px;}
+.sidebar-user{
+  padding:10px 14px;margin:8px 10px;
+  background:rgba(255,255,255,.06);border-radius:10px;
+  border:1px solid rgba(255,255,255,.08);
+}
+.sidebar-user-name{font-size:12px;font-weight:700;color:#fff;margin-bottom:2px;}
+.sidebar-user-rol{font-size:10px;color:rgba(255,255,255,.45);}
+
 </style>
 </head>
 <body>
