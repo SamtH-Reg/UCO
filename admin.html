@@ -972,7 +972,7 @@ body {
       </div>
 
       <!-- Resumen KPIs -->
-      <div id="rev-kpis" style="display:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px">
+      <div id="rev-kpis" style="display:none;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px">
         <div class="stat-card"><div class="stat-val" id="rev-k-dias">—</div><div class="stat-label">Días Trabajados</div></div>
         <div class="stat-card"><div class="stat-val" id="rev-k-horas">—</div><div class="stat-label">Horas Totales</div></div>
         <div class="stat-card"><div class="stat-val" id="rev-k-sinreg" style="color:#e05252">—</div><div class="stat-label">Sin Registro</div></div>
@@ -1373,6 +1373,15 @@ function goPage(name) {
     noregistrar:loadNoRegistrar,
     auditlog:   loadAuditLog,
     settings:   cargarSettings,
+    revision:   function() {
+      // Poner fechas por defecto: primer y último día del mes actual
+      if (!document.getElementById('rev-desde').value) {
+        var hoy = new Date();
+        var y = hoy.getFullYear(), m = String(hoy.getMonth()+1).padStart(2,'0');
+        document.getElementById('rev-desde').value = y+'-'+m+'-01';
+        document.getElementById('rev-hasta').value = hoy.toISOString().substring(0,10);
+      }
+    },
   };
   if (loaders[name]) loaders[name]();
 }
@@ -2851,18 +2860,24 @@ function limpiarRevision() {
   document.getElementById('btnExportRevPDF').style.display = 'none';
 }
 
-// Autocompletar empleado
+// Autocompletar empleado — usando índice de resultados
+var _revResultados = []; // cache de resultados de búsqueda
+
 function revBuscarEmpleados(q) {
   clearTimeout(_revBusqTimer);
   var sug = document.getElementById('rev-sugerencias');
   if (!q || q.length < 2) { sug.style.display = 'none'; return; }
   _revBusqTimer = setTimeout(async function() {
     var db = getClient(); if (!db) return;
-    var { data } = await db.from('empleados').select('id,codigo,nombre,centro_costo,contrato,licencia_inicio,licencia_fin')
+    var { data } = await db.from('empleados')
+      .select('id,codigo,nombre,centro_costo,contrato,licencia_inicio,licencia_fin')
       .or('codigo.ilike.%'+q+'%,nombre.ilike.%'+q+'%').eq('activo', true).limit(10);
     if (!data || !data.length) { sug.style.display = 'none'; return; }
-    sug.innerHTML = data.map(function(e) {
-      return '<div onclick="revSelEmp('+JSON.stringify(e).replace(/"/g,'&quot;')+')" style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background=''">'
+    _revResultados = data;
+    sug.innerHTML = data.map(function(e, idx) {
+      return '<div data-idx="'+idx+'" onclick="revSelEmpIdx('+idx+')" '
+        + 'style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);transition:background .15s" '
+        + 'onmouseover="this.style.background=\'#e8edf2\'" onmouseout="this.style.background=\'\'">'
         + '<strong>' + esc(e.codigo) + '</strong> — ' + esc(e.nombre)
         + '<span style="color:var(--muted);margin-left:8px;font-size:11px">' + esc(e.centro_costo||'') + '</span>'
         + '</div>';
@@ -2871,7 +2886,9 @@ function revBuscarEmpleados(q) {
   }, 250);
 }
 
-function revSelEmp(e) {
+function revSelEmpIdx(idx) {
+  var e = _revResultados[idx];
+  if (!e) return;
   _revEmp = e;
   document.getElementById('rev-busq').value = e.codigo + ' — ' + e.nombre;
   document.getElementById('rev-sugerencias').style.display = 'none';
@@ -3205,6 +3222,15 @@ function exportarRevisionPDF() {
 // ════════════════════════════════════════════════════
 //  ═══ INIT ═══
 // ════════════════════════════════════════════════════
+// Cerrar sugerencias revisión al click fuera
+document.addEventListener('click', function(ev) {
+  var sug = document.getElementById('rev-sugerencias');
+  var inp = document.getElementById('rev-busq');
+  if (sug && inp && !sug.contains(ev.target) && ev.target !== inp) {
+    sug.style.display = 'none';
+  }
+});
+
 window.onload = async () => {
   cargarSettings();
   const ok = await checkConn();
