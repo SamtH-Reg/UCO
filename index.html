@@ -5617,9 +5617,36 @@ async function exportarRegistrosExcel(){
     return s;
   }
 
+  // ── Ordenar datos por Línea A→Z, luego por Fecha descendente ──
+  data.sort(function(a, b) {
+    var la = String(a.linea || '').trim();
+    var lb = String(b.linea || '').trim();
+    // Si ambos son numéricos, comparar como número
+    var na = parseFloat(la), nb = parseFloat(lb);
+    var ambosNum = !isNaN(na) && !isNaN(nb);
+    var cmpLinea = ambosNum ? na - nb : la.localeCompare(lb, 'es', {numeric:true});
+    if (cmpLinea !== 0) return cmpLinea;
+    // Secundario: fecha desc
+    var fa = String(a.fecha || ''), fb = String(b.fecha || '');
+    return fb.localeCompare(fa);
+  });
+
+  // ── Función para convertir Línea a número si corresponde ───────
+  function parseLinea(v) {
+    if (v === null || v === undefined || v === '') return '';
+    var s = String(v).trim();
+    var n = parseFloat(s);
+    // Si es número puro (sin letras), devolver número para Excel
+    if (!isNaN(n) && String(n) === s) return n;
+    return s;
+  }
+
   var header = COLS.map(function(c){ return c.label; });
   var filas  = data.map(function(r){
-    return COLS.map(function(c){ return parsearFecha(c.k, r[c.k]); });
+    return COLS.map(function(c){
+      if (c.k === 'linea') return parseLinea(r[c.k]);
+      return parsearFecha(c.k, r[c.k]);
+    });
   });
 
   var ws = XLSX.utils.aoa_to_sheet([header].concat(filas));
@@ -5628,15 +5655,22 @@ async function exportarRegistrosExcel(){
   var nRows = filas.length;
   COLS.forEach(function(c, ci) {
     var colLetter = XLSX.utils.encode_col(ci);
+    // Formato fecha/hora
     var fmt = '';
     if(COLS_FECHA.includes(c.k))     fmt = 'dd-mm-yyyy';
     if(COLS_DATETIME.includes(c.k))  fmt = 'dd-mm-yyyy h:mm';
-    if(!fmt) return;
+
     for(var row = 2; row <= nRows + 1; row++) {
       var cellRef = colLetter + row;
-      if(ws[cellRef] && typeof ws[cellRef].v === 'number') {
-        ws[cellRef].t = 'n'; // número
-        ws[cellRef].z = fmt; // formato fecha
+      if(!ws[cellRef]) continue;
+      if(fmt && typeof ws[cellRef].v === 'number') {
+        ws[cellRef].t = 'n';
+        ws[cellRef].z = fmt;
+      }
+      // Forzar tipo número para columna Línea cuando es numérico
+      if(c.k === 'linea' && typeof ws[cellRef].v === 'number') {
+        ws[cellRef].t = 'n';
+        ws[cellRef].z = '0'; // entero sin decimales
       }
     }
   });
