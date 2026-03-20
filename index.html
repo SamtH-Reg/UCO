@@ -361,7 +361,7 @@ async function eliminarRegistro(id){
 }
 
 // ── AUSENTES DEL DÍA ────────────────────────────────────────────
-async function obtenerAusentesDia(fechaStr){
+async function obtenerAusentesDia(fechaStr, turnoFiltro){
   try{
     if(!fechaStr){ const h=new Date(); fechaStr=`${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`; }
     const db = _sbDb();
@@ -371,8 +371,9 @@ async function obtenerAusentesDia(fechaStr){
     const nrC=new Set((noRegData||[]).map(r=>r.codigo.trim().toLowerCase()).filter(Boolean));
     const nrN=new Set((noRegData||[]).map(r=>r.nombre.trim().toLowerCase()).filter(Boolean));
 
-    // 2. Empleados activos filtrados
-    const empleados=(await obtenerEmpleados('todos')).filter(e=>
+    // 2. Empleados activos — filtrados por turno si se especifica
+    const empTodos = await obtenerEmpleados(turnoFiltro || 'todos');
+    const empleados=empTodos.filter(e=>
       !nrC.has(e.codigo.toLowerCase())&&!nrN.has(e.nombre.toLowerCase())
     );
 
@@ -2595,8 +2596,8 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
       <input type="number" id="dashAnio" class="dash-semana-input" min="2020" max="2030" style="width:75px;text-align:center" placeholder="Año" onchange="cargarDashboard()" oninput="cargarDashboard()">
       <span class="dash-semana-rango" id="dashRango">—</span>
       <select id="filtroTurnoDash" class="dash-semana-input" style="padding:5px 10px;min-width:110px" onchange="aplicarFiltroDash()">
-        <option value="">☀️🌙 Todos</option>
-        <option value="día" selected>☀️ Día</option>
+        <option value="">Todos los turnos</option>
+        <option value="día">☀️ Día</option>
         <option value="tarde">🌅 Tarde</option>
         <option value="noche">🌙 Noche</option>
       </select>
@@ -4711,6 +4712,8 @@ function aplicarFiltroDash(){
   renderKpis(_dashRegs, filtro);
   renderTablaCombinada(regs, _dashDias, filtro);
   renderTotalesCC(regs, _dashDias, filtro);
+  // Limpiar caché de empleados para que ausentes recargue con el turno correcto
+  ['Día','Tarde','Noche','todos'].forEach(t => _cDelPfx('emp_t'+t));
   cargarAusenciasSemana();
   cargarAusentes();
 }
@@ -5172,6 +5175,12 @@ function cargarAusenciasSemana(){
   const dias = _dashDias || [];
   if(!dias.length) return;
 
+  // Leer turno activo del filtro del dashboard
+  const turnoSel = (document.getElementById('filtroTurnoDash')||{}).value || '';
+  // Mapear 'día'/'tarde'/'noche' → 'Día'/'Tarde'/'Noche' para Supabase
+  const turnoMap = { 'día':'Día', 'tarde':'Tarde', 'noche':'Noche' };
+  const turnoFiltro = turnoMap[turnoSel] || 'todos';
+
   _ausenciasSemanales = {};
   _conflictosSemana   = {};
   dias.forEach(d=>{ _ausenciasSemanales[d.fecha] = {sinRegistro:0, permiso:0, medico:0, judicial:0, vacaciones:0, licencia:0,
@@ -5180,8 +5189,8 @@ function cargarAusenciasSemana(){
   // Consultar Supabase para cada día de la semana
   let pendientes = dias.length;
   dias.forEach(d => {
-    // Llamar directamente al backend (sin polyfill)
-    obtenerAusentesDia(d.fecha).then(arr => {
+    // Pasar turnoFiltro para que solo cuente empleados del turno seleccionado
+    obtenerAusentesDia(d.fecha, turnoFiltro).then(arr => {
       arr = arr || [];
       const grp = k => arr.filter(e=>e.estado===k).map(e=>({codigo:e.codigo,nombre:e.nombre}));
       _ausenciasSemanales[d.fecha] = {
@@ -5214,10 +5223,15 @@ function cargarAusentes(){
   if(!fechaEl.value) fechaEl.value = localDate(new Date());
   const fecha = fechaEl.value;
 
+  // Leer turno activo del dashboard
+  const turnoSel = (document.getElementById('filtroTurnoDash')||{}).value || '';
+  const turnoMap = { 'día':'Día', 'tarde':'Tarde', 'noche':'Noche' };
+  const turnoFiltro = turnoMap[turnoSel] || 'todos';
+
   document.getElementById('listAusentes').innerHTML =
     '<div class="dash-loading">Consultando registros y hojas externas...</div>';
-  // Llamar directamente al backend
-  obtenerAusentesDia(fecha).then(result => {
+  // Pasar turnoFiltro para mostrar solo empleados del turno seleccionado
+  obtenerAusentesDia(fecha, turnoFiltro).then(result => {
     _ausentesData = result || [];
     renderAusentes(_ausentesData);
   }).catch(e => {
