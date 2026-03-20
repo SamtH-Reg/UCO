@@ -113,7 +113,16 @@ function _row(r){
 
 // ── AUDIT ────────────────────────────────────────────────────────
 async function _audit(accion,detalle){
-  try{ await _sbDb().from('audit_log').insert({accion,detalle:detalle||'',usuario:'operario',sesion:Math.random().toString(36).slice(2)}); }
+  try{
+    const usr = _sesionIndex ? (_sesionIndex.nombre || _sesionIndex.email || 'operario') : 'operario';
+    const email = _sesionIndex ? (_sesionIndex.email || '') : '';
+    await _sbDb().from('audit_log').insert({
+      accion, detalle:detalle||'',
+      usuario: usr,
+      email:   email,
+      sesion:  Math.random().toString(36).slice(2)
+    });
+  }
   catch(e){ console.warn('[AUDIT]',e.message); }
 }
 
