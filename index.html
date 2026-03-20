@@ -1077,13 +1077,45 @@ input.req-error,select.req-error{
   display:none;margin-top:8px;padding:11px 14px;
   background:linear-gradient(90deg,rgba(0,152,212,.07),rgba(0,198,162,.04));
   border:1.5px solid rgba(0,152,212,.22);border-radius:10px;
-  flex-direction:row;align-items:center;gap:12px;transition:all .6s;
+  flex-direction:row;align-items:center;gap:12px;transition:all .4s;
 }
 .emp-card.show{display:flex}
 [data-theme="medianoche"] .emp-card{
   background:linear-gradient(90deg,rgba(56,182,255,.07),rgba(0,232,192,.04));
   border-color:rgba(56,182,255,.22);
 }
+/* Tarjeta coloreada por estado de ausencia */
+.emp-card.estado-vacacion{
+  background:linear-gradient(90deg,rgba(0,148,212,.13),rgba(0,198,220,.06));
+  border-color:rgba(0,148,212,.45);
+}
+.emp-card.estado-licencia{
+  background:linear-gradient(90deg,rgba(255,193,7,.14),rgba(255,220,50,.06));
+  border-color:rgba(255,193,7,.55);
+}
+.emp-card.estado-perm-personal{
+  background:linear-gradient(90deg,rgba(39,174,96,.12),rgba(0,200,120,.05));
+  border-color:rgba(39,174,96,.45);
+}
+.emp-card.estado-perm-medico{
+  background:linear-gradient(90deg,rgba(230,126,34,.12),rgba(255,160,50,.05));
+  border-color:rgba(230,126,34,.45);
+}
+.emp-card.estado-perm-judicial{
+  background:linear-gradient(90deg,rgba(142,68,173,.12),rgba(180,100,220,.05));
+  border-color:rgba(142,68,173,.45);
+}
+/* Badge de estado en la tarjeta */
+.emp-estado-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;
+  margin-top:4px;letter-spacing:.2px;
+}
+.emp-estado-badge.vac  {background:rgba(0,148,212,.15);color:#0077aa}
+.emp-estado-badge.lic  {background:rgba(255,193,7,.22);color:#8a6500}
+.emp-estado-badge.ppers{background:rgba(39,174,96,.15);color:#1a7a40}
+.emp-estado-badge.pmed {background:rgba(230,126,34,.15);color:#b05010}
+.emp-estado-badge.pjud {background:rgba(142,68,173,.15);color:#6c2d9e}
 .emp-avatar{
   width:38px;height:38px;border-radius:50%;background:var(--accent2);
   display:flex;align-items:center;justify-content:center;
@@ -2133,6 +2165,7 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
               <div class="emp-card-info">
                 <div class="emp-card-name" id="empCardName">—</div>
                 <div class="emp-card-meta" id="empCardMeta">—</div>
+                <div id="empEstadoBadge" style="display:none"></div>
               </div>
               <button class="emp-card-change" onclick="empLimpiar()">↩ Cambiar</button>
             </div>
@@ -3278,6 +3311,10 @@ function empSeleccionar(idx){
   document.getElementById('empCardName').textContent = emp.nombre;
   document.getElementById('empCardMeta').textContent =
     emp.codigo + ' · ' + (emp.contrato||'') + ' · ' + (emp.centroCosto||'');
+
+  // Detectar estado de ausencia del empleado para la fecha actual
+  _empAplicarEstadoCard(emp);
+
   document.getElementById('empCard').classList.add('show');
 
   empCerrar();
@@ -3321,8 +3358,82 @@ function empLimpiar(){
   const txt = document.getElementById('empSelectTxt');
   if(btn) btn.classList.remove('seleccionado','abierto');
   if(txt) txt.textContent = '— Seleccionar empleado —';
+  // Limpiar estado de ausencia
+  var card = document.getElementById('empCard');
+  card.className = 'emp-card'; // reset todas las clases de estado
+  var badge = document.getElementById('empEstadoBadge');
+  if(badge){ badge.style.display='none'; badge.innerHTML=''; }
+  document.getElementById('empAvatar').style.background = '';
   document.getElementById('empCard').classList.remove('show');
   empCerrar();
+}
+
+// ── Aplicar color/badge según estado de ausencia del empleado ──
+async function _empAplicarEstadoCard(emp) {
+  var card    = document.getElementById('empCard');
+  var badge   = document.getElementById('empEstadoBadge');
+  var avatar  = document.getElementById('empAvatar');
+  if(!card || !badge) return;
+
+  // Reset clases previas
+  card.classList.remove('estado-vacacion','estado-licencia',
+    'estado-perm-personal','estado-perm-medico','estado-perm-judicial');
+  badge.style.display = 'none';
+  badge.innerHTML = '';
+  avatar.style.background = '';
+
+  // Fecha del formulario (o hoy)
+  var fechaEl = document.getElementById('fecha');
+  var hoy = localDate(new Date());
+  var fechaStr = (fechaEl && fechaEl.value) ? fechaEl.value : hoy;
+
+  var estado = '';
+
+  try {
+    // 1. Licencia médica — leer de los datos del empleado
+    if(emp.licenciaInicio && fechaStr >= emp.licenciaInicio &&
+       (!emp.licenciaFin || fechaStr <= emp.licenciaFin)) {
+      estado = 'Licencia Médica';
+    }
+
+    // 2. Vacaciones — desde cache
+    if(!estado) {
+      var vacCached = _cGet('ext_vac');
+      if(vacCached && vacCached.includes(emp.codigo)) {
+        estado = 'Vacaciones en curso';
+      }
+    }
+
+    // 3. Permisos del día — desde cache
+    if(!estado) {
+      var permKey = 'ext_perm_' + fechaStr;
+      var permCached = _cGet(permKey);
+      if(permCached) {
+        if((permCached.judicial||[]).includes(emp.codigo))   estado = 'Permiso Judicial';
+        else if((permCached.medico||[]).includes(emp.codigo)) estado = 'Permiso Médico';
+        else if((permCached.personal||[]).includes(emp.codigo)) estado = 'Permiso Personal';
+      }
+    }
+  } catch(e) { console.warn('[EMP_ESTADO]', e.message); }
+
+  if(!estado) return;
+
+  // Aplicar clase y badge según estado
+  var cfg = {
+    'Vacaciones en curso': { cls:'estado-vacacion',    badgeCls:'vac',   icon:'🏖', label:'Vacaciones',        bg:'linear-gradient(135deg,#0098d4,#0077aa)' },
+    'Licencia Médica':     { cls:'estado-licencia',    badgeCls:'lic',   icon:'🏥', label:'Licencia Médica',   bg:'linear-gradient(135deg,#f0b429,#c9890b)' },
+    'Permiso Personal':    { cls:'estado-perm-personal',badgeCls:'ppers', icon:'📋', label:'Permiso Personal',  bg:'linear-gradient(135deg,#27ae60,#1e8449)' },
+    'Permiso Médico':      { cls:'estado-perm-medico', badgeCls:'pmed',  icon:'🏥', label:'Permiso Médico',    bg:'linear-gradient(135deg,#e67e22,#ca6f1e)' },
+    'Permiso Judicial':    { cls:'estado-perm-judicial',badgeCls:'pjud', icon:'⚖️', label:'Permiso Judicial',  bg:'linear-gradient(135deg,#8e44ad,#7d3c98)' },
+  };
+
+  var c = cfg[estado];
+  if(!c) return;
+
+  card.classList.add(c.cls);
+  avatar.style.background = c.bg;
+  badge.innerHTML = '<span class="emp-estado-badge '+c.badgeCls+'">'+c.icon+' '+c.label+'</span>';
+  badge.style.display = 'block';
 }
 
 // Alias para compatibilidad con otras funciones que llaman clearEmp()
