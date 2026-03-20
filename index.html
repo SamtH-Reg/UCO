@@ -377,22 +377,23 @@ async function obtenerAusentesDia(fechaStr){
     const ausentes=empleados.filter(e=>!conReg.has(e.codigo));
     if(!ausentes.length) return [];
 
-    // 4. Vacaciones — siempre leer directo de Supabase (fechas pueden cambiar)
+    // 4. Vacaciones — filtrar por fecha consultada (inicio <= fecha <= fin)
     let vacSet=new Set();
+    const vacFechasLocal={};
     try{
       const esFechaVal = v => v && /^\d{4}-\d{2}-\d{2}/.test(String(v).trim());
       const {data:vacData}=await db.from('vacaciones').select('codigo,fecha_inicio,fecha_fin').eq('estado','EN CURSO');
-      const codigos=(vacData||[]).map(r=>r.codigo);
-      vacSet=new Set(codigos);
-      const vacFechas={};
       (vacData||[]).forEach(r=>{
-        vacFechas[r.codigo]={
-          ini: esFechaVal(r.fecha_inicio) ? r.fecha_inicio : '',
-          fin: esFechaVal(r.fecha_fin)    ? r.fecha_fin    : ''
-        };
+        const ini = esFechaVal(r.fecha_inicio) ? r.fecha_inicio : '';
+        const fin = esFechaVal(r.fecha_fin)    ? r.fecha_fin    : '';
+        // Incluir solo si la fecha consultada está dentro del rango
+        const enVac = (!ini || fechaStr >= ini) && (!fin || fechaStr <= fin);
+        if(enVac){
+          vacSet.add(r.codigo);
+          vacFechasLocal[r.codigo]={ini,fin};
+        }
       });
-      _cPut('ext_vac',codigos,_SB_CONFIG.CACHE_EXT);
-      _cPut('ext_vac_fechas',vacFechas,_SB_CONFIG.CACHE_EXT);
+      _cPut('ext_vac_fechas',vacFechasLocal,_SB_CONFIG.CACHE_EXT);
     }catch(e){ console.warn('[VAC]',e.message); }
 
     // 5. Permisos — leer desde tabla Supabase (sin CORS)
@@ -439,7 +440,7 @@ async function obtenerAusentesDia(fechaStr){
     // 7. Asignar estado a cada ausente (licencia tiene prioridad sobre permisos)
     const ord={'Sin registro':0,'Permiso Personal':1,'Permiso Médico':2,'Permiso Judicial':3,'Vacaciones en curso':4,'Licencia Médica':5};
     // Recuperar mapa de fechas vacaciones del cache
-    const vacFechasMap = _cGet('ext_vac_fechas') || {};
+    const vacFechasMap = vacFechasLocal || _cGet('ext_vac_fechas') || {};
 
     return ausentes.map(e=>{
       let estado='Sin registro';
@@ -448,15 +449,9 @@ async function obtenerAusentesDia(fechaStr){
         estado='Licencia Médica';
         estadoFechas={ini:e.licenciaInicio||'',fin:e.licenciaFin||''};
       } else if(vacSet.has(e.codigo)){
-        // Solo mostrar vacaciones si la fecha consultada está dentro del rango
-        const vf = vacFechasMap[e.codigo]||{ini:'',fin:''};
-        const enVac = (!vf.ini || fechaStr >= vf.ini) &&
-                      (!vf.fin || fechaStr <= vf.fin);
-        if(enVac){
-          estado='Vacaciones en curso';
-          estadoFechas=vf;
-        }
-        // Si fecha_fin < fechaStr → queda como 'Sin registro'
+        // vacSet ya está filtrado por fecha — si está aquí, está en vacaciones
+        estado='Vacaciones en curso';
+        estadoFechas=vacFechasMap[e.codigo]||vacFechasLocal[e.codigo]||{ini:'',fin:''};
       } else if(permJ.has(e.codigo)) estado='Permiso Judicial';
       else if(permM.has(e.codigo)) estado='Permiso Médico';
       else if(permP.has(e.codigo)) estado='Permiso Personal';
