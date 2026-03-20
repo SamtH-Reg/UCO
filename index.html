@@ -3919,12 +3919,12 @@ function initFiltros(){
   lineas.forEach(l=>{ const o=document.createElement('option'); o.value=l; o.textContent=l; sel.appendChild(o); });
 }
 
-function cargarRegistros(){
+async function cargarRegistros(){
   const tbody=document.getElementById('tbodyReg');
   tbody.innerHTML='<tr><td colspan="25"><div class="empty-state"><div class="ei">⏳</div><p>Cargando...</p></div></td></tr>';
-  // Cargar mapa de ausencias para el día del filtro activo
+  // Cargar mapa de ausencias ANTES de renderizar filas
   const fechaFiltro = document.getElementById('filtroDesde').value || localDate(new Date());
-  _cargarAusenciasMap(fechaFiltro);
+  await _cargarAusenciasMap(fechaFiltro);
   _aplicarFiltrosServidor(1);
 }
 
@@ -4016,7 +4016,11 @@ function aplicarFiltros(){
 
   // Debounce para evitar llamadas excesivas al servidor
   clearTimeout(_filtroTimer);
-  _filtroTimer = setTimeout(()=>_aplicarFiltrosServidor(1), 350);
+  _filtroTimer = setTimeout(async ()=>{
+    const fd = document.getElementById('filtroDesde').value || localDate(new Date());
+    await _cargarAusenciasMap(fd);
+    _aplicarFiltrosServidor(1);
+  }, 350);
 }
 
 function _aplicarFiltrosServidor(pagina){
