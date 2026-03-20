@@ -382,16 +382,14 @@ async function obtenerAusentesDia(fechaStr){
     const vacFechasLocal={};
     try{
       const esFechaVal = v => v && /^\d{4}-\d{2}-\d{2}/.test(String(v).trim());
-      // Filtrar por rango de fechas (sin importar estado)
-      // fecha_inicio <= fechaStr <= fecha_fin
+      // Traer todas las vacaciones y filtrar en JS por rango de fechas
       const {data:vacData}=await db.from('vacaciones')
-        .select('codigo,fecha_inicio,fecha_fin')
-        .lte('fecha_inicio', fechaStr)
-        .gte('fecha_fin', fechaStr);
+        .select('codigo,fecha_inicio,fecha_fin');
       (vacData||[]).forEach(r=>{
         const ini = esFechaVal(r.fecha_inicio) ? r.fecha_inicio : '';
         const fin = esFechaVal(r.fecha_fin)    ? r.fecha_fin    : '';
-        // Incluir solo si la fecha consultada está dentro del rango
+        // Incluir si fechaStr está dentro del rango (o si no hay fechas, excluir)
+        if(!ini && !fin) return; // sin fechas → no incluir
         const enVac = (!ini || fechaStr >= ini) && (!fin || fechaStr <= fin);
         if(enVac){
           vacSet.add(r.codigo);
@@ -3861,14 +3859,17 @@ async function _cargarAusenciasMap(fechaStr) {
     var db = _sbDb();
 
     // 1. Vacaciones EN CURSO — siempre leer directo con fechas
-    // Filtrar vacaciones por rango de fechas (sin depender de estado)
+    // Traer todas las vacaciones y filtrar en JS por rango de fechas
     var { data: vacData } = await db.from('vacaciones')
-      .select('codigo,fecha_inicio,fecha_fin')
-      .lte('fecha_inicio', fechaStr)
-      .gte('fecha_fin', fechaStr);
-    var vacSet = new Set((vacData||[]).map(function(r){
-      return String(r.codigo||'').trim();
-    }));
+      .select('codigo,fecha_inicio,fecha_fin');
+    var vacSet = new Set();
+    (vacData||[]).forEach(function(r) {
+      var ini = (r.fecha_inicio||'').substring(0,10);
+      var fin = (r.fecha_fin||'').substring(0,10);
+      if(!ini && !fin) return; // sin fechas → no incluir
+      var enVac = (!ini || fechaStr >= ini) && (!fin || fechaStr <= fin);
+      if(enVac) vacSet.add(String(r.codigo||'').trim());
+    });
 
     // 2. Permisos del día — siempre leer directo
     var { data: permData } = await db.from('permisos')
