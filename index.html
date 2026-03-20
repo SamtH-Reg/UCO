@@ -448,8 +448,15 @@ async function obtenerAusentesDia(fechaStr){
         estado='Licencia Médica';
         estadoFechas={ini:e.licenciaInicio||'',fin:e.licenciaFin||''};
       } else if(vacSet.has(e.codigo)){
-        estado='Vacaciones en curso';
-        estadoFechas=vacFechasMap[e.codigo]||{ini:'',fin:''};
+        // Solo mostrar vacaciones si la fecha consultada está dentro del rango
+        const vf = vacFechasMap[e.codigo]||{ini:'',fin:''};
+        const enVac = (!vf.ini || fechaStr >= vf.ini) &&
+                      (!vf.fin || fechaStr <= vf.fin);
+        if(enVac){
+          estado='Vacaciones en curso';
+          estadoFechas=vf;
+        }
+        // Si fecha_fin < fechaStr → queda como 'Sin registro'
       } else if(permJ.has(e.codigo)) estado='Permiso Judicial';
       else if(permM.has(e.codigo)) estado='Permiso Médico';
       else if(permP.has(e.codigo)) estado='Permiso Personal';
@@ -3853,10 +3860,16 @@ async function _cargarAusenciasMap(fechaStr) {
     _ausenciasMapHoy = {};
     var db = _sbDb();
 
-    // 1. Vacaciones EN CURSO — siempre leer directo de Supabase
+    // 1. Vacaciones EN CURSO — siempre leer directo con fechas
     var { data: vacData } = await db.from('vacaciones')
-      .select('codigo').eq('estado','EN CURSO');
-    var vacSet = new Set((vacData||[]).map(function(r){ return String(r.codigo||'').trim(); }));
+      .select('codigo,fecha_inicio,fecha_fin').eq('estado','EN CURSO');
+    var vacSet = new Set();
+    (vacData||[]).forEach(function(r) {
+      var ini = r.fecha_inicio||'', fin = r.fecha_fin||'';
+      // Solo incluir si la fecha consultada está dentro del rango
+      var enVac = (!ini || fechaStr >= ini) && (!fin || fechaStr <= fin);
+      if(enVac) vacSet.add(String(r.codigo||'').trim());
+    });
 
     // 2. Permisos del día — siempre leer directo
     var { data: permData } = await db.from('permisos')
