@@ -602,6 +602,7 @@ body {
   font-family: var(--mono);
 }
 .badge-dia    { background: rgba(255,213,80,.12); color: #d4a800; border: 1px solid rgba(255,213,80,.25); }
+.badge-tarde  { background: rgba(255,152,0,.12);   color: #e65100; border: 1px solid rgba(255,152,0,.3);  }
 .badge-noche  { background: rgba(56,189,248,.12);  color: #38bdf8; border: 1px solid rgba(56,189,248,.25); }
 .rev-card { background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:16px; }
 .rev-tabla { width:100%; border-collapse:collapse; font-size:12px; font-family:'Calibri',sans-serif; }
@@ -664,9 +665,17 @@ body {
         <span class="si-icon">📝</span> Registros
         <span class="si-count" id="cnt-registros">—</span>
       </button>
-      <button class="sidebar-item" onclick="goPage('empleados')">
-        <span class="si-icon">👥</span> Empleados
-        <span class="si-count" id="cnt-empleados">—</span>
+      <button class="sidebar-item" onclick="goPage('empleados-dia')">
+        <span class="si-icon">☀️</span> Empleados Día
+        <span class="si-count" id="cnt-empleados-dia">—</span>
+      </button>
+      <button class="sidebar-item" onclick="goPage('empleados-tarde')">
+        <span class="si-icon">🌅</span> Empleados Tarde
+        <span class="si-count" id="cnt-empleados-tarde">—</span>
+      </button>
+      <button class="sidebar-item" onclick="goPage('empleados-noche')">
+        <span class="si-icon">🌙</span> Empleados Noche
+        <span class="si-count" id="cnt-empleados-noche">—</span>
       </button>
       <button class="sidebar-item" onclick="goPage('produccion')">
         <span class="si-icon">🏭</span> Producción
@@ -746,6 +755,7 @@ body {
           <select class="filter-select" id="regTurno" onchange="loadRegistros()">
             <option value="">Todos los turnos</option>
             <option>Día</option>
+            <option>Tarde</option>
             <option>Noche</option>
           </select>
           <input type="date" class="filter-select" id="regDesde" onchange="loadRegistros()">
@@ -799,40 +809,90 @@ body {
     </div>
 
     <!-- ══ PÁGINA: EMPLEADOS ══ -->
-    <div class="page" id="page-empleados">
+    <!-- ══ EMPLEADOS DÍA ══ -->
+    <div class="page" id="page-empleados-dia">
       <div class="page-header">
-        <div>
-          <h1>Empleados</h1>
-          <p>Lista maestra de trabajadores registrables</p>
-        </div>
+        <div><h1>☀️ Empleados — Turno Día</h1><p>Lista maestra de trabajadores turno día</p></div>
         <div class="page-header-actions">
-          <button class="btn btn-secondary" onclick="loadEmpleados()">🔄 Recargar</button>
-          <button class="btn btn-primary" onclick="abrirModalEmpleado()">＋ Nuevo empleado</button>
+          <button class="btn btn-secondary" onclick="loadEmpleados('Día')">🔄 Recargar</button>
+          <button class="btn btn-primary" onclick="abrirModalEmpleado({turno:'Día'})">＋ Nuevo empleado</button>
         </div>
       </div>
       <div class="table-area">
         <div class="toolbar">
-          <input class="search-input" id="empSearch" placeholder="🔍 Buscar por código o nombre..." oninput="debounceEmp()">
-          <span class="count-badge" id="empCountBadge">— empleados</span>
+          <input class="search-input" id="empSearchDia" placeholder="🔍 Buscar por código o nombre..." oninput="debounceEmp('Día')">
+          <span class="count-badge" id="empCountBadgeDia">— empleados</span>
         </div>
         <div class="data-table-wrap">
           <table class="data-table">
-            <thead>
-              <tr>
-                <th style="width:80px">Acciones</th>
-                <th>Código</th>
-                <th>Nombre</th>
-                <th>Centro de Costo</th>
-                <th>Tipo Contrato</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody id="tbodyEmp">
+            <thead><tr>
+              <th style="width:80px">Acciones</th><th>Código</th><th>Nombre</th>
+              <th>Centro de Costo</th><th>Tipo Contrato</th><th>Estado</th>
+            </tr></thead>
+            <tbody id="tbodyEmpDia">
               <tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr>
             </tbody>
           </table>
         </div>
-        <div class="pagination" id="empPagination"></div>
+        <div class="pagination" id="empPaginationDia"></div>
+      </div>
+    </div>
+
+    <!-- ══ EMPLEADOS TARDE ══ -->
+    <div class="page" id="page-empleados-tarde">
+      <div class="page-header">
+        <div><h1>🌅 Empleados — Turno Tarde</h1><p>Lista maestra de trabajadores turno tarde</p></div>
+        <div class="page-header-actions">
+          <button class="btn btn-secondary" onclick="loadEmpleados('Tarde')">🔄 Recargar</button>
+          <button class="btn btn-primary" onclick="abrirModalEmpleado({turno:'Tarde'})">＋ Nuevo empleado</button>
+        </div>
+      </div>
+      <div class="table-area">
+        <div class="toolbar">
+          <input class="search-input" id="empSearchTarde" placeholder="🔍 Buscar por código o nombre..." oninput="debounceEmp('Tarde')">
+          <span class="count-badge" id="empCountBadgeTarde">— empleados</span>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr>
+              <th style="width:80px">Acciones</th><th>Código</th><th>Nombre</th>
+              <th>Centro de Costo</th><th>Tipo Contrato</th><th>Estado</th>
+            </tr></thead>
+            <tbody id="tbodyEmpTarde">
+              <tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination" id="empPaginationTarde"></div>
+      </div>
+    </div>
+
+    <!-- ══ EMPLEADOS NOCHE ══ -->
+    <div class="page" id="page-empleados-noche">
+      <div class="page-header">
+        <div><h1>🌙 Empleados — Turno Noche</h1><p>Lista maestra de trabajadores turno noche</p></div>
+        <div class="page-header-actions">
+          <button class="btn btn-secondary" onclick="loadEmpleados('Noche')">🔄 Recargar</button>
+          <button class="btn btn-primary" onclick="abrirModalEmpleado({turno:'Noche'})">＋ Nuevo empleado</button>
+        </div>
+      </div>
+      <div class="table-area">
+        <div class="toolbar">
+          <input class="search-input" id="empSearchNoche" placeholder="🔍 Buscar por código o nombre..." oninput="debounceEmp('Noche')">
+          <span class="count-badge" id="empCountBadgeNoche">— empleados</span>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr>
+              <th style="width:80px">Acciones</th><th>Código</th><th>Nombre</th>
+              <th>Centro de Costo</th><th>Tipo Contrato</th><th>Estado</th>
+            </tr></thead>
+            <tbody id="tbodyEmpNoche">
+              <tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination" id="empPaginationNoche"></div>
       </div>
     </div>
 
@@ -1472,7 +1532,7 @@ body {
       <div class="form-grid">
         <div class="form-field"><label class="form-label">Fecha *</label><input class="form-input" id="rf-fecha" type="date"></div>
         <div class="form-field"><label class="form-label">Turno *</label>
-          <select class="form-select" id="rf-turno"><option>Día</option><option>Noche</option></select></div>
+          <select class="form-select" id="rf-turno"><option>Día</option><option>Tarde</option><option>Noche</option></select></div>
         <div class="form-field"><label class="form-label">Código Empleado *</label><input class="form-input" id="rf-codigo" placeholder="Ej: M6327"></div>
         <div class="form-field"><label class="form-label">Nombre *</label><input class="form-input" id="rf-nombre" placeholder="Apellido Nombre"></div>
         <div class="form-field"><label class="form-label">Responsable</label><input class="form-input" id="rf-resp" placeholder="Nombre responsable"></div>
@@ -1524,6 +1584,12 @@ body {
         <div class="form-field"><label class="form-label">Tipo Contrato</label>
           <select class="form-select" id="ef-contrato">
             <option value="">—</option><option>Indefinido</option><option>Plazo Fijo</option><option>Temporeros</option><option>Honorarios</option>
+          </select></div>
+        <div class="form-field"><label class="form-label">Turno *</label>
+          <select class="form-select" id="ef-turno">
+            <option value="Día">☀️ Turno Día</option>
+            <option value="Tarde">🌅 Turno Tarde</option>
+            <option value="Noche">🌙 Turno Noche</option>
           </select></div>
         <div class="form-field"><label class="form-label">Activo</label>
           <select class="form-select" id="ef-activo" onchange="toggleLicencia(this.value)">
@@ -1701,7 +1767,9 @@ function goPage(name) {
   // Cargar datos al entrar a la página
   const loaders = {
     registros:  loadRegistros,
-    empleados:  loadEmpleados,
+    'empleados-dia':   () => loadEmpleados('Día'),
+    'empleados-tarde': () => loadEmpleados('Tarde'),
+    'empleados-noche': () => loadEmpleados('Noche'),
     produccion: loadProduccion,
     noregistrar:loadNoRegistrar,
     auditlog:   loadAuditLog,
@@ -1771,7 +1839,7 @@ function debounce(key, fn, ms = 400) {
   _debounceTimers[key] = setTimeout(fn, ms);
 }
 function debounceReg()  { debounce('reg',  loadRegistros); }
-function debounceEmp()  { debounce('emp',  loadEmpleados); }
+function debounceEmp(turno)  { debounce('emp', () => loadEmpleados(turno)); }
 function debounceProd() { debounce('prod', loadProduccion); }
 
 // ════════════════════════════════════════════════════
@@ -1779,10 +1847,19 @@ function debounceProd() { debounce('prod', loadProduccion); }
 // ════════════════════════════════════════════════════
 async function loadCounts() {
   const db = getClient(); if (!db) return;
-  const tables = ['registros','empleados','produccion','noregistrar','audit_log'];
+  // Tablas simples
+  const tables = ['registros','produccion','noregistrar','audit_log'];
   for (const t of tables) {
     const { count } = await db.from(t).select('*', { count:'exact', head:true });
     const el = document.getElementById('cnt-' + (t === 'audit_log' ? 'auditlog' : t));
+    if (el) el.textContent = count ?? '—';
+  }
+  // Empleados por turno
+  for (const turno of ['Día','Tarde','Noche']) {
+    const { count } = await db.from('empleados')
+      .select('*', { count:'exact', head:true }).eq('turno', turno);
+    const key = turno === 'Día' ? 'dia' : turno === 'Tarde' ? 'tarde' : 'noche';
+    const el = document.getElementById('cnt-empleados-' + key);
     if (el) el.textContent = count ?? '—';
   }
 }
@@ -1844,7 +1921,7 @@ async function loadRegistros() {
       <td style="white-space:nowrap">${esc(r.mes)}</td>
       <td style="white-space:nowrap">${fmtFecha(r.fecha)}</td>
       <td style="white-space:nowrap">${esc(r.responsable)}</td>
-      <td><span class="badge ${r.turno==='Noche'?'badge-noche':'badge-dia'}">${esc(r.turno)}</span></td>
+      <td><span class="badge ${r.turno==='Noche'?'badge-noche':r.turno==='Tarde'?'badge-tarde':'badge-dia'}">${esc(r.turno)}</span></td>
       <td>${esc(r.linea)}</td>
       <td><strong style="font-family:var(--mono);color:var(--accent2)">${esc(r.codigo)}</strong></td>
       <td title="${esc(r.nombre)}" style="min-width:180px">${esc(r.nombre)}</td>
@@ -1987,13 +2064,31 @@ async function guardarRegistro() {
 let _empPage = 1;
 const EMP_PER_PAGE = 60;
 
-async function loadEmpleados() {
+async function loadEmpleados(turno) {
   const db = getClient(); if (!db) return;
-  const tbody = document.getElementById('tbodyEmp');
+
+  // Determinar turno activo según página actual si no se pasa
+  if (!turno) {
+    const pages = document.querySelectorAll('.page.active');
+    if (pages.length) {
+      const pid = pages[0].id;
+      if (pid === 'page-empleados-tarde') turno = 'Tarde';
+      else if (pid === 'page-empleados-noche') turno = 'Noche';
+      else turno = 'Día';
+    } else turno = 'Día';
+  }
+
+  const tbodyId  = turno === 'Tarde' ? 'tbodyEmpTarde' : turno === 'Noche' ? 'tbodyEmpNoche' : 'tbodyEmpDia';
+  const searchId = turno === 'Tarde' ? 'empSearchTarde': turno === 'Noche' ? 'empSearchNoche': 'empSearchDia';
+  const badgeId  = turno === 'Tarde' ? 'empCountBadgeTarde': turno === 'Noche' ? 'empCountBadgeNoche': 'empCountBadgeDia';
+  const pagId    = turno === 'Tarde' ? 'empPaginationTarde': turno === 'Noche' ? 'empPaginationNoche': 'empPaginationDia';
+
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
   tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr>';
 
-  const search = document.getElementById('empSearch').value.trim();
-  let q = db.from('empleados').select('*', { count:'exact' }).order('nombre'); // licencia_inicio y licencia_fin vienen en *
+  const search = (document.getElementById(searchId)||{}).value?.trim() || '';
+  let q = db.from('empleados').select('*', { count:'exact' }).order('nombre').eq('turno', turno);
   if (search) q = q.or(`codigo.ilike.%${search}%,nombre.ilike.%${search}%,centro_costo.ilike.%${search}%`);
 
   const from = (_empPage - 1) * EMP_PER_PAGE;
@@ -2002,14 +2097,15 @@ async function loadEmpleados() {
   const { data, error, count } = await q;
   if (error) { toast('Error: '+error.message,'error'); return; }
 
-  document.getElementById('empCountBadge').textContent = `${count ?? 0} empleados`;
+  document.getElementById(badgeId).textContent = `${count ?? 0} empleados`;
 
   if (!data?.length) {
-    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="ei">👥</div><p>Sin empleados</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="ei">👥</div><p>Sin empleados en turno '+turno+'</p></div></td></tr>';
+    renderPagination(pagId, 0, 1, EMP_PER_PAGE, ()=>{});
     return;
   }
 
-  tbody.innerHTML = data.map(r => {
+  const filas = data.map(r => {
     const hoyStr = new Date().toISOString().substring(0,10);
     const esLicencia = r.licencia_inicio && hoyStr >= r.licencia_inicio &&
       (!r.licencia_fin || hoyStr <= r.licencia_fin);
@@ -2035,7 +2131,8 @@ async function loadEmpleados() {
     </tr>`;
   }).join('');
 
-  renderPagination('empPagination', count, _empPage, EMP_PER_PAGE, p => { _empPage = p; loadEmpleados(); });
+  tbody.innerHTML = filas;
+  renderPagination(pagId, count, _empPage, EMP_PER_PAGE, p => { _empPage = p; loadEmpleados(turno); });
 }
 
 // Carga los centros de costo únicos desde la tabla empleados
@@ -2066,9 +2163,10 @@ async function _cargarCentrosCosto() {
 
 async function abrirModalEmpleado(r = null) {
   _editingId = r?.id ?? null;
-  document.getElementById('modalEmpTitle').textContent = r ? 'Editar Empleado' : 'Nuevo Empleado';
+  document.getElementById('modalEmpTitle').textContent = r?.id ? 'Editar Empleado' : 'Nuevo Empleado';
   document.getElementById('ef-codigo').value   = r?.codigo   ?? '';
   document.getElementById('ef-nombre').value   = r?.nombre   ?? '';
+  document.getElementById('ef-turno').value    = r?.turno    ?? 'Día';
   // Cargar opciones primero, luego seleccionar el valor actual
   await _cargarCentrosCosto();
   // Forzar selección del valor actual (el select ya tiene las opciones)
@@ -2114,6 +2212,7 @@ async function guardarEmpleado() {
     codigo, nombre,
     centro_costo:    document.getElementById('ef-cc').value.trim(),
     contrato:        document.getElementById('ef-contrato').value.trim(),
+    turno:           document.getElementById('ef-turno').value || 'Día',
     activo:          activoVal !== 'false',
     licencia_inicio: esLicencia ? licIni : null,
     licencia_fin:    esLicencia ? licFin : null,
