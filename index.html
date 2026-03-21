@@ -6023,25 +6023,44 @@ async function exportarRegistrosExcel(){
       grupo.forEach(function(r){ _tipoById[r.id] = 'normal'; });
       return;
     }
+    // Ordenar por created_at para identificar el registro original (más antiguo = primero)
+    grupo.sort(function(a, b) {
+      var ca = String(a.created_at||''), cb = String(b.created_at||'');
+      return ca < cb ? -1 : ca > cb ? 1 : 0;
+    });
     var claves = grupo.map(function(r){ return _claveProceso(r); });
     var todosIguales = claves.every(function(c){ return c === claves[0]; });
     if(todosIguales) {
-      grupo.forEach(function(r){ _tipoById[r.id] = 'duplicado'; });
+      // Todos idénticos → duplicados (el primero es original, los demás son duplicados)
+      grupo.forEach(function(r, i){ _tipoById[r.id] = i === 0 ? 'normal' : 'duplicado'; });
     } else {
-      var mapaClaves = {}, nCambio = 1;
-      grupo.forEach(function(r, i) {
+      // El primero (más antiguo) es el registro original → normal
+      // Los siguientes con clave diferente → cambio de proceso numerado
+      var claveOriginal = claves[0];
+      _tipoById[grupo[0].id] = 'normal';
+      var nCambio = 1;
+      var mapaClaves = {};
+      mapaClaves[claveOriginal] = 0; // 0 = original
+      for(var i = 1; i < grupo.length; i++) {
         var clave = claves[i];
-        if(!(clave in mapaClaves)) mapaClaves[clave] = nCambio++;
-        _tipoById[r.id] = 'cambio_' + Math.min(mapaClaves[clave], 5);
-      });
+        if(clave === claveOriginal) {
+          // Misma clave que el original → duplicado del original
+          _tipoById[grupo[i].id] = 'duplicado';
+        } else {
+          // Clave diferente → cambio de proceso
+          if(!(clave in mapaClaves)) mapaClaves[clave] = nCambio++;
+          _tipoById[grupo[i].id] = 'cambio_' + Math.min(mapaClaves[clave], 5);
+        }
+      }
     }
   });
   data.forEach(function(r){ if(!_tipoById[r.id]) _tipoById[r.id] = 'normal'; });
   function _getTipo(r){ return _tipoById[r.id] || 'normal'; }
 
-  // Separar: normales/duplicados primero, cambios al final
-  var _normales = data.filter(function(r){ var t=_getTipo(r); return t==='normal'||t==='duplicado'; });
-  var _cambios  = data.filter(function(r){ return _getTipo(r).startsWith('cambio_'); });
+  // Separar: normales primero, duplicados después, cambios al final
+  var _normales  = data.filter(function(r){ return _getTipo(r) === 'normal'; });
+  var _dups      = data.filter(function(r){ return _getTipo(r) === 'duplicado'; });
+  var _cambios   = data.filter(function(r){ return _getTipo(r).startsWith('cambio_'); });
 
   // Orden: Línea A→Z (numérica primero, luego texto), luego Nombre A→Z, luego Fecha
   function _sortLinea(a,b){
@@ -6059,7 +6078,7 @@ async function exportarRegistrosExcel(){
     return String(a.fecha||'').localeCompare(String(b.fecha||''));
   }
   _normales.sort(_sortLinea); _cambios.sort(_sortLinea);
-  var dataOrdenada = _normales.concat(_cambios);
+  var dataOrdenada = _normales.concat(_dups).concat(_cambios);
 
   // Columna adicional: Estado
   var COLS_EXPORT = COLS.concat([{k:'_estado', label:'Estado'}]);
