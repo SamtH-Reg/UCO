@@ -1144,14 +1144,11 @@ body {
           <span class="count-badge" id="prodCountEspeciales">— entradas</span>
         </div>
         <div class="data-table-wrap" style="overflow-x:auto">
-          <table class="data-table" style="min-width:700px">
+          <table class="data-table" style="min-width:500px">
             <thead><tr>
               <th style="width:80px">Acciones</th>
               <th onclick="sortProdPage('especiales','linea_especial')"   class="th-sort" id="thp-esp-linea_especial">Línea Especial <span id="arr-esp-linea_especial">↕</span></th>
               <th onclick="sortProdPage('especiales','funcion_especial')" class="th-sort" id="thp-esp-funcion_especial">Función Especial <span id="arr-esp-funcion_especial">↕</span></th>
-              <th onclick="sortProdPage('especiales','especie')"          class="th-sort" id="thp-esp-especie">Especie <span id="arr-esp-especie">↕</span></th>
-              <th onclick="sortProdPage('especiales','producto')"         class="th-sort" id="thp-esp-producto">Producto <span id="arr-esp-producto">↕</span></th>
-              <th onclick="sortProdPage('especiales','responsable')"      class="th-sort" id="thp-esp-responsable">Responsable <span id="arr-esp-responsable">↕</span></th>
             </tr></thead>
             <tbody id="tbodyEspeciales">
               <tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr>
@@ -1916,11 +1913,11 @@ body {
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="form-field"><label class="form-label">Línea Especial *</label><input class="form-input" id="me-linea-esp" placeholder="Ej: EMPAQUE"></div>
-        <div class="form-field"><label class="form-label">Función Especial</label><input class="form-input" id="me-func-esp" placeholder="Ej: Operario Empaque"></div>
-        <div class="form-field"><label class="form-label">Especie</label><input class="form-input" id="me-especie" placeholder="Ej: MERLUZA AUSTRAL"></div>
-        <div class="form-field"><label class="form-label">Producto</label><input class="form-input" id="me-producto" placeholder="Ej: PORCION ESPAÑA"></div>
-        <div class="form-field full"><label class="form-label">Responsable</label><input class="form-input" id="me-responsable" placeholder="Nombre responsable"></div>
+        <div class="form-field"><label class="form-label">Línea Especial *</label><input class="form-input" id="me-linea-esp" placeholder="Ej: SUBPRODUCTO, EMPAQUE"></div>
+        <div class="form-field full"><label class="form-label">Función Especial *</label><input class="form-input" id="me-func-esp" placeholder="Ej: EXTRACCIÓN, MOLDEO PULPA"></div>
+      </div>
+      <div style="margin-top:8px;padding:8px 12px;background:rgba(255,193,7,.08);border-radius:6px;font-size:11px;color:var(--muted)">
+        💡 La combinación Línea Especial + Función Especial debe ser única
       </div>
     </div>
     <div class="modal-footer">
@@ -2767,7 +2764,7 @@ const _PROD_PAGES = {
   procesos:     { search:'prodSearchProcesos',    count:'prodCountProcesos',    tbody:'tbodyProcesos',     pagination:'paginationProcesos',     cols:['especie','funcion','producto','proceso','operacion'],           sortDefault:'especie'     },
   responsables: { search:'prodSearchResponsables',count:'prodCountResponsables',tbody:'tbodyResponsables',  pagination:'paginationResponsables',  cols:['responsable','especie','producto','proceso'],                   sortDefault:'responsable' },
   lineas:       { search:'prodSearchLineas',       count:'prodCountLineas',       tbody:'tbodyLineas',       pagination:'paginationLineas',        cols:['linea','especie','producto','proceso','operacion'],              sortDefault:'linea'       },
-  especiales:   { search:'prodSearchEspeciales',  count:'prodCountEspeciales',  tbody:'tbodyEspeciales',   pagination:'paginationEspeciales',   cols:['linea_especial','funcion_especial','especie','producto','responsable'], sortDefault:'linea_especial' },
+  especiales:   { search:'prodSearchEspeciales',  count:'prodCountEspeciales',  tbody:'tbodyEspeciales',   pagination:'paginationEspeciales',   cols:['linea_especial','funcion_especial'], sortDefault:'linea_especial' },
 };
 
 // Estado de sort por página
@@ -2809,7 +2806,7 @@ async function loadProdPage(seccion) {
     procesos:     'especie.ilike.%Q%,funcion.ilike.%Q%,producto.ilike.%Q%,proceso.ilike.%Q%,operacion.ilike.%Q%',
     responsables: 'responsable.ilike.%Q%,especie.ilike.%Q%,producto.ilike.%Q%,proceso.ilike.%Q%',
     lineas:       'linea.ilike.%Q%,especie.ilike.%Q%,producto.ilike.%Q%,proceso.ilike.%Q%',
-    especiales:   'linea_especial.ilike.%Q%,funcion_especial.ilike.%Q%,especie.ilike.%Q%,producto.ilike.%Q%,responsable.ilike.%Q%',
+    especiales:   'linea_especial.ilike.%Q%,funcion_especial.ilike.%Q%',
   };
 
   let q = db.from('produccion').select('*', { count:'exact' })
@@ -2856,7 +2853,7 @@ async function loadProdPage(seccion) {
       procesos:     `<td>${esc(r.especie)}</td><td>${esc(r.funcion)}</td><td>${esc(r.producto)}</td><td>${esc(r.proceso)}</td><td>${esc(r.operacion)}</td>`,
       responsables: `<td><strong>${esc(r.responsable)}</strong></td><td>${esc(r.especie)}</td><td>${esc(r.producto)}</td><td>${esc(r.proceso)}</td>`,
       lineas:       `<td><strong>${esc(r.linea)}</strong></td><td>${esc(r.especie)}</td><td>${esc(r.producto)}</td><td>${esc(r.proceso)}</td><td>${esc(r.operacion)}</td>`,
-      especiales:   `<td><strong>${esc(r.linea_especial)}</strong></td><td>${esc(r.funcion_especial)}</td><td>${esc(r.especie)}</td><td>${esc(r.producto)}</td><td>${esc(r.responsable)}</td>`,
+      especiales:   `<td><strong>${esc(r.linea_especial)}</strong></td><td>${esc(r.funcion_especial)}</td>`,
     };
 
     // Checkbox solo en procesos (para selección múltiple y borrado masivo)
@@ -2920,8 +2917,8 @@ const _SECCION_CFG = {
   especiales: {
     modal: 'modalEspeciales', titleId: 'modalEspecialesTitle',
     titulo: ['⭐ Nueva Línea Especial', '⭐ Editar Línea Especial'],
-    campos: { linea_especial:'me-linea-esp', funcion_especial:'me-func-esp', especie:'me-especie', producto:'me-producto', responsable:'me-responsable' },
-    payload: r => ({ linea_especial:r.linea_especial, funcion_especial:r.funcion_especial, especie:r.especie, producto:r.producto, responsable:r.responsable, seccion:'especiales', activo:true }),
+    campos: { linea_especial:'me-linea-esp', funcion_especial:'me-func-esp' },
+    payload: r => ({ linea_especial:r.linea_especial, funcion_especial:r.funcion_especial, seccion:'especiales', activo:true }),
     requerido: 'me-linea-esp', reqLabel: 'Línea Especial'
   }
 };
@@ -2974,13 +2971,22 @@ async function guardarSeccion(seccion) {
   if (_editingId) {
     ({ error } = await db.from('produccion').update(payload).eq('id', _editingId));
   } else {
-    // Verificar que no exista duplicado en esta sección
-    const campoUnico = Object.keys(cfg.campos)[0];
-    const valUnico   = vals[campoUnico];
-    const { data: exist } = await db.from('produccion')
-      .select('id').eq('seccion', seccion).eq(campoUnico, valUnico).limit(1);
-    if (exist?.length) {
-      toast(`Ya existe "${valUnico}" en esta sección`, 'error'); return;
+    // Verificar duplicados — especiales usa combinación linea_especial+funcion_especial
+    let existQ = db.from('produccion').select('id').eq('seccion', seccion);
+    if (seccion === 'especiales') {
+      existQ = existQ.eq('linea_especial', vals.linea_especial).eq('funcion_especial', vals.funcion_especial);
+      const { data: exist } = await existQ.limit(1);
+      if (exist?.length) {
+        toast(`Ya existe "${vals.linea_especial} / ${vals.funcion_especial}" en esta sección`, 'error'); return;
+      }
+    } else {
+      const campoUnico = Object.keys(cfg.campos)[0];
+      const valUnico   = vals[campoUnico];
+      existQ = existQ.eq(campoUnico, valUnico);
+      const { data: exist } = await existQ.limit(1);
+      if (exist?.length) {
+        toast(`Ya existe "${valUnico}" en esta sección`, 'error'); return;
+      }
     }
     ({ error } = await db.from('produccion').insert(payload));
   }
