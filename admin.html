@@ -1079,13 +1079,10 @@ body {
           <span class="count-badge" id="prodCountResponsables">— entradas</span>
         </div>
         <div class="data-table-wrap" style="overflow-x:auto">
-          <table class="data-table" style="min-width:600px">
+          <table class="data-table" style="min-width:360px">
             <thead><tr>
               <th style="width:80px">Acciones</th>
               <th onclick="sortProdPage('responsables','responsable')" class="th-sort" id="thp-resp-responsable">Responsable <span id="arr-resp-responsable">↕</span></th>
-              <th onclick="sortProdPage('responsables','especie')"     class="th-sort" id="thp-resp-especie">Especie <span id="arr-resp-especie">↕</span></th>
-              <th onclick="sortProdPage('responsables','producto')"    class="th-sort" id="thp-resp-producto">Producto <span id="arr-resp-producto">↕</span></th>
-              <th onclick="sortProdPage('responsables','proceso')"     class="th-sort" id="thp-resp-proceso">Proceso <span id="arr-resp-proceso">↕</span></th>
             </tr></thead>
             <tbody id="tbodyResponsables">
               <tr class="loading-row"><td colspan="5"><span class="spinner"></span>Cargando…</td></tr>
@@ -1111,14 +1108,10 @@ body {
           <span class="count-badge" id="prodCountLineas">— entradas</span>
         </div>
         <div class="data-table-wrap" style="overflow-x:auto">
-          <table class="data-table" style="min-width:700px">
+          <table class="data-table" style="min-width:300px">
             <thead><tr>
               <th style="width:80px">Acciones</th>
-              <th onclick="sortProdPage('lineas','linea')"    class="th-sort" id="thp-lin-linea">Línea <span id="arr-lin-linea">↕</span></th>
-              <th onclick="sortProdPage('lineas','especie')"  class="th-sort" id="thp-lin-especie">Especie <span id="arr-lin-especie">↕</span></th>
-              <th onclick="sortProdPage('lineas','producto')" class="th-sort" id="thp-lin-producto">Producto <span id="arr-lin-producto">↕</span></th>
-              <th onclick="sortProdPage('lineas','proceso')"  class="th-sort" id="thp-lin-proceso">Proceso <span id="arr-lin-proceso">↕</span></th>
-              <th onclick="sortProdPage('lineas','operacion')" class="th-sort" id="thp-lin-operacion">Operación <span id="arr-lin-operacion">↕</span></th>
+              <th onclick="sortProdPage('lineas','linea')" class="th-sort" id="thp-lin-linea">Línea <span id="arr-lin-linea">↕</span></th>
             </tr></thead>
             <tbody id="tbodyLineas">
               <tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr>
@@ -1861,17 +1854,14 @@ body {
 
 <!-- ══ MODAL RESPONSABLES ══ -->
 <div class="modal-overlay" id="modalResponsables">
-  <div class="modal">
+  <div class="modal" style="max-width:440px">
     <div class="modal-header">
       <h2 id="modalResponsablesTitle">👤 Nuevo Responsable</h2>
       <button class="modal-close" onclick="cerrarModal('modalResponsables')">✕</button>
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="form-field full"><label class="form-label">Responsable *</label><input class="form-input" id="mr-responsable" placeholder="Nombre completo"></div>
-        <div class="form-field"><label class="form-label">Especie</label><input class="form-input" id="mr-especie" placeholder="Ej: MERLUZA AUSTRAL"></div>
-        <div class="form-field"><label class="form-label">Producto</label><input class="form-input" id="mr-producto" placeholder="Ej: PORCION ESPAÑA"></div>
-        <div class="form-field full"><label class="form-label">Proceso</label><input class="form-input" id="mr-proceso" placeholder="Ej: CONGELADO"></div>
+        <div class="form-field full"><label class="form-label">Nombre Responsable *</label><input class="form-input" id="mr-responsable" placeholder="Ej: Diego Moreno"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1883,18 +1873,14 @@ body {
 
 <!-- ══ MODAL LÍNEAS ══ -->
 <div class="modal-overlay" id="modalLineas">
-  <div class="modal">
+  <div class="modal" style="max-width:440px">
     <div class="modal-header">
       <h2 id="modalLineasTitle">🏭 Nueva Línea</h2>
       <button class="modal-close" onclick="cerrarModal('modalLineas')">✕</button>
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="form-field full"><label class="form-label">Línea *</label><input class="form-input" id="ml-linea" placeholder="Ej: 1, EMPAQUE"></div>
-        <div class="form-field"><label class="form-label">Especie</label><input class="form-input" id="ml-especie" placeholder="Ej: MERLUZA AUSTRAL"></div>
-        <div class="form-field"><label class="form-label">Producto</label><input class="form-input" id="ml-producto" placeholder="Ej: PORCION ESPAÑA"></div>
-        <div class="form-field"><label class="form-label">Proceso</label><input class="form-input" id="ml-proceso" placeholder="Ej: CONGELADO"></div>
-        <div class="form-field"><label class="form-label">Operación</label><input class="form-input" id="ml-operacion" placeholder="Ej: PORCIONADO MANUAL"></div>
+        <div class="form-field full"><label class="form-label">Línea *</label><input class="form-input" id="ml-linea" placeholder="Ej: 1, 1B, 2, EMPAQUE"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -2762,8 +2748,8 @@ async function guardarEmpleado() {
 
 const _PROD_PAGES = {
   procesos:     { search:'prodSearchProcesos',    count:'prodCountProcesos',    tbody:'tbodyProcesos',     pagination:'paginationProcesos',     cols:['especie','funcion','producto','proceso','operacion'],           sortDefault:'especie'     },
-  responsables: { search:'prodSearchResponsables',count:'prodCountResponsables',tbody:'tbodyResponsables',  pagination:'paginationResponsables',  cols:['responsable','especie','producto','proceso'],                   sortDefault:'responsable' },
-  lineas:       { search:'prodSearchLineas',       count:'prodCountLineas',       tbody:'tbodyLineas',       pagination:'paginationLineas',        cols:['linea','especie','producto','proceso','operacion'],              sortDefault:'linea'       },
+  responsables: { search:'prodSearchResponsables',count:'prodCountResponsables',tbody:'tbodyResponsables',  pagination:'paginationResponsables',  cols:['responsable'],                                                 sortDefault:'responsable' },
+  lineas:       { search:'prodSearchLineas',       count:'prodCountLineas',       tbody:'tbodyLineas',       pagination:'paginationLineas',        cols:['linea'],                                                       sortDefault:'linea'       },
   especiales:   { search:'prodSearchEspeciales',  count:'prodCountEspeciales',  tbody:'tbodyEspeciales',   pagination:'paginationEspeciales',   cols:['linea_especial','funcion_especial'], sortDefault:'linea_especial' },
 };
 
@@ -2804,8 +2790,8 @@ async function loadProdPage(seccion) {
   // Filtro por campos relevantes según la sección
   const filtroOR = {
     procesos:     'especie.ilike.%Q%,funcion.ilike.%Q%,producto.ilike.%Q%,proceso.ilike.%Q%,operacion.ilike.%Q%',
-    responsables: 'responsable.ilike.%Q%,especie.ilike.%Q%,producto.ilike.%Q%,proceso.ilike.%Q%',
-    lineas:       'linea.ilike.%Q%,especie.ilike.%Q%,producto.ilike.%Q%,proceso.ilike.%Q%',
+    responsables: 'responsable.ilike.%Q%',
+    lineas:       'linea.ilike.%Q%',
     especiales:   'linea_especial.ilike.%Q%,funcion_especial.ilike.%Q%',
   };
 
@@ -2851,8 +2837,8 @@ async function loadProdPage(seccion) {
 
     const celdas = {
       procesos:     `<td>${esc(r.especie)}</td><td>${esc(r.funcion)}</td><td>${esc(r.producto)}</td><td>${esc(r.proceso)}</td><td>${esc(r.operacion)}</td>`,
-      responsables: `<td><strong>${esc(r.responsable)}</strong></td><td>${esc(r.especie)}</td><td>${esc(r.producto)}</td><td>${esc(r.proceso)}</td>`,
-      lineas:       `<td><strong>${esc(r.linea)}</strong></td><td>${esc(r.especie)}</td><td>${esc(r.producto)}</td><td>${esc(r.proceso)}</td><td>${esc(r.operacion)}</td>`,
+      responsables: `<td><strong>${esc(r.responsable)}</strong></td>`,
+      lineas:       `<td><strong>${esc(r.linea)}</strong></td>`,
       especiales:   `<td><strong>${esc(r.linea_especial)}</strong></td><td>${esc(r.funcion_especial)}</td>`,
     };
 
@@ -2903,15 +2889,15 @@ const _SECCION_CFG = {
   responsables: {
     modal: 'modalResponsables', titleId: 'modalResponsablesTitle',
     titulo: ['👤 Nuevo Responsable', '👤 Editar Responsable'],
-    campos: { responsable:'mr-responsable', especie:'mr-especie', producto:'mr-producto', proceso:'mr-proceso' },
-    payload: r => ({ responsable:r.responsable, especie:r.especie, producto:r.producto, proceso:r.proceso, seccion:'responsables', activo:true }),
+    campos: { responsable:'mr-responsable' },
+    payload: r => ({ responsable:r.responsable, seccion:'responsables', activo:true }),
     requerido: 'mr-responsable', reqLabel: 'Responsable'
   },
   lineas: {
     modal: 'modalLineas', titleId: 'modalLineasTitle',
     titulo: ['🏭 Nueva Línea', '🏭 Editar Línea'],
-    campos: { linea:'ml-linea', especie:'ml-especie', producto:'ml-producto', proceso:'ml-proceso', operacion:'ml-operacion' },
-    payload: r => ({ linea:r.linea, especie:r.especie, producto:r.producto, proceso:r.proceso, operacion:r.operacion, seccion:'lineas', activo:true }),
+    campos: { linea:'ml-linea' },
+    payload: r => ({ linea:r.linea, seccion:'lineas', activo:true }),
     requerido: 'ml-linea', reqLabel: 'Línea'
   },
   especiales: {
