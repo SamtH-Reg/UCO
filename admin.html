@@ -3612,7 +3612,10 @@ async function exportarRegistrosExcel() {
     { key: 'colacion_programado',label: 'Colación Programado'    },
   ];
 
-  // ── Clasificar registros ─────────────────────────────────────
+  // ── Clasificar registros usando id como clave ───────────────
+  var _camposProceso = ['turno','linea','funcion','centro_costo','especie','producto','proceso','operacion'];
+  function _claveProcAdmin(r){ return _camposProceso.map(function(c){ return String(r[c]||'').trim().toLowerCase(); }).join('|'); }
+
   var _grupoExp = {};
   data.forEach(function(r) {
     var fecha = String(r.fecha||'').substring(0,10);
@@ -3622,27 +3625,35 @@ async function exportarRegistrosExcel() {
     if(!_grupoExp[k]) _grupoExp[k]=[];
     _grupoExp[k].push(r);
   });
-  var _camposProceso = ['turno','linea','funcion','centro_costo','especie','producto','proceso','operacion'];
-  function _claveProcAdmin(r){ return _camposProceso.map(function(c){ return String(r[c]||'').trim().toLowerCase(); }).join('|'); }
-  var _tipoRegAdmin = new Map();
-  Object.values(_grupoExp).forEach(function(grupo){
-    if(grupo.length<2){ grupo.forEach(function(r){ _tipoRegAdmin.set(r,'normal'); }); return; }
-    var claves=grupo.map(function(r){ return _claveProcAdmin(r); });
-    var todosIguales=claves.every(function(c){ return c===claves[0]; });
-    if(todosIguales){ grupo.forEach(function(r){ _tipoRegAdmin.set(r,'duplicado'); }); }
-    else {
-      var mapaClaves={}, nCambio=1;
-      grupo.forEach(function(r,i){
-        var clave=claves[i];
-        if(!(clave in mapaClaves)) mapaClaves[clave]=nCambio++;
-        _tipoRegAdmin.set(r,'cambio_'+Math.min(mapaClaves[clave],5));
+
+  // Mapa id → tipo (usando id como clave, no referencia de objeto)
+  var _tipoById = {};
+  Object.values(_grupoExp).forEach(function(grupo) {
+    if(grupo.length < 2) {
+      grupo.forEach(function(r){ _tipoById[r.id] = 'normal'; });
+      return;
+    }
+    var claves = grupo.map(function(r){ return _claveProcAdmin(r); });
+    var todosIguales = claves.every(function(c){ return c === claves[0]; });
+    if(todosIguales) {
+      grupo.forEach(function(r){ _tipoById[r.id] = 'duplicado'; });
+    } else {
+      var mapaClaves = {}, nCambio = 1;
+      grupo.forEach(function(r, i) {
+        var clave = claves[i];
+        if(!(clave in mapaClaves)) mapaClaves[clave] = nCambio++;
+        _tipoById[r.id] = 'cambio_' + Math.min(mapaClaves[clave], 5);
       });
     }
   });
+  // Los que no entraron al grupo (sin codigo/fecha) quedan como normal
+  data.forEach(function(r){ if(!_tipoById[r.id]) _tipoById[r.id] = 'normal'; });
 
-  // Separar: normales/duplicados primero (A→Z nombre), cambios al final
-  var _normales = data.filter(function(r){ var t=_tipoRegAdmin.get(r)||'normal'; return t==='normal'||t==='duplicado'; });
-  var _cambios  = data.filter(function(r){ var t=_tipoRegAdmin.get(r)||'normal'; return t.startsWith('cambio_'); });
+  function _getTipo(r){ return _tipoById[r.id] || 'normal'; }
+
+  // Separar: normales/duplicados primero, cambios al final
+  var _normales = data.filter(function(r){ var t=_getTipo(r); return t==='normal'||t==='duplicado'; });
+  var _cambios  = data.filter(function(r){ return _getTipo(r).startsWith('cambio_'); });
 
   // Orden: Línea A→Z (numérica primero, luego texto), luego Nombre A→Z, luego Fecha
   function _sortLineaAdmin(a,b){
@@ -3679,7 +3690,7 @@ async function exportarRegistrosExcel() {
 
   var header = COLS_EXPORT.map(function(c) { return c.label; });
   var rows = dataOrdenada.map(function(r) {
-    var tipo = _tipoRegAdmin.get(r)||'normal';
+    var tipo = _getTipo(r);
     return COLS_EXPORT.map(function(c) {
       if(c.key==='_estado') return _labelEstado[tipo]||tipo;
       return fmtVal(c.key, r[c.key]);
