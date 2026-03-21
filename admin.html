@@ -3643,11 +3643,21 @@ async function exportarRegistrosExcel() {
   // Separar: normales/duplicados primero (A→Z nombre), cambios al final
   var _normales = data.filter(function(r){ var t=_tipoRegAdmin.get(r)||'normal'; return t==='normal'||t==='duplicado'; });
   var _cambios  = data.filter(function(r){ var t=_tipoRegAdmin.get(r)||'normal'; return t.startsWith('cambio_'); });
-  function _sortNomAdmin(a,b){
-    var cmp=String(a.nombre||'').trim().localeCompare(String(b.nombre||'').trim(),'es');
-    return cmp!==0?cmp:String(a.fecha||'').localeCompare(String(b.fecha||''));
+
+  // Orden: Línea A→Z (numérica primero, luego texto), luego Nombre A→Z, luego Fecha
+  function _sortLineaAdmin(a,b){
+    var la=String(a.linea||'').trim(), lb=String(b.linea||'').trim();
+    var na=parseFloat(la), nb=parseFloat(lb);
+    var ambosNum=!isNaN(na)&&!isNaN(nb);
+    var unNum=!isNaN(na)&&isNaN(nb);
+    var dosNum=isNaN(na)&&!isNaN(nb);
+    var cmpLinea = ambosNum ? na-nb : unNum ? -1 : dosNum ? 1 : la.localeCompare(lb,'es',{numeric:true});
+    if(cmpLinea!==0) return cmpLinea;
+    var cmpNom=String(a.nombre||'').trim().localeCompare(String(b.nombre||'').trim(),'es');
+    if(cmpNom!==0) return cmpNom;
+    return String(a.fecha||'').localeCompare(String(b.fecha||''));
   }
-  _normales.sort(_sortNomAdmin); _cambios.sort(_sortNomAdmin);
+  _normales.sort(_sortLineaAdmin); _cambios.sort(_sortLineaAdmin);
   var dataOrdenada = _normales.concat(_cambios);
 
   var _labelEstado = {
