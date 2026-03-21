@@ -6003,70 +6003,97 @@ async function exportarRegistrosExcel(){
     return s;
   }
 
-  // ── Ordenar datos por Línea A→Z, luego por Fecha descendente ──
-  data.sort(function(a, b) {
-    var la = String(a.linea || '').trim();
-    var lb = String(b.linea || '').trim();
-    // Si ambos son numéricos, comparar como número
-    var na = parseFloat(la), nb = parseFloat(lb);
-    var ambosNum = !isNaN(na) && !isNaN(nb);
-    var cmpLinea = ambosNum ? na - nb : la.localeCompare(lb, 'es', {numeric:true});
-    if (cmpLinea !== 0) return cmpLinea;
-    // Secundario: fecha desc
-    var fa = String(a.fecha || ''), fb = String(b.fecha || '');
-    return fb.localeCompare(fa);
+  // ── Clasificar registros: normales/duplicados vs cambios de proceso ──
+  var _grupoExp = {};
+  data.forEach(function(r) {
+    var fecha = String(r.fecha||'').substring(0,10);
+    var cod   = String(r.codigo||'').trim().toLowerCase();
+    if(!cod||!fecha) return;
+    var k = cod+'|'+fecha;
+    if(!_grupoExp[k]) _grupoExp[k]=[];
+    _grupoExp[k].push(r);
+  });
+  var _camposProceso = ['turno','linea','funcion','centro_costo','especie','producto','proceso','operacion'];
+  function _claveProceso(r){ return _camposProceso.map(function(c){ return String(r[c]||'').trim().toLowerCase(); }).join('|'); }
+  var _tipoReg = new Map();
+  Object.values(_grupoExp).forEach(function(grupo){
+    if(grupo.length < 2){ grupo.forEach(function(r){ _tipoReg.set(r,'normal'); }); return; }
+    var claves = grupo.map(function(r){ return _claveProceso(r); });
+    var todosIguales = claves.every(function(c){ return c===claves[0]; });
+    if(todosIguales){ grupo.forEach(function(r){ _tipoReg.set(r,'duplicado'); }); }
+    else {
+      var mapaClaves={}, nCambio=1;
+      grupo.forEach(function(r,i){
+        var clave=claves[i];
+        if(!(clave in mapaClaves)) mapaClaves[clave]=nCambio++;
+        _tipoReg.set(r,'cambio_'+Math.min(mapaClaves[clave],5));
+      });
+    }
   });
 
-  // ── Función para convertir Línea a número si corresponde ───────
+  // Separar: normales/duplicados primero (A→Z nombre), cambios al final
+  var _normales = data.filter(function(r){ var t=_tipoReg.get(r)||'normal'; return t==='normal'||t==='duplicado'; });
+  var _cambios  = data.filter(function(r){ var t=_tipoReg.get(r)||'normal'; return t.startsWith('cambio_'); });
+  function _sortNom(a,b){
+    var cmp=String(a.nombre||'').trim().localeCompare(String(b.nombre||'').trim(),'es');
+    return cmp!==0?cmp:String(a.fecha||'').localeCompare(String(b.fecha||''));
+  }
+  _normales.sort(_sortNom); _cambios.sort(_sortNom);
+  var dataOrdenada = _normales.concat(_cambios);
+
+  // Columna adicional: Estado
+  var COLS_EXPORT = COLS.concat([{k:'_estado', label:'Estado'}]);
+
+  // Etiquetas de estado por tipo
+  var _labelEstado = {
+    'normal':'', 'duplicado':'Duplicado',
+    'cambio_1':'Cambio proceso 1','cambio_2':'Cambio proceso 2',
+    'cambio_3':'Cambio proceso 3','cambio_4':'Cambio proceso 4','cambio_5':'Cambio proceso 5'
+  };
+
   function parseLinea(v) {
-    if (v === null || v === undefined || v === '') return '';
-    var s = String(v).trim();
-    var n = parseFloat(s);
-    // Si es número puro (sin letras), devolver número para Excel
-    if (!isNaN(n) && String(n) === s) return n;
+    if(v===null||v===undefined||v==='') return '';
+    var s=String(v).trim(), n=parseFloat(s);
+    if(!isNaN(n)&&String(n)===s) return n;
     return s;
   }
 
-  var header = COLS.map(function(c){ return c.label; });
-  var filas  = data.map(function(r){
-    return COLS.map(function(c){
-      if (c.k === 'linea') return parseLinea(r[c.k]);
+  var header = COLS_EXPORT.map(function(c){ return c.label||c.k; });
+  var filas  = dataOrdenada.map(function(r){
+    var tipo = _tipoReg.get(r)||'normal';
+    return COLS_EXPORT.map(function(c){
+      if(c.k==='_estado') return _labelEstado[tipo]||tipo;
+      if(c.k==='linea') return parseLinea(r[c.k]);
       return parsearFecha(c.k, r[c.k]);
     });
   });
 
   var ws = XLSX.utils.aoa_to_sheet([header].concat(filas));
 
-  // Aplicar formato de celda a columnas de fecha y datetime
+  // Aplicar formato de celda
   var nRows = filas.length;
-  COLS.forEach(function(c, ci) {
+  COLS_EXPORT.forEach(function(c, ci) {
     var colLetter = XLSX.utils.encode_col(ci);
-    // Formato fecha/hora
     var fmt = '';
-    if(COLS_FECHA.includes(c.k))     fmt = 'dd-mm-yyyy';
-    if(COLS_DATETIME.includes(c.k))  fmt = 'dd-mm-yyyy h:mm';
-
-    for(var row = 2; row <= nRows + 1; row++) {
-      var cellRef = colLetter + row;
+    if(COLS_FECHA.includes(c.k))    fmt='dd-mm-yyyy';
+    if(COLS_DATETIME.includes(c.k)) fmt='dd-mm-yyyy h:mm';
+    for(var row=2; row<=nRows+1; row++){
+      var cellRef=colLetter+row;
       if(!ws[cellRef]) continue;
-      if(fmt && typeof ws[cellRef].v === 'number') {
-        ws[cellRef].t = 'n';
-        ws[cellRef].z = fmt;
-      }
-      // Forzar tipo número para columna Línea cuando es numérico
-      if(c.k === 'linea' && typeof ws[cellRef].v === 'number') {
-        ws[cellRef].t = 'n';
-        ws[cellRef].z = '0'; // entero sin decimales
-      }
+      if(fmt && typeof ws[cellRef].v==='number'){ ws[cellRef].t='n'; ws[cellRef].z=fmt; }
+      if(c.k==='linea' && typeof ws[cellRef].v==='number'){ ws[cellRef].t='n'; ws[cellRef].z='0'; }
     }
   });
 
-  // Ancho de columnas automático
-  ws['!cols'] = COLS.map(function(c, ci){
-    var max = c.label.length;
-    var isDate = COLS_FECHA.includes(c.k);
-    var isDt   = COLS_DATETIME.includes(c.k);
-    return { wch: isDt ? 18 : isDate ? 12 : Math.min(Math.max(max+2,10),38) };
+  // Aplicar color naranja a filas de cambio de proceso
+  // SheetJS community no tiene soporte de estilos, pero la columna Estado es suficiente para identificarlos
+
+  // Ancho de columnas: ajustar al contenido real
+  ws['!cols'] = COLS_EXPORT.map(function(c, ci){
+    var maxLen = (c.label||c.k).length;
+    filas.forEach(function(row){ var v=String(row[ci]||''); if(v.length>maxLen) maxLen=v.length; });
+    var isDate=COLS_FECHA.includes(c.k), isDt=COLS_DATETIME.includes(c.k);
+    return { wch: isDt?18:isDate?12:Math.min(Math.max(maxLen+2,10),40) };
   });
 
   // Primera fila congelada
