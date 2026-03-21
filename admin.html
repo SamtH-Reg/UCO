@@ -635,6 +635,36 @@ body {
   .form-grid { grid-template-columns: 1fr; }
   .settings-input { min-width: unset; width: 100%; }
 }
+
+/* ── GESTIÓN DE TURNOS ── */
+.turnos-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:4px}
+.turno-col{background:var(--surface2);border-radius:12px;border:1.5px solid var(--border);overflow:hidden;display:flex;flex-direction:column}
+.turno-col-header{padding:12px 16px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;border-bottom:1.5px solid var(--border)}
+.turno-col-header.dia   {background:rgba(255,213,80,.1);color:#b07a00}
+.turno-col-header.tarde {background:rgba(255,152,0,.1);color:#e65100}
+.turno-col-header.noche {background:rgba(56,189,248,.1);color:#0284c7}
+.turno-col-search{padding:8px 10px;border-bottom:1px solid var(--border)}
+.turno-col-search input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 9px;font-size:12px;color:var(--text);outline:none}
+.turno-col-list{flex:1;overflow-y:auto;max-height:520px;padding:4px 0}
+.turno-emp-row{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:6px;margin:2px 6px;cursor:default;transition:background .15s}
+.turno-emp-row:hover{background:var(--surface)}
+.turno-emp-row.duplicado{background:rgba(224,82,82,.1);border:1px solid rgba(224,82,82,.3)}
+.turno-emp-row.duplicado .turno-emp-codigo{color:#e05252}
+.turno-emp-row.seleccionado{background:rgba(61,186,126,.12);border:1px solid rgba(61,186,126,.3)}
+.turno-emp-chk{width:14px;height:14px;cursor:pointer;accent-color:var(--accent);flex-shrink:0}
+.turno-emp-codigo{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent2);min-width:52px}
+.turno-emp-nombre{font-size:12px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.turno-emp-dup-badge{font-size:10px;background:#e05252;color:#fff;border-radius:4px;padding:1px 5px;flex-shrink:0}
+.turno-mover-bar{padding:10px 14px;border-top:1.5px solid var(--border);background:var(--surface);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.turno-mover-bar span{font-size:11px;color:var(--muted);flex:1}
+.btn-mover{padding:4px 10px;border-radius:6px;border:none;cursor:pointer;font-size:11px;font-weight:700;transition:all .15s}
+.btn-mover:disabled{opacity:.4;cursor:not-allowed}
+.btn-mover.dia   {background:rgba(255,213,80,.2);color:#b07a00}
+.btn-mover.tarde {background:rgba(255,152,0,.2);color:#e65100}
+.btn-mover.noche {background:rgba(56,189,248,.2);color:#0284c7}
+.turno-dup-banner{background:rgba(224,82,82,.1);border:1.5px solid rgba(224,82,82,.4);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#c0392b;display:none}
+.turno-dup-banner.visible{display:flex;align-items:center;gap:8px}
+.turno-col-count{font-size:11px;font-weight:400;opacity:.7;margin-left:auto}
 </style>
 </head>
 <body>
@@ -676,6 +706,10 @@ body {
       <button class="sidebar-item" onclick="goPage('empleados-noche')">
         <span class="si-icon">🌙</span> Empleados Noche
         <span class="si-count" id="cnt-empleados-noche">—</span>
+      </button>
+      <button class="sidebar-item" onclick="goPage('gestion-turnos')">
+        <span class="si-icon">🔄</span> Gestión Turnos
+        <span class="si-count" id="cnt-dup-turnos" style="background:#e05252;display:none">!</span>
       </button>
       <button class="sidebar-item" onclick="goPage('produccion')">
         <span class="si-icon">🏭</span> Producción
@@ -893,6 +927,85 @@ body {
           </table>
         </div>
         <div class="pagination" id="empPaginationNoche"></div>
+      </div>
+    </div>
+
+    <!-- ══ GESTIÓN DE TURNOS ══ -->
+    <div class="page" id="page-gestion-turnos">
+      <div class="page-header">
+        <div><h1>🔄 Gestión de Turnos</h1><p>Mueve empleados entre turnos · Detecta y corrige duplicados</p></div>
+        <div class="page-header-actions">
+          <button class="btn btn-secondary" onclick="loadGestionTurnos()">🔄 Recargar</button>
+        </div>
+      </div>
+
+      <!-- Banner duplicados -->
+      <div class="turno-dup-banner" id="turnoDupBanner">
+        ⚠️ <strong id="turnoDupCount">0</strong> empleado(s) con código duplicado entre turnos — revisa y corrige manualmente.
+      </div>
+
+      <!-- Buscador global -->
+      <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center">
+        <input class="search-input" id="turnosBusqGlobal" placeholder="🔍 Buscar empleado en todos los turnos..."
+          oninput="turnosFiltrarGlobal(this.value)" style="max-width:380px">
+        <span style="font-size:12px;color:var(--muted)" id="turnosResumenTotal"></span>
+        <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px;cursor:pointer">
+          <input type="checkbox" id="turnosSoloDup" onchange="turnosRenderTodo()"> Solo duplicados
+        </label>
+      </div>
+
+      <!-- 3 columnas -->
+      <div class="turnos-grid">
+        <!-- DÍA -->
+        <div class="turno-col">
+          <div class="turno-col-header dia">
+            ☀️ Turno Día
+            <span class="turno-col-count" id="turnoCountDia">—</span>
+          </div>
+          <div class="turno-col-search">
+            <input id="turnosBusqDia" placeholder="Filtrar turno día..." oninput="turnosFiltrarCol('Día',this.value)">
+          </div>
+          <div class="turno-col-list" id="turnoListaDia"></div>
+          <div class="turno-mover-bar">
+            <span id="turnoSelDia">Selecciona empleados</span>
+            <button class="btn-mover tarde" onclick="moverSeleccionados('Día','Tarde')" id="btnMoverDiaTarde" disabled>→ Tarde</button>
+            <button class="btn-mover noche" onclick="moverSeleccionados('Día','Noche')" id="btnMoverDiaNoche" disabled>→ Noche</button>
+          </div>
+        </div>
+
+        <!-- TARDE -->
+        <div class="turno-col">
+          <div class="turno-col-header tarde">
+            🌅 Turno Tarde
+            <span class="turno-col-count" id="turnoCountTarde">—</span>
+          </div>
+          <div class="turno-col-search">
+            <input id="turnosBusqTarde" placeholder="Filtrar turno tarde..." oninput="turnosFiltrarCol('Tarde',this.value)">
+          </div>
+          <div class="turno-col-list" id="turnoListaTarde"></div>
+          <div class="turno-mover-bar">
+            <span id="turnoSelTarde">Selecciona empleados</span>
+            <button class="btn-mover dia"   onclick="moverSeleccionados('Tarde','Día')"   id="btnMoverTardeDia"   disabled>→ Día</button>
+            <button class="btn-mover noche" onclick="moverSeleccionados('Tarde','Noche')" id="btnMoverTardeNoche" disabled>→ Noche</button>
+          </div>
+        </div>
+
+        <!-- NOCHE -->
+        <div class="turno-col">
+          <div class="turno-col-header noche">
+            🌙 Turno Noche
+            <span class="turno-col-count" id="turnoCountNoche">—</span>
+          </div>
+          <div class="turno-col-search">
+            <input id="turnosBusqNoche" placeholder="Filtrar turno noche..." oninput="turnosFiltrarCol('Noche',this.value)">
+          </div>
+          <div class="turno-col-list" id="turnoListaNoche"></div>
+          <div class="turno-mover-bar">
+            <span id="turnoSelNoche">Selecciona empleados</span>
+            <button class="btn-mover dia"   onclick="moverSeleccionados('Noche','Día')"   id="btnMoverNocheDia"   disabled>→ Día</button>
+            <button class="btn-mover tarde" onclick="moverSeleccionados('Noche','Tarde')" id="btnMoverNocheTarde" disabled>→ Tarde</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1770,6 +1883,7 @@ function goPage(name) {
     'empleados-dia':   () => loadEmpleados('Día'),
     'empleados-tarde': () => loadEmpleados('Tarde'),
     'empleados-noche': () => loadEmpleados('Noche'),
+    'gestion-turnos':  loadGestionTurnos,
     produccion: loadProduccion,
     noregistrar:loadNoRegistrar,
     auditlog:   loadAuditLog,
@@ -1788,6 +1902,231 @@ function goPage(name) {
   };
   if (loaders[name]) loaders[name]();
 }
+
+// ════════════════════════════════════════════════════
+//  GESTIÓN DE TURNOS
+// ════════════════════════════════════════════════════
+let _gTurnos = { Día: [], Tarde: [], Noche: [] };  // datos cargados
+let _gFiltros = { Día: '', Tarde: '', Noche: '', global: '' };
+let _gSel = { Día: new Set(), Tarde: new Set(), Noche: new Set() };
+let _gDupCodigos = new Set(); // códigos que aparecen en más de un turno
+
+async function loadGestionTurnos() {
+  const db = getClient(); if (!db) return;
+  ['Día','Tarde','Noche'].forEach(t => {
+    const listEl = document.getElementById('turnoLista'+t.replace('é','e').replace('ó','o'));
+    if (listEl) listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)"><span class="spinner"></span></div>';
+  });
+
+  // Traer todos los empleados activos con turno
+  let all = [], page = 0, hasMore = true;
+  while (hasMore) {
+    const { data, error } = await db.from('empleados')
+      .select('id,codigo,nombre,centro_costo,turno,activo')
+      .eq('activo', true).order('nombre')
+      .range(page*1000, page*1000+999);
+    if (error || !data?.length) { hasMore = false; break; }
+    all = all.concat(data);
+    if (data.length < 1000) hasMore = false; else page++;
+  }
+
+  // Separar por turno
+  _gTurnos = { Día: [], Tarde: [], Noche: [] };
+  all.forEach(r => {
+    const t = r.turno || 'Día';
+    if (_gTurnos[t]) _gTurnos[t].push(r);
+    else _gTurnos['Día'].push(r); // fallback
+  });
+
+  // Detectar duplicados por código
+  const codCount = {};
+  ['Día','Tarde','Noche'].forEach(t => {
+    _gTurnos[t].forEach(r => {
+      codCount[r.codigo] = (codCount[r.codigo]||0) + 1;
+    });
+  });
+  _gDupCodigos = new Set(Object.entries(codCount).filter(([,v])=>v>1).map(([k])=>k));
+
+  // Resetear selecciones y filtros
+  _gSel = { Día: new Set(), Tarde: new Set(), Noche: new Set() };
+  _gFiltros = { Día: '', Tarde: '', Noche: '', global: '' };
+  ['turnosBusqDia','turnosBusqTarde','turnosBusqNoche','turnosBusqGlobal'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+
+  // Banner duplicados
+  const banner = document.getElementById('turnoDupBanner');
+  const dupSidebar = document.getElementById('cnt-dup-turnos');
+  if (banner) {
+    if (_gDupCodigos.size > 0) {
+      document.getElementById('turnoDupCount').textContent = _gDupCodigos.size;
+      banner.classList.add('visible');
+      if (dupSidebar) { dupSidebar.textContent = _gDupCodigos.size; dupSidebar.style.display = ''; }
+    } else {
+      banner.classList.remove('visible');
+      if (dupSidebar) dupSidebar.style.display = 'none';
+    }
+  }
+
+  turnosRenderTodo();
+}
+
+function turnosRenderTodo() {
+  ['Día','Tarde','Noche'].forEach(t => turnosRenderCol(t));
+  // Resumen total
+  const tot = _gTurnos.Día.length + _gTurnos.Tarde.length + _gTurnos.Noche.length;
+  const el = document.getElementById('turnosResumenTotal');
+  if (el) el.textContent = tot + ' empleados en total' + (_gDupCodigos.size ? ` · ⚠️ ${_gDupCodigos.size} duplicados` : '');
+}
+
+function turnosRenderCol(turno) {
+  const soloDup = document.getElementById('turnosSoloDup')?.checked;
+  const busqGlobal = _gFiltros.global.toLowerCase();
+  const busqCol    = _gFiltros[turno].toLowerCase();
+  const sufijo = turno === 'Día' ? 'Dia' : turno === 'Tarde' ? 'Tarde' : 'Noche';
+
+  let lista = _gTurnos[turno] || [];
+
+  // Aplicar filtros
+  if (soloDup)     lista = lista.filter(r => _gDupCodigos.has(r.codigo));
+  if (busqGlobal)  lista = lista.filter(r =>
+    r.codigo.toLowerCase().includes(busqGlobal) ||
+    r.nombre.toLowerCase().includes(busqGlobal));
+  if (busqCol)     lista = lista.filter(r =>
+    r.codigo.toLowerCase().includes(busqCol) ||
+    r.nombre.toLowerCase().includes(busqCol));
+
+  const listEl  = document.getElementById('turnoLista'+sufijo);
+  const countEl = document.getElementById('turnoCount'+sufijo);
+  if (!listEl) return;
+
+  if (countEl) countEl.textContent = `(${_gTurnos[turno].length})`;
+
+  if (!lista.length) {
+    listEl.innerHTML = '<div style="padding:16px;text-align:center;font-size:12px;color:var(--muted)">Sin resultados</div>';
+    return;
+  }
+
+  listEl.innerHTML = lista.map(r => {
+    const isDup   = _gDupCodigos.has(r.codigo);
+    const isSel   = _gSel[turno].has(r.id);
+    const rowCls  = isDup ? 'turno-emp-row duplicado' : isSel ? 'turno-emp-row seleccionado' : 'turno-emp-row';
+    const dupBadge = isDup ? '<span class="turno-emp-dup-badge">DUP</span>' : '';
+    return `<div class="${rowCls}" id="trow-${r.id}">
+      <input type="checkbox" class="turno-emp-chk" ${isSel?'checked':''}
+        onchange="turnosToggleSel('${turno}','${r.id}',this.checked)">
+      <span class="turno-emp-codigo">${esc(r.codigo)}</span>
+      <span class="turno-emp-nombre" title="${esc(r.nombre)}">${esc(r.nombre)}</span>
+      ${dupBadge}
+    </div>`;
+  }).join('');
+
+  turnosActualizarBarra(turno);
+}
+
+function turnosToggleSel(turno, id, checked) {
+  if (checked) _gSel[turno].add(id);
+  else _gSel[turno].delete(id);
+  turnosActualizarBarra(turno);
+  // Re-render solo la fila visualmente
+  const row = document.getElementById('trow-'+id);
+  if (row && !_gDupCodigos.has(row.querySelector('.turno-emp-codigo')?.textContent)) {
+    row.className = checked ? 'turno-emp-row seleccionado' : 'turno-emp-row';
+  }
+}
+
+function turnosActualizarBarra(turno) {
+  const n = _gSel[turno].size;
+  const sufijo = turno === 'Día' ? 'Dia' : turno === 'Tarde' ? 'Tarde' : 'Noche';
+  const sel = document.getElementById('turnoSel'+sufijo);
+  if (sel) sel.textContent = n > 0 ? `${n} seleccionado(s)` : 'Selecciona empleados';
+
+  // Habilitar/deshabilitar botones de mover
+  if (turno === 'Día') {
+    document.getElementById('btnMoverDiaTarde').disabled = n === 0;
+    document.getElementById('btnMoverDiaNoche').disabled = n === 0;
+  } else if (turno === 'Tarde') {
+    document.getElementById('btnMoverTardeDia').disabled  = n === 0;
+    document.getElementById('btnMoverTardeNoche').disabled = n === 0;
+  } else {
+    document.getElementById('btnMoverNocheDia').disabled   = n === 0;
+    document.getElementById('btnMoverNocheTarde').disabled = n === 0;
+  }
+}
+
+function turnosFiltrarCol(turno, val) {
+  _gFiltros[turno] = val;
+  turnosRenderCol(turno);
+}
+
+function turnosFiltrarGlobal(val) {
+  _gFiltros.global = val;
+  turnosRenderTodo();
+}
+
+async function moverSeleccionados(desde, hacia) {
+  const ids = [..._gSel[desde]];
+  if (!ids.length) return;
+
+  // Verificar duplicados en destino — mismo código ya existe en turno destino
+  const codsDesdeSel = ids.map(id => {
+    const emp = _gTurnos[desde].find(r => r.id === id);
+    return emp ? emp.codigo : null;
+  }).filter(Boolean);
+
+  const codsEnDestino = new Set(_gTurnos[hacia].map(r => r.codigo));
+  const conflictos = codsDesdeSel.filter(c => codsEnDestino.has(c));
+
+  if (conflictos.length > 0) {
+    if (!confirm(
+      `⚠️ ${conflictos.length} empleado(s) ya existen en Turno ${hacia}:
+${conflictos.slice(0,5).join(', ')}${conflictos.length>5?' ...':''}
+
+¿Mover de todas formas? El código quedará duplicado temporalmente.`
+    )) return;
+  }
+
+  const db = getClient(); if (!db) return;
+  toast(`Moviendo ${ids.length} empleado(s) a Turno ${hacia}...`);
+
+  const { error } = await db.from('empleados')
+    .update({ turno: hacia })
+    .in('id', ids);
+
+  if (error) { toast('Error: '+error.message,'error'); return; }
+
+  toast(`✅ ${ids.length} empleado(s) movidos a Turno ${hacia}`);
+
+  // Actualizar datos locales sin recargar todo
+  const movidos = _gTurnos[desde].filter(r => ids.includes(r.id));
+  _gTurnos[desde] = _gTurnos[desde].filter(r => !ids.includes(r.id));
+  movidos.forEach(r => { r.turno = hacia; _gTurnos[hacia].push(r); });
+  _gTurnos[hacia].sort((a,b) => a.nombre.localeCompare(b.nombre,'es'));
+  _gSel[desde].clear();
+
+  // Recalcular duplicados
+  const codCount = {};
+  ['Día','Tarde','Noche'].forEach(t => {
+    _gTurnos[t].forEach(r => { codCount[r.codigo] = (codCount[r.codigo]||0)+1; });
+  });
+  _gDupCodigos = new Set(Object.entries(codCount).filter(([,v])=>v>1).map(([k])=>k));
+
+  const banner = document.getElementById('turnoDupBanner');
+  const dupSidebar = document.getElementById('cnt-dup-turnos');
+  if (_gDupCodigos.size > 0) {
+    document.getElementById('turnoDupCount').textContent = _gDupCodigos.size;
+    banner?.classList.add('visible');
+    if (dupSidebar) { dupSidebar.textContent = _gDupCodigos.size; dupSidebar.style.display = ''; }
+  } else {
+    banner?.classList.remove('visible');
+    if (dupSidebar) dupSidebar.style.display = 'none';
+  }
+
+  turnosRenderTodo();
+  // Actualizar contadores del sidebar
+  loadCounts();
+}
+
 
 // ════════════════════════════════════════════════════
 //  MODAL HELPERS
