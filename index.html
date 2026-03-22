@@ -2532,14 +2532,14 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
         <label class="reg-filter-label">📅 Desde</label>
         <div style="display:flex;gap:4px">
           <input type="date" id="filtroDesde" class="reg-filter-input" onchange="aplicarFiltros()">
-          <input type="time" id="filtroDesdeHora" class="reg-filter-input" style="min-width:80px" onchange="aplicarFiltros()" value="07:00">
+          <input type="time" id="filtroDesdeHora" class="reg-filter-input" style="min-width:80px" onchange="aplicarFiltros()" value="">
         </div>
       </div>
       <div class="reg-filter-group">
         <label class="reg-filter-label">📅 Hasta</label>
         <div style="display:flex;gap:4px">
           <input type="date" id="filtroHasta" class="reg-filter-input" onchange="aplicarFiltros()">
-          <input type="time" id="filtroHastaHora" class="reg-filter-input" style="min-width:80px" onchange="aplicarFiltros()" value="18:00">
+          <input type="time" id="filtroHastaHora" class="reg-filter-input" style="min-width:80px" onchange="aplicarFiltros()" value="">
         </div>
       </div>
       <div class="reg-filter-group">
@@ -4080,6 +4080,14 @@ function initFiltros(){
 async function cargarRegistros(){
   const tbody=document.getElementById('tbodyReg');
   tbody.innerHTML='<tr><td colspan="25"><div class="empty-state"><div class="ei">⏳</div><p>Cargando...</p></div></td></tr>';
+  // Aplicar turno automático al primer arranque si filtros vacíos
+  const selTurno=document.getElementById('filtroTurno');
+  const desdeHora=document.getElementById('filtroDesdeHora');
+  if(selTurno && !selTurno.value && desdeHora && !desdeHora.value){
+    const tAuto = typeof _turnoSegunHora==='function'
+      ? ({'día':'Día','tarde':'Tarde','noche':'Noche'}[_turnoSegunHora()]||'') : '';
+    if(tAuto){ selTurno.value=tAuto; preRellenarHorasFiltro(tAuto); }
+  }
   // Cargar mapa de ausencias ANTES de renderizar filas
   const fechaFiltro = document.getElementById('filtroDesde').value || localDate(new Date());
   await _cargarAusenciasMap(fechaFiltro);
@@ -4247,7 +4255,6 @@ function getMes(fecha){
 
 function inicializarFiltros(){
   const hoy=localDate(new Date());
-  // Siempre arrancar en la fecha actual
   document.getElementById('filtroDesde').value=hoy;
   document.getElementById('filtroHasta').value=hoy;
   // Poblar líneas
@@ -4257,6 +4264,17 @@ function inicializarFiltros(){
   sel.innerHTML='<option value="">Todas</option>';
   lineas.forEach(l=>{const o=document.createElement('option');o.value=l;o.textContent=l;sel.appendChild(o);});
   if(prev) sel.value=prev;
+  // Aplicar turno automático según hora actual si no hay turno seleccionado
+  const selTurno=document.getElementById('filtroTurno');
+  if(selTurno && !selTurno.value){
+    const turnoAuto = _turnoSegunHora
+      ? ({'día':'Día','tarde':'Tarde','noche':'Noche'}[_turnoSegunHora()]||'')
+      : '';
+    if(turnoAuto){
+      selTurno.value = turnoAuto;
+      preRellenarHorasFiltro(turnoAuto);
+    }
+  }
 }
 
 function onFiltroTurnoChange(){
