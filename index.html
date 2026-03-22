@@ -4080,14 +4080,36 @@ function initFiltros(){
 async function cargarRegistros(){
   const tbody=document.getElementById('tbodyReg');
   tbody.innerHTML='<tr><td colspan="25"><div class="empty-state"><div class="ei">⏳</div><p>Cargando...</p></div></td></tr>';
-  // Aplicar turno automático al primer arranque si filtros vacíos
-  const selTurno=document.getElementById('filtroTurno');
-  const desdeHora=document.getElementById('filtroDesdeHora');
-  if(selTurno && !selTurno.value && desdeHora && !desdeHora.value){
-    const tAuto = typeof _turnoSegunHora==='function'
-      ? ({'día':'Día','tarde':'Tarde','noche':'Noche'}[_turnoSegunHora()]||'') : '';
-    if(tAuto){ selTurno.value=tAuto; preRellenarHorasFiltro(tAuto); }
+
+  // ── Autodetectar turno por hora actual (igual que dashboard) ──
+  // Solo aplica si no hay filtro de turno ya seleccionado
+  const selTurno   = document.getElementById('filtroTurno');
+  const desdeHora  = document.getElementById('filtroDesdeHora');
+  const _yaFiltrado = selTurno && selTurno.dataset.userSet;
+
+  if(!_yaFiltrado){
+    const h = new Date().getHours();
+    const m = new Date().getMinutes();
+    const hm = h * 60 + m; // minutos desde medianoche
+
+    // Rangos (en minutos):
+    // Día:   08:00 (480) → 16:00 (960)
+    // Tarde: 17:00 (1020) → 00:00 (1440) del día siguiente
+    // Noche: 20:30 (1230) → 06:00 (360) del día siguiente
+    // Solapamiento Tarde/Noche: 20:30-00:00 → mostrar ambos separados
+    // Criterio: si hora >= 20:30 → Noche; si 17:00-20:29 → Tarde; si 08:00-16:59 → Día
+
+    let turnoAuto = '';
+    if(hm >= 480 && hm < 1020)       turnoAuto = 'Día';
+    else if(hm >= 1020 && hm < 1230) turnoAuto = 'Tarde';
+    else                              turnoAuto = 'Noche'; // 20:30-07:59
+
+    if(selTurno && turnoAuto){
+      selTurno.value = turnoAuto;
+      preRellenarHorasFiltro(turnoAuto);
+    }
   }
+
   // Cargar mapa de ausencias ANTES de renderizar filas
   const fechaFiltro = document.getElementById('filtroDesde').value || localDate(new Date());
   await _cargarAusenciasMap(fechaFiltro);
@@ -4278,11 +4300,14 @@ function inicializarFiltros(){
 }
 
 function onFiltroTurnoChange(){
-  const t=document.getElementById('filtroTurno').value;
+  const sel=document.getElementById('filtroTurno');
+  const t=sel.value;
+  // Marcar que el usuario cambió manualmente el turno
+  sel.dataset.userSet = t ? '1' : '';
   if(t){
     preRellenarHorasFiltro(t);
   } else {
-    // Sin turno seleccionado → limpiar horas a rango completo
+    // Sin turno → mostrar todo el día
     document.getElementById('filtroDesdeHora').value='00:00';
     document.getElementById('filtroHastaHora').value='23:59';
   }
@@ -4297,7 +4322,8 @@ function limpiarFiltros(){
   document.getElementById('filtroHasta').value     = hoy;
   document.getElementById('filtroHastaHora').value = '18:00';
   document.getElementById('filtroLinea').value  = '';
-  document.getElementById('filtroTurno').value  = '';
+  const _selT=document.getElementById('filtroTurno');
+  if(_selT){ _selT.value=''; _selT.dataset.userSet=''; }
   document.getElementById('filtroTabla').value  = '';
   ['filtroDesde','filtroDesdeHora','filtroHasta','filtroHastaHora',
    'filtroLinea','filtroTurno','filtroTabla'].forEach(id=>{
@@ -4804,9 +4830,13 @@ const DIAS_CORTOS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 
 // ── Cargar Dashboard
 function _turnoSegunHora(){
-  const h = new Date().getHours();
-  if(h >= 8 && h < 17)  return 'día';
-  if(h >= 17 && h < 21) return 'tarde';
+  const now = new Date();
+  const hm  = now.getHours() * 60 + now.getMinutes();
+  // Día:   08:00-16:59 (480-1019)
+  // Tarde: 17:00-20:29 (1020-1229)
+  // Noche: 20:30-07:59 (1230-479)
+  if(hm >= 480  && hm < 1020) return 'día';
+  if(hm >= 1020 && hm < 1230) return 'tarde';
   return 'noche';
 }
 
