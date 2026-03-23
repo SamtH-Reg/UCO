@@ -6182,18 +6182,30 @@ async function exportarRegistrosExcel(){
   var _cambios   = data.filter(function(r){ return _getTipo(r).startsWith('cambio_'); });
 
   // Orden: Línea A→Z (numérica primero, luego texto), luego Nombre A→Z, luego Fecha
+  // Descomponer línea en [numParte, sufijo] — ej: "1B"→[1,"B"], "1"→[1,""], "EMPAQUE"→[Infinity,"EMPAQUE"]
+  function _parseLinea(v){
+    var s=String(v||'').trim();
+    var m=s.match(/^(\d+)([A-Za-z]*)$/);
+    if(m) return [parseInt(m[1],10), m[2].toUpperCase()];
+    var n=parseFloat(s);
+    if(!isNaN(n)) return [n,''];
+    return [Infinity, s.toUpperCase()]; // texto puro va al final
+  }
   function _sortLinea(a,b){
-    var la=String(a.linea||'').trim(), lb=String(b.linea||'').trim();
-    var na=parseFloat(la), nb=parseFloat(lb);
-    var ambosNum=!isNaN(na)&&!isNaN(nb);
-    var unNum=!isNaN(na)&&isNaN(nb);
-    var dosNum=isNaN(na)&&!isNaN(nb);
-    var cmpLinea = ambosNum ? na-nb : unNum ? -1 : dosNum ? 1 : la.localeCompare(lb,'es',{numeric:true});
-    if(cmpLinea!==0) return cmpLinea;
-    // Secundario: nombre A→Z
+    var pa=_parseLinea(a.linea), pb=_parseLinea(b.linea);
+    // 1. Comparar parte numérica
+    if(pa[0]!==pb[0]) return pa[0]-pb[0];
+    // 2. Comparar sufijo: "" < "B" < "C"... (sin sufijo = antes)
+    var sa=pa[1], sb=pb[1];
+    if(sa!==sb){
+      if(!sa) return -1;  // 1 antes que 1B
+      if(!sb) return 1;
+      return sa.localeCompare(sb,'es');
+    }
+    // 3. Nombre A→Z
     var cmpNom=String(a.nombre||'').trim().localeCompare(String(b.nombre||'').trim(),'es');
     if(cmpNom!==0) return cmpNom;
-    // Terciario: fecha
+    // 4. Fecha
     return String(a.fecha||'').localeCompare(String(b.fecha||''));
   }
   _normales.sort(_sortLinea); _cambios.sort(_sortLinea);
