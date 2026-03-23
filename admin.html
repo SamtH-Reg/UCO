@@ -3795,22 +3795,25 @@ async function exportarRegistrosExcel() {
 
   // Orden: Línea A→Z (numérica primero, luego texto), luego Nombre A→Z, luego Fecha
   function _parseLineaAdmin(v){
-    var s=String(v||'').trim();
-    var m=s.match(/^(\d+)([A-Za-z]*)$/);
-    if(m) return [parseInt(m[1],10), m[2].toUpperCase()];
-    var n=parseFloat(s);
-    if(!isNaN(n)) return [n,''];
-    return [Infinity, s.toUpperCase()];
+    var s=String(v||'').trim().toUpperCase();
+    if(!s) return [2,0,''];
+    var m=s.match(/^(\d+)([A-Z]*)$/);
+    if(m) return [0, parseInt(m[1],10), m[2]];
+    return [1, 0, s];
   }
   function _sortLineaAdmin(a,b){
     var pa=_parseLineaAdmin(a.linea), pb=_parseLineaAdmin(b.linea);
     if(pa[0]!==pb[0]) return pa[0]-pb[0];
-    var sa=pa[1], sb=pb[1];
+    if(pa[1]!==pb[1]) return pa[1]-pb[1];
+    var sa=pa[2], sb=pb[2];
     if(sa!==sb){
       if(!sa) return -1;
-      if(!sb) return 1;
+      if(!sb) return  1;
       return sa.localeCompare(sb,'es');
     }
+    var cmpFun=String(a.funcion||'').trim().toUpperCase()
+      .localeCompare(String(b.funcion||'').trim().toUpperCase(),'es');
+    if(cmpFun!==0) return cmpFun;
     var cmpNom=String(a.nombre||'').trim().localeCompare(String(b.nombre||'').trim(),'es');
     if(cmpNom!==0) return cmpNom;
     return String(a.fecha||'').localeCompare(String(b.fecha||''));
