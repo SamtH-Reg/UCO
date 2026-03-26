@@ -3033,12 +3033,12 @@ function preRellenarHorasFiltro(t){
   const manana = localDate(new Date(Date.now()+86400000));
   if(t==='Día'){
     document.getElementById('filtroDesde').value     = hoy;
-    document.getElementById('filtroDesdeHora').value = '08:00';
+    document.getElementById('filtroDesdeHora').value = '07:00';
     document.getElementById('filtroHasta').value     = hoy;
-    document.getElementById('filtroHastaHora').value = '16:00';
+    document.getElementById('filtroHastaHora').value = '17:00';
   } else if(t==='Tarde'){
     document.getElementById('filtroDesde').value     = hoy;
-    document.getElementById('filtroDesdeHora').value = '17:00';
+    document.getElementById('filtroDesdeHora').value = '18:00';
     document.getElementById('filtroHasta').value     = manana;
     document.getElementById('filtroHastaHora').value = '00:00';
   } else if(t==='Noche'){
@@ -4093,16 +4093,14 @@ async function cargarRegistros(){
     const hm = h * 60 + m; // minutos desde medianoche
 
     // Rangos (en minutos):
-    // Día:   08:00 (480) → 16:00 (960)
-    // Tarde: 17:00 (1020) → 00:00 (1440) del día siguiente
-    // Noche: 20:30 (1230) → 06:00 (360) del día siguiente
-    // Solapamiento Tarde/Noche: 20:30-00:00 → mostrar ambos separados
-    // Criterio: si hora >= 20:30 → Noche; si 17:00-20:29 → Tarde; si 08:00-16:59 → Día
+    // Día:   07:00 (420) → 17:59 (1079)
+    // Tarde: 18:00 (1080) → 20:29 (1229)
+    // Noche: 20:30 (1230) → 06:59 (419)
 
     let turnoAuto = '';
-    if(hm >= 480 && hm < 1020)       turnoAuto = 'Día';
-    else if(hm >= 1020 && hm < 1230) turnoAuto = 'Tarde';
-    else                              turnoAuto = 'Noche'; // 20:30-07:59
+    if(hm >= 420 && hm < 1080)       turnoAuto = 'Día';
+    else if(hm >= 1080 && hm < 1230) turnoAuto = 'Tarde';
+    else                              turnoAuto = 'Noche'; // 20:30-06:59
 
     if(selTurno && turnoAuto){
       selTurno.value = turnoAuto;
@@ -4832,11 +4830,11 @@ const DIAS_CORTOS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 function _turnoSegunHora(){
   const now = new Date();
   const hm  = now.getHours() * 60 + now.getMinutes();
-  // Día:   08:00-16:59 (480-1019)
-  // Tarde: 17:00-20:29 (1020-1229)
-  // Noche: 20:30-07:59 (1230-479)
-  if(hm >= 480  && hm < 1020) return 'día';
-  if(hm >= 1020 && hm < 1230) return 'tarde';
+  // Día:   07:00-17:59 (420-1079)
+  // Tarde: 18:00-20:29 (1080-1229)
+  // Noche: 20:30-06:59 (1230-419)
+  if(hm >= 420  && hm < 1080) return 'día';
+  if(hm >= 1080 && hm < 1230) return 'tarde';
   return 'noche';
 }
 
