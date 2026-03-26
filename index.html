@@ -3128,13 +3128,7 @@ function onLineaChange(linea){
 //  Líneas especiales: Col H → Línea, Col I → Función
 // ══════════════════════════════════════════
 function cargarListas(){
-  getListData().then(function(d){
-    aplicarListas(d);
-    // Poblar select de línea desde Supabase una vez que las listas cargaron
-    _poblarSelectLinea((d.lineas||[]));
-  }).catch(e=>showToast('❌ Error al cargar listas: '+(e.message||e),'error'));
-  // También cargar líneas desde tabla produccion para el select (por si aún no hay registros)
-  _cargarLineasSupabase();
+  getListData().then(aplicarListas).catch(e=>showToast('❌ Error al cargar listas: '+(e.message||e),'error'));
 }
 
 function aplicarListas(d){
@@ -4076,8 +4070,7 @@ function initFiltros(){
   const hoy = localDate(new Date());
   document.getElementById('filtroDesde').value = hoy;
   document.getElementById('filtroHasta').value = hoy;
-  // Poblar select de Líneas desde todosRegistros (fallback mientras carga desde Supabase)
-  _poblarSelectLinea(todosRegistros.map(r=>String(r[4]||'').trim()));
+  // (líneas se actualizan en _aplicarFiltrosServidor tras recibir datos)
 }
 
 async function cargarRegistros(){
@@ -4232,6 +4225,10 @@ function _aplicarFiltrosServidor(pagina){
     // Actualizar badge con total real
     const badge = document.getElementById('badgeRegistros');
     if(badge) badge.textContent = (res.data.total||todosRegistros.length) + ' registros';
+    // Actualizar opciones del select de Línea con solo las líneas que tienen datos
+    _poblarSelectLinea(todosRegistros.map(r=>String(r[4]||'').trim()));
+    // Restaurar selección si la línea filtrada sigue presente
+    if(filtros.linea) document.getElementById('filtroLinea').value = filtros.linea;
     renderTabla(todosRegistros);
     _actualizarPaginadorServidor(res.data, filtros, pagina);
   }).catch(e=>{
@@ -4331,10 +4328,7 @@ function inicializarFiltros(){
   const hoy=localDate(new Date());
   document.getElementById('filtroDesde').value=hoy;
   document.getElementById('filtroHasta').value=hoy;
-  // Poblar líneas desde todosRegistros (mantener selección previa)
-  const _prevLinea = document.getElementById('filtroLinea').value;
-  _poblarSelectLinea(todosRegistros.map(r=>String(r[4]||'').trim()));
-  if(_prevLinea) document.getElementById('filtroLinea').value = _prevLinea;
+  // (líneas se actualizan tras cargar registros del servidor)
   // Aplicar turno automático según hora actual si no hay turno seleccionado
   const selTurno=document.getElementById('filtroTurno');
   if(selTurno && !selTurno.value){
