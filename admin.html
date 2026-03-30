@@ -1942,11 +1942,36 @@ body {
       <div style="border-top:1px solid var(--border);margin-bottom:14px"></div>
 
       <div class="form-grid">
-        <div class="form-field"><label class="form-label">Especie *</label><input class="form-input" id="mp-especie" placeholder="Ej: MERLUZA AUSTRAL" oninput="mpVerificarDup()"></div>
-        <div class="form-field"><label class="form-label">Función</label><input class="form-input" id="mp-funcion" placeholder="Ej: ABASTECIMIENTO" oninput="mpVerificarDup()"></div>
-        <div class="form-field"><label class="form-label">Producto</label><input class="form-input" id="mp-producto" placeholder="Ej: PORCION ESPAÑA" oninput="mpVerificarDup()"></div>
-        <div class="form-field"><label class="form-label">Proceso</label><input class="form-input" id="mp-proceso" placeholder="Ej: CONGELADO" oninput="mpVerificarDup()"></div>
-        <div class="form-field full"><label class="form-label">Operación</label><input class="form-input" id="mp-operacion" placeholder="Ej: PORCIONADO MANUAL" oninput="mpVerificarDup()"></div>
+        <div class="form-field">
+          <label class="form-label">Especie *</label>
+          <input class="form-input" id="mp-especie" placeholder="Ej: MERLUZA AUSTRAL"
+            list="dl-mp-especie" autocomplete="off" oninput="mpVerificarDup();mpActualizarSugerencias()">
+          <datalist id="dl-mp-especie"></datalist>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Función</label>
+          <input class="form-input" id="mp-funcion" placeholder="Ej: ABASTECIMIENTO"
+            list="dl-mp-funcion" autocomplete="off" oninput="mpVerificarDup();mpActualizarSugerencias()">
+          <datalist id="dl-mp-funcion"></datalist>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Producto</label>
+          <input class="form-input" id="mp-producto" placeholder="Ej: PORCION ESPAÑA"
+            list="dl-mp-producto" autocomplete="off" oninput="mpVerificarDup();mpActualizarSugerencias()">
+          <datalist id="dl-mp-producto"></datalist>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Proceso</label>
+          <input class="form-input" id="mp-proceso" placeholder="Ej: CONGELADO"
+            list="dl-mp-proceso" autocomplete="off" oninput="mpVerificarDup();mpActualizarSugerencias()">
+          <datalist id="dl-mp-proceso"></datalist>
+        </div>
+        <div class="form-field full">
+          <label class="form-label">Operación</label>
+          <input class="form-input" id="mp-operacion" placeholder="Ej: PORCIONADO MANUAL"
+            list="dl-mp-operacion" autocomplete="off" oninput="mpVerificarDup()">
+          <datalist id="dl-mp-operacion"></datalist>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -5218,6 +5243,8 @@ async function mpCargarSelector() {
     value: '__nuevo__',
     textContent: '➕ Agregar nuevo proceso'
   }));
+  // Poblar datalist con todos los valores únicos
+  mpPoblarDatalist();
 }
 
 // Al seleccionar una opción del selector
@@ -5257,6 +5284,8 @@ function mpLimpiarCampos() {
   });
   document.getElementById('mp-dup-warn').style.display = 'none';
   document.getElementById('mp-btn-guardar').disabled = false;
+  // Restaurar todas las sugerencias (sin filtro)
+  mpPoblarDatalist();
 }
 
 // Verificar si la combinación actual ya existe (en tiempo real)
@@ -5290,6 +5319,54 @@ function mpVerificarDup() {
 // Invalidar cache al guardar un proceso nuevo
 function mpInvalidarCache() {
   _mpProcesosCache = [];
+}
+
+// Poblar todos los datalist con valores únicos del cache
+function mpPoblarDatalist() {
+  var campos = ['especie','funcion','producto','proceso','operacion'];
+  var sets = { especie:new Set(), funcion:new Set(), producto:new Set(), proceso:new Set(), operacion:new Set() };
+  _mpProcesosCache.forEach(function(r) {
+    campos.forEach(function(c){ if(r[c]) sets[c].add(r[c]); });
+  });
+  campos.forEach(function(c) {
+    var dl = document.getElementById('dl-mp-' + c);
+    if (!dl) return;
+    // Ordenar A→Z
+    var vals = [...sets[c]].sort(function(a,b){ return a.localeCompare(b,'es'); });
+    dl.innerHTML = vals.map(function(v){ return '<option value="'+v.replace(/"/g,'&quot;')+'">'; }).join('');
+  });
+}
+
+// Actualizar sugerencias filtradas según contexto (especie seleccionada → filtrar funcion/producto/etc)
+function mpActualizarSugerencias() {
+  var especie  = (document.getElementById('mp-especie').value  || '').trim().toUpperCase();
+  var funcion  = (document.getElementById('mp-funcion').value  || '').trim().toUpperCase();
+  var producto = (document.getElementById('mp-producto').value || '').trim().toUpperCase();
+  var proceso  = (document.getElementById('mp-proceso').value  || '').trim().toUpperCase();
+
+  // Filtrar el cache según los campos ya completados
+  var filtrado = _mpProcesosCache.filter(function(r) {
+    if (especie  && (r.especie  ||'').toUpperCase()  !== especie)  return false;
+    if (funcion  && (r.funcion  ||'').toUpperCase()  !== funcion)  return false;
+    if (producto && (r.producto ||'').toUpperCase()  !== producto) return false;
+    if (proceso  && (r.proceso  ||'').toUpperCase()  !== proceso)  return false;
+    return true;
+  });
+
+  // Si el filtrado no da resultados útiles, usar todo el cache
+  var fuente = filtrado.length > 0 ? filtrado : _mpProcesosCache;
+
+  var campos = ['especie','funcion','producto','proceso','operacion'];
+  var sets = { especie:new Set(), funcion:new Set(), producto:new Set(), proceso:new Set(), operacion:new Set() };
+  fuente.forEach(function(r) {
+    campos.forEach(function(c){ if(r[c]) sets[c].add(r[c]); });
+  });
+  campos.forEach(function(c) {
+    var dl = document.getElementById('dl-mp-' + c);
+    if (!dl) return;
+    var vals = [...sets[c]].sort(function(a,b){ return a.localeCompare(b,'es'); });
+    dl.innerHTML = vals.map(function(v){ return '<option value="'+v.replace(/"/g,'&quot;')+'">'; }).join('');
+  });
 }
 
 </script>
