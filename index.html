@@ -529,6 +529,12 @@ async function obtenerAusentesDia(fechaStr, turnoFiltro){
     });
 
     // ── DETECCIÓN DE CONFLICTOS: permiso/vacación + registro el mismo día ──
+    // Solo mostrar conflictos de HOY — las fechas pasadas son históricas y ya no accionables
+    const hoyStr = localDate(new Date());
+    if(fechaStr !== hoyStr){
+      delete _conflictosSemana[fechaStr];
+      return resultado;
+    }
     // Empleados que NO están en ausentes (tienen registro) pero SÍ tienen permiso o vacación
     const tienePermVac = new Set([...permP,...permM,...permJ,...vacSet,...licSet]);
     const conflictos = [];
