@@ -3308,6 +3308,7 @@ function onLineaChange(linea){
 function cargarListas(){
   getListData().then(aplicarListas).catch(e=>showToast('❌ Error al cargar listas: '+(e.message||e),'error'));
   cargarMapaSubproceso();
+  cargarConfigHorarios();
 }
 
 function aplicarListas(d){
@@ -3884,6 +3885,51 @@ function initListenersVerde(){
 }
 
 // ══════════════════════════════════════════
+//  CONFIG HORARIOS (cargada desde config_turnos)
+// ══════════════════════════════════════════
+var _HORARIOS_DEFAULT = {
+  'Día':   { proc_ini:'08:00', proc_fin:'16:00', proc_fin_sig:false, des_ini:'10:00', des_fin:'10:15', col_ini:'12:00', col_fin:'12:30' },
+  'Tarde': { proc_ini:'17:00', proc_fin:'00:00', proc_fin_sig:true,  des_ini:'19:00', des_fin:'19:15', col_ini:'21:00', col_fin:'21:30' },
+  'Noche': { proc_ini:'20:30', proc_fin:'06:00', proc_fin_sig:true,  des_ini:'02:00', des_fin:'02:15', col_ini:'23:00', col_fin:'23:30' }
+};
+var _cfgHorarios = null;
+
+async function cargarConfigHorarios(){
+  _cfgHorarios = JSON.parse(JSON.stringify(_HORARIOS_DEFAULT));
+  try{
+    var res = await _sbDb().from('config_turnos').select('*');
+    if(!res.error && res.data){
+      res.data.forEach(function(r){
+        if(_cfgHorarios[r.turno]){
+          _cfgHorarios[r.turno] = {
+            proc_ini:r.proc_ini||_cfgHorarios[r.turno].proc_ini,
+            proc_fin:r.proc_fin||_cfgHorarios[r.turno].proc_fin,
+            proc_fin_sig: !!r.proc_fin_sig,
+            des_ini:r.des_ini||_cfgHorarios[r.turno].des_ini,
+            des_fin:r.des_fin||_cfgHorarios[r.turno].des_fin,
+            col_ini:r.col_ini||_cfgHorarios[r.turno].col_ini,
+            col_fin:r.col_fin||_cfgHorarios[r.turno].col_fin
+          };
+        }
+      });
+    }
+  }catch(e){ console.warn('config_turnos no disponible',e); }
+}
+
+function _horTurno(turno){
+  if(!_cfgHorarios) _cfgHorarios = JSON.parse(JSON.stringify(_HORARIOS_DEFAULT));
+  return _cfgHorarios[turno] || _cfgHorarios['Día'];
+}
+function _hhmm(v){ var p=String(v||'00:00').split(':'); return {h:parseInt(p[0])||0, m:parseInt(p[1])||0}; }
+function _difHoras(ini, fin, finSig){
+  var a=_hhmm(ini), b=_hhmm(fin);
+  var min = (b.h*60+b.m) - (a.h*60+a.m);
+  if(finSig || min<0) min += 24*60;
+  var hh=Math.floor(min/60), mm=min%60;
+  return mm===0 ? hh+' hrs' : hh+'h '+mm+'m';
+}
+
+// ══════════════════════════════════════════
 //  PROCESO PROGRAMADO
 // ══════════════════════════════════════════
 function toggleProceso(checked){
@@ -3895,29 +3941,17 @@ function toggleProceso(checked){
     const d=new Date(f+'T12:00:00');
     d.setDate(d.getDate()+1);
     const fSig=localDate(d);
-
-    if(turnoActual==='Noche'){
-      // Noche: 20:30 fecha actual → 06:00 día siguiente
-      ini.value=dtLocal(f,20,30);
-      ter.value=dtLocal(fSig,6,0);
-      badge.innerHTML='🌙 Proceso 20:30 – 06:00 &nbsp;|&nbsp; Jornada: <strong>9h 30m</strong>';
-      badge.classList.add('visible');
-      showToast('🌙 Turno Noche: 20:30 → 06:00','success');
-    } else if(turnoActual==='Tarde'){
-      // Tarde: 17:00 → 00:00 día siguiente
-      ini.value=dtLocal(f,17,0);
-      ter.value=dtLocal(fSig,0,0);
-      badge.innerHTML='🌅 Proceso 17:00 – 00:00 &nbsp;|&nbsp; Jornada: <strong>7 hrs</strong>';
-      badge.classList.add('visible');
-      showToast('🌅 Turno Tarde: 17:00 → 00:00','success');
-    } else {
-      // Día: 08:00 → 16:00
-      ini.value=dtLocal(f,8,0);
-      ter.value=dtLocal(f,16,0);
-      badge.innerHTML='☀️ Proceso 08:00 – 16:00 &nbsp;|&nbsp; Jornada: <strong>8 hrs</strong>';
-      badge.classList.add('visible');
-      showToast('☀️ Turno Día: 08:00 → 16:00','success');
-    }
+    const t = turnoActual || 'Día';
+    const h = _horTurno(t);
+    const pi=_hhmm(h.proc_ini), pf=_hhmm(h.proc_fin);
+    const fFin = h.proc_fin_sig ? fSig : f;
+    ini.value=dtLocal(f, pi.h, pi.m);
+    ter.value=dtLocal(fFin, pf.h, pf.m);
+    const ico = t==='Noche'?'🌙':(t==='Tarde'?'🌅':'☀️');
+    const jor = _difHoras(h.proc_ini, h.proc_fin, h.proc_fin_sig);
+    badge.innerHTML=ico+' Proceso '+h.proc_ini+' – '+h.proc_fin+' &nbsp;|&nbsp; Jornada: <strong>'+jor+'</strong>';
+    badge.classList.add('visible');
+    showToast(ico+' Turno '+t+': '+h.proc_ini+' → '+h.proc_fin,'success');
   } else {
     ini.value=''; ter.value='';
     badge.classList.remove('visible');
@@ -3965,9 +3999,12 @@ function toggleDesayuno(checked){
   const ini=document.getElementById('descansoInicio');
   const ter=document.getElementById('descansoTermino');
   if(checked){
-    const f=getFecha(); ini.value=dtLocal(f,10,0); ter.value=dtLocal(f,10,15);
+    const f=getFecha();
+    const h=_horTurno(turnoActual||'Día');
+    const di=_hhmm(h.des_ini), df=_hhmm(h.des_fin);
+    ini.value=dtLocal(f,di.h,di.m); ter.value=dtLocal(f,df.h,df.m);
     document.getElementById('badgeDesayuno').classList.add('visible');
-    showToast('☕ Desayuno 10:00–10:15 (−15 min)','success');
+    showToast('☕ Desayuno '+h.des_ini+'–'+h.des_fin,'success');
   } else {
     ini.value=''; ter.value='';
     document.getElementById('badgeDesayuno').classList.remove('visible');
@@ -3982,20 +4019,14 @@ function toggleColacion(checked){
   const txt=document.getElementById('badgeColTxt');
   if(checked){
     const f=getFecha();
-    let h=12, m=0, lbl='12:00–12:30', fechaCol=f;
-    if(turnoActual==='Noche'){
-      // Noche: cena 23:00–23:30 de la fecha actual
-      h=23; m=0; lbl='23:00–23:30';
-    } else if(turnoActual==='Tarde'){
-      // Tarde: cena 21:00–21:30 de la fecha actual
-      h=21; m=0; lbl='21:00–21:30';
-    }
-    // Colación Día: 12:00–12:30
-    ini.value=dtLocal(fechaCol,h,m);
-    ter.value=dtLocal(fechaCol,h,30);
+    const h=_horTurno(turnoActual||'Día');
+    const ci=_hhmm(h.col_ini), cf=_hhmm(h.col_fin);
+    const lbl=h.col_ini+'–'+h.col_fin;
+    ini.value=dtLocal(f,ci.h,ci.m);
+    ter.value=dtLocal(f,cf.h,cf.m);
     badge.classList.add('visible');
     txt.innerHTML='⏱ Colación '+lbl+' &nbsp;|&nbsp; Descuento: <strong>−30 min</strong>';
-    showToast('🍽 Colación '+lbl+' (−30 min)','success');
+    showToast('🍽 Colación '+lbl,'success');
   } else {
     ini.value=''; ter.value='';
     badge.classList.remove('visible');
@@ -6432,17 +6463,15 @@ function bemToggleColacion(checked){
 }
 
 // Calcula horas de desayuno/colación igual que el formulario
-function _bemHorasDesayuno(fecha){
-  // Desayuno: siempre 10:00–10:15 de la fecha dada
+function _bemHorasDesayuno(fecha, turno){
   var d = fecha ? fecha.substring(0,10) : '';
-  return { ini: d+'T10:00:00', ter: d+'T10:15:00' };
+  var h = (typeof _horTurno==='function') ? _horTurno(turno||'Día') : {des_ini:'10:00',des_fin:'10:15'};
+  return { ini: d+'T'+h.des_ini+':00', ter: d+'T'+h.des_fin+':00' };
 }
 function _bemHorasColacion(fecha, turno){
   var d = fecha ? fecha.substring(0,10) : '';
-  var t = String(turno||'').toLowerCase();
-  if(t==='noche')  return { ini: d+'T23:00:00', ter: d+'T23:30:00' };
-  if(t==='tarde')  return { ini: d+'T21:00:00', ter: d+'T21:30:00' };
-  return               { ini: d+'T12:00:00', ter: d+'T12:30:00' };
+  var h = (typeof _horTurno==='function') ? _horTurno(turno||'Día') : {col_ini:'12:00',col_fin:'12:30'};
+  return { ini: d+'T'+h.col_ini+':00', ter: d+'T'+h.col_fin+':00' };
 }
 
 // Abre modal de confirmación con preview de los cambios
@@ -6533,7 +6562,7 @@ async function bemConfirmar(){
     //          r[14]=proc_ini r[15]=proc_ter r[16]=atraso r[17]=desc_ini r[18]=desc_ter
     //          r[19]=desay_prog r[20]=col_ini r[21]=col_ter r[22]=col_prog r[24]=id
     var fecha = String(r[1]||'').substring(0,10);
-    var hDesc = cambios._desayuno ? _bemHorasDesayuno(fecha) : null;
+    var hDesc = cambios._desayuno ? _bemHorasDesayuno(fecha, r[3]) : null;
     var hCol  = cambios._colacion ? _bemHorasColacion(fecha, r[3]) : null;
 
     // proceso_inicio/termino: panel envía HH:MM → combinar con fecha del registro
