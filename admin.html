@@ -908,8 +908,22 @@ body {
         </div>
       </div>
       <div class="table-area">
-        <div class="toolbar">
-          <input class="search-input" id="empSearchDia" placeholder="🔍 Buscar por código o nombre..." oninput="debounceEmp('Día')">
+        <div class="toolbar" style="flex-wrap:wrap;gap:8px">
+          <input class="search-input" id="empSearchDia" placeholder="🔍 Buscar por código o nombre..." oninput="debounceEmp('Día')" style="flex:1;min-width:200px">
+          <select class="search-input" id="empFiltroCCDia" onchange="_empPage=1;loadEmpleados('Día')" style="min-width:200px;cursor:pointer">
+            <option value="">Todos los centros de costo</option>
+          </select>
+          <select class="search-input" id="empFiltroEstadoDia" onchange="_empPage=1;loadEmpleados('Día')" style="min-width:150px;cursor:pointer">
+            <option value="">Todos los estados</option>
+            <option value="activo">✅ Activo</option>
+            <option value="inactivo">⛔ Inactivo</option>
+            <option value="licencia">🏥 En licencia</option>
+          </select>
+          <select class="search-input" id="empOrdenDia" onchange="_empPage=1;loadEmpleados('Día')" style="min-width:130px;cursor:pointer">
+            <option value="nombre">Nombre A→Z</option>
+            <option value="nombre_desc">Nombre Z→A</option>
+            <option value="codigo">Código A→Z</option>
+          </select>
           <span class="count-badge" id="empCountBadgeDia">— empleados</span>
         </div>
         <div class="data-table-wrap">
@@ -937,8 +951,22 @@ body {
         </div>
       </div>
       <div class="table-area">
-        <div class="toolbar">
-          <input class="search-input" id="empSearchTarde" placeholder="🔍 Buscar por código o nombre..." oninput="debounceEmp('Tarde')">
+        <div class="toolbar" style="flex-wrap:wrap;gap:8px">
+          <input class="search-input" id="empSearchTarde" placeholder="🔍 Buscar por código o nombre..." oninput="debounceEmp('Tarde')" style="flex:1;min-width:200px">
+          <select class="search-input" id="empFiltroCCTarde" onchange="_empPage=1;loadEmpleados('Tarde')" style="min-width:200px;cursor:pointer">
+            <option value="">Todos los centros de costo</option>
+          </select>
+          <select class="search-input" id="empFiltroEstadoTarde" onchange="_empPage=1;loadEmpleados('Tarde')" style="min-width:150px;cursor:pointer">
+            <option value="">Todos los estados</option>
+            <option value="activo">✅ Activo</option>
+            <option value="inactivo">⛔ Inactivo</option>
+            <option value="licencia">🏥 En licencia</option>
+          </select>
+          <select class="search-input" id="empOrdenTarde" onchange="_empPage=1;loadEmpleados('Tarde')" style="min-width:130px;cursor:pointer">
+            <option value="nombre">Nombre A→Z</option>
+            <option value="nombre_desc">Nombre Z→A</option>
+            <option value="codigo">Código A→Z</option>
+          </select>
           <span class="count-badge" id="empCountBadgeTarde">— empleados</span>
         </div>
         <div class="data-table-wrap">
@@ -966,8 +994,22 @@ body {
         </div>
       </div>
       <div class="table-area">
-        <div class="toolbar">
-          <input class="search-input" id="empSearchNoche" placeholder="🔍 Buscar por código o nombre..." oninput="debounceEmp('Noche')">
+        <div class="toolbar" style="flex-wrap:wrap;gap:8px">
+          <input class="search-input" id="empSearchNoche" placeholder="🔍 Buscar por código o nombre..." oninput="debounceEmp('Noche')" style="flex:1;min-width:200px">
+          <select class="search-input" id="empFiltroCCNoche" onchange="_empPage=1;loadEmpleados('Noche')" style="min-width:200px;cursor:pointer">
+            <option value="">Todos los centros de costo</option>
+          </select>
+          <select class="search-input" id="empFiltroEstadoNoche" onchange="_empPage=1;loadEmpleados('Noche')" style="min-width:150px;cursor:pointer">
+            <option value="">Todos los estados</option>
+            <option value="activo">✅ Activo</option>
+            <option value="inactivo">⛔ Inactivo</option>
+            <option value="licencia">🏥 En licencia</option>
+          </select>
+          <select class="search-input" id="empOrdenNoche" onchange="_empPage=1;loadEmpleados('Noche')" style="min-width:130px;cursor:pointer">
+            <option value="nombre">Nombre A→Z</option>
+            <option value="nombre_desc">Nombre Z→A</option>
+            <option value="codigo">Código A→Z</option>
+          </select>
           <span class="count-badge" id="empCountBadgeNoche">— empleados</span>
         </div>
         <div class="data-table-wrap">
@@ -2930,6 +2972,26 @@ async function guardarRegistro() {
 let _empPage = 1;
 const EMP_PER_PAGE = 60;
 
+// Cachea los centros de costo por turno para el filtro
+var _ccEmpCache = {};
+async function _cargarFiltroCCEmp(turno, suf){
+  var sel = document.getElementById('empFiltroCC'+suf);
+  if(!sel || sel.options.length > 1) return; // ya cargado
+  var db = getClient(); if(!db) return;
+  try{
+    var res = await db.from('empleados').select('centro_costo').eq('turno', turno);
+    if(res.error || !res.data) return;
+    var set = new Set();
+    res.data.forEach(function(r){ if(r.centro_costo) set.add(r.centro_costo); });
+    var valActual = sel.value;
+    sel.innerHTML = '<option value="">Todos los centros de costo</option>';
+    Array.from(set).sort().forEach(function(cc){
+      var o = document.createElement('option'); o.value = cc; o.textContent = cc; sel.appendChild(o);
+    });
+    sel.value = valActual;
+  }catch(e){ console.warn('CC filtro',e); }
+}
+
 async function loadEmpleados(turno) {
   const db = getClient(); if (!db) return;
 
@@ -2944,24 +3006,53 @@ async function loadEmpleados(turno) {
     } else turno = 'Día';
   }
 
-  const tbodyId  = turno === 'Tarde' ? 'tbodyEmpTarde' : turno === 'Noche' ? 'tbodyEmpNoche' : 'tbodyEmpDia';
-  const searchId = turno === 'Tarde' ? 'empSearchTarde': turno === 'Noche' ? 'empSearchNoche': 'empSearchDia';
-  const badgeId  = turno === 'Tarde' ? 'empCountBadgeTarde': turno === 'Noche' ? 'empCountBadgeNoche': 'empCountBadgeDia';
-  const pagId    = turno === 'Tarde' ? 'empPaginationTarde': turno === 'Noche' ? 'empPaginationNoche': 'empPaginationDia';
+  const suf = turno === 'Tarde' ? 'Tarde' : turno === 'Noche' ? 'Noche' : 'Dia';
+  const tbodyId  = 'tbodyEmp'+suf;
+  const searchId = 'empSearch'+suf;
+  const badgeId  = 'empCountBadge'+suf;
+  const pagId    = 'empPagination'+suf;
 
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
   tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr>';
 
-  const search = (document.getElementById(searchId)||{}).value?.trim() || '';
-  let q = db.from('empleados').select('*', { count:'exact' }).order('nombre').eq('turno', turno);
+  // Poblar el filtro de centro de costo (una sola vez por turno)
+  _cargarFiltroCCEmp(turno, suf);
+
+  const search   = (document.getElementById(searchId)||{}).value?.trim() || '';
+  const filtroCC = (document.getElementById('empFiltroCC'+suf)||{}).value || '';
+  const filtroEst= (document.getElementById('empFiltroEstado'+suf)||{}).value || '';
+  const orden    = (document.getElementById('empOrden'+suf)||{}).value || 'nombre';
+
+  let q = db.from('empleados').select('*', { count:'exact' }).eq('turno', turno);
+
+  // Orden
+  if(orden==='nombre_desc') q = q.order('nombre', { ascending:false });
+  else if(orden==='codigo') q = q.order('codigo', { ascending:true });
+  else q = q.order('nombre', { ascending:true });
+
   if (search) q = q.or(`codigo.ilike.%${search}%,nombre.ilike.%${search}%,centro_costo.ilike.%${search}%`);
+  if (filtroCC) q = q.eq('centro_costo', filtroCC);
 
+  // Estado: activo/inactivo se filtra en BD; licencia se filtra en cliente (depende de fecha)
+  if (filtroEst==='activo')   q = q.neq('activo', 'false');
+  if (filtroEst==='inactivo') q = q.eq('activo', 'false');
+
+  // Si filtro es licencia o cliente, traer sin paginar para filtrar en JS
+  const filtroCliente = (filtroEst==='licencia');
   const from = (_empPage - 1) * EMP_PER_PAGE;
-  q = q.range(from, from + EMP_PER_PAGE - 1);
+  if(!filtroCliente) q = q.range(from, from + EMP_PER_PAGE - 1);
 
-  const { data, error, count } = await q;
+  let { data, error, count } = await q;
   if (error) { toast('Error: '+error.message,'error'); return; }
+
+  // Filtro licencia en cliente
+  if(filtroCliente && data){
+    const hoyStr = new Date().toISOString().substring(0,10);
+    data = data.filter(r => r.licencia_inicio && hoyStr >= r.licencia_inicio && (!r.licencia_fin || hoyStr <= r.licencia_fin));
+    count = data.length;
+    data = data.slice(from, from + EMP_PER_PAGE);
+  }
 
   document.getElementById(badgeId).textContent = `${count ?? 0} empleados`;
 
