@@ -4260,22 +4260,18 @@ function renderPagination(containerId, total, current, perPage, onPage) {
 // ════════════════════════════════════════════════════════════
 // Valores por defecto (fallback si no hay config en BD)
 var _HORARIOS_DEFAULT = {
-  'Día':   { proc_ini:'08:00', proc_fin:'16:00', proc_fin_sig:false,
-             des_ini:'10:00', des_fin:'10:15',
-             col_ini:'12:00', col_fin:'12:30' },
-  'Tarde': { proc_ini:'17:00', proc_fin:'00:00', proc_fin_sig:true,
-             des_ini:'19:00', des_fin:'19:15',
-             col_ini:'21:00', col_fin:'21:30' },
-  'Noche': { proc_ini:'20:30', proc_fin:'06:00', proc_fin_sig:true,
-             des_ini:'02:00', des_fin:'02:15',
-             col_ini:'23:00', col_fin:'23:30' }
+  'Día':   { proc_ini:'08:00', proc_fin:'16:00', proc_fin_sig:false, des_ini:'10:00', des_fin:'10:15', aplica_des:true,  col_ini:'12:00', col_fin:'12:30', aplica_col:true },
+  'Tarde': { proc_ini:'17:00', proc_fin:'00:00', proc_fin_sig:true,  des_ini:'19:00', des_fin:'19:15', aplica_des:false, col_ini:'21:00', col_fin:'21:30', aplica_col:true },
+  'Noche': { proc_ini:'20:30', proc_fin:'06:00', proc_fin_sig:true,  des_ini:'02:00', des_fin:'02:15', aplica_des:true,  col_ini:'23:00', col_fin:'23:30', aplica_col:true }
 };
+var _DIAS_SEM = [{n:1,l:'Lunes'},{n:2,l:'Martes'},{n:3,l:'Miércoles'},{n:4,l:'Jueves'},{n:5,l:'Viernes'},{n:6,l:'Sábado'},{n:7,l:'Domingo'}];
 var _horariosData = {};
+var _horariosDia  = {};   // { 'Día': { 6: {proc_fin:'13:00', aplica_col:false, ...} } }
 
 async function cargarHorarios(){
-  var wrap = document.getElementById('horariosWrap');
   var db = getClient();
   _horariosData = JSON.parse(JSON.stringify(_HORARIOS_DEFAULT));
+  _horariosDia  = {};
 
   if(db){
     try{
@@ -4289,13 +4285,25 @@ async function cargarHorarios(){
               proc_fin_sig: !!r.proc_fin_sig,
               des_ini:r.des_ini||_horariosData[r.turno].des_ini,
               des_fin:r.des_fin||_horariosData[r.turno].des_fin,
+              aplica_des: r.aplica_des !== false,
               col_ini:r.col_ini||_horariosData[r.turno].col_ini,
-              col_fin:r.col_fin||_horariosData[r.turno].col_fin
+              col_fin:r.col_fin||_horariosData[r.turno].col_fin,
+              aplica_col: r.aplica_col !== false
             };
           }
         });
       }
-    }catch(e){ console.warn('config_turnos no disponible, usando defaults',e); }
+    }catch(e){ console.warn('config_turnos no disponible',e); }
+
+    try{
+      var res2 = await db.from('config_turnos_dia').select('*');
+      if(!res2.error && res2.data){
+        res2.data.forEach(function(r){
+          if(!_horariosDia[r.turno]) _horariosDia[r.turno]={};
+          _horariosDia[r.turno][r.dia] = r;
+        });
+      }
+    }catch(e){ console.warn('config_turnos_dia no disponible',e); }
   }
   renderHorarios();
 }
@@ -4310,7 +4318,7 @@ function renderHorarios(){
     html += '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)">'
       +'<div style="padding:12px 16px;background:var(--surface2);font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px">'
         +'<span style="font-size:18px">'+iconos[turno]+'</span> Turno '+turno+'</div>'
-      +'<div style="padding:16px;display:grid;grid-template-columns:repeat(2,1fr);gap:16px">'
+      +'<div style="padding:16px;display:grid;grid-template-columns:repeat(2,1fr);gap:14px">'
         // Proceso
         +'<div style="grid-column:1/-1;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.5px;border-bottom:1px solid var(--border);padding-bottom:6px">⚙️ PROCESO</div>'
         +_hCampo(turno,'proc_ini','Inicio',h.proc_ini)
@@ -4318,17 +4326,63 @@ function renderHorarios(){
         +'<label style="grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">'
           +'<input type="checkbox" id="h-'+turno+'-proc_fin_sig" '+(h.proc_fin_sig?'checked':'')+' style="width:16px;height:16px;accent-color:var(--accent)">'
           +'El término es al día siguiente (turno cruza medianoche)</label>'
-        // Desayuno
-        +'<div style="grid-column:1/-1;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.5px;border-bottom:1px solid var(--border);padding-bottom:6px;margin-top:8px">☕ DESCANSO / DESAYUNO</div>'
-        +_hCampo(turno,'des_ini','Inicio',h.des_ini)
-        +_hCampo(turno,'des_fin','Término',h.des_fin)
-        // Colación
-        +'<div style="grid-column:1/-1;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.5px;border-bottom:1px solid var(--border);padding-bottom:6px;margin-top:8px">🍽 COLACIÓN</div>'
-        +_hCampo(turno,'col_ini','Inicio',h.col_ini)
-        +_hCampo(turno,'col_fin','Término',h.col_fin)
+        // Desayuno con toggle
+        +'<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:6px;margin-top:8px">'
+          +'<span style="font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.5px">☕ DESCANSO / DESAYUNO</span>'
+          +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">'
+            +'<input type="checkbox" id="h-'+turno+'-aplica_des" '+(h.aplica_des?'checked':'')+' onchange="_hToggleAplica(\''+turno+'\',\'des\',this.checked)" style="width:15px;height:15px;accent-color:var(--accent)">'
+            +'Aplica</label></div>'
+        +'<div id="h-'+turno+'-desWrap" style="grid-column:1/-1;display:'+(h.aplica_des?'grid':'none')+';grid-template-columns:repeat(2,1fr);gap:14px">'
+          +_hCampo(turno,'des_ini','Inicio',h.des_ini)
+          +_hCampo(turno,'des_fin','Término',h.des_fin)
+        +'</div>'
+        // Colación con toggle
+        +'<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:6px;margin-top:8px">'
+          +'<span style="font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.5px">🍽 COLACIÓN</span>'
+          +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">'
+            +'<input type="checkbox" id="h-'+turno+'-aplica_col" '+(h.aplica_col?'checked':'')+' onchange="_hToggleAplica(\''+turno+'\',\'col\',this.checked)" style="width:15px;height:15px;accent-color:var(--accent)">'
+            +'Aplica</label></div>'
+        +'<div id="h-'+turno+'-colWrap" style="grid-column:1/-1;display:'+(h.aplica_col?'grid':'none')+';grid-template-columns:repeat(2,1fr);gap:14px">'
+          +_hCampo(turno,'col_ini','Inicio',h.col_ini)
+          +_hCampo(turno,'col_fin','Término',h.col_fin)
+        +'</div>'
+        // Excepciones por día
+        +'<div style="grid-column:1/-1;margin-top:10px">'
+          +_hExcepcionesDia(turno)
+        +'</div>'
       +'</div></div>';
   });
   wrap.innerHTML = html;
+}
+
+function _hToggleAplica(turno, tipo, checked){
+  var wrap = document.getElementById('h-'+turno+'-'+tipo+'Wrap');
+  if(wrap) wrap.style.display = checked ? 'grid' : 'none';
+}
+
+function _hExcepcionesDia(turno){
+  var ex = _horariosDia[turno] || {};
+  var rows = _DIAS_SEM.map(function(d){
+    var e = ex[d.n] || {};
+    var tiene = Object.keys(e).length > 0 && (e.proc_fin||e.proc_ini||e.aplica_col===false||e.aplica_des===false);
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      +'<td style="padding:6px 8px;font-size:13px;font-weight:600;white-space:nowrap">'+d.l+'</td>'
+      +'<td style="padding:4px"><input type="time" id="d-'+turno+'-'+d.n+'-proc_ini" value="'+(e.proc_ini||'')+'" placeholder="base" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px"></td>'
+      +'<td style="padding:4px"><input type="time" id="d-'+turno+'-'+d.n+'-proc_fin" value="'+(e.proc_fin||'')+'" placeholder="base" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px"></td>'
+      +'<td style="padding:4px;text-align:center"><input type="checkbox" id="d-'+turno+'-'+d.n+'-aplica_des" '+((e.aplica_des!==false)?'checked':'')+' style="width:15px;height:15px;accent-color:var(--accent)"></td>'
+      +'<td style="padding:4px;text-align:center"><input type="checkbox" id="d-'+turno+'-'+d.n+'-aplica_col" '+((e.aplica_col!==false)?'checked':'')+' style="width:15px;height:15px;accent-color:var(--accent)"></td>'
+      +'</tr>';
+  }).join('');
+
+  return '<details style="border:1px solid var(--border);border-radius:8px;overflow:hidden">'
+    +'<summary style="padding:8px 12px;cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface2);letter-spacing:.3px;user-select:none">📅 EXCEPCIONES POR DÍA (opcional — deja en blanco para usar el horario base)</summary>'
+    +'<div style="padding:8px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">'
+      +'<thead><tr style="text-align:left;color:var(--muted);font-size:11px">'
+        +'<th style="padding:4px 8px">Día</th><th style="padding:4px 8px">Proc. Inicio</th><th style="padding:4px 8px">Proc. Término</th>'
+        +'<th style="padding:4px 8px;text-align:center">Desayuno</th><th style="padding:4px 8px;text-align:center">Colación</th></tr></thead>'
+      +'<tbody>'+rows+'</tbody></table>'
+      +'<p style="font-size:11px;color:var(--muted);margin:8px 0 0">Ejemplo: sábado, pon Proc. Término <strong>13:00</strong> y desmarca Colación si ese día no aplica.</p>'
+    +'</div></details>';
 }
 
 function _hCampo(turno,campo,label,valor){
@@ -4343,6 +4397,7 @@ async function guardarHorarios(){
   var db = getClient();
   if(!db){ toast('Sin conexión a Supabase','error'); return; }
 
+  // Base por turno
   var filas = ['Día','Tarde','Noche'].map(function(turno){
     return {
       turno: turno,
@@ -4351,16 +4406,45 @@ async function guardarHorarios(){
       proc_fin_sig: document.getElementById('h-'+turno+'-proc_fin_sig').checked,
       des_ini: document.getElementById('h-'+turno+'-des_ini').value || null,
       des_fin: document.getElementById('h-'+turno+'-des_fin').value || null,
+      aplica_des: document.getElementById('h-'+turno+'-aplica_des').checked,
       col_ini: document.getElementById('h-'+turno+'-col_ini').value || null,
-      col_fin: document.getElementById('h-'+turno+'-col_fin').value || null
+      col_fin: document.getElementById('h-'+turno+'-col_fin').value || null,
+      aplica_col: document.getElementById('h-'+turno+'-aplica_col').checked
     };
   });
 
+  // Excepciones por día — solo guardar las que tienen algún cambio
+  var filasDia = [];
+  ['Día','Tarde','Noche'].forEach(function(turno){
+    _DIAS_SEM.forEach(function(d){
+      var pi = document.getElementById('d-'+turno+'-'+d.n+'-proc_ini').value || null;
+      var pf = document.getElementById('d-'+turno+'-'+d.n+'-proc_fin').value || null;
+      var ad = document.getElementById('d-'+turno+'-'+d.n+'-aplica_des').checked;
+      var ac = document.getElementById('d-'+turno+'-'+d.n+'-aplica_col').checked;
+      var base = _horariosData[turno];
+      // Solo es excepción si hay horario distinto o si desactivó algo que la base tiene activo
+      var esExcepcion = pi || pf || (ad!==base.aplica_des) || (ac!==base.aplica_col);
+      if(esExcepcion){
+        filasDia.push({ turno:turno, dia:d.n, proc_ini:pi, proc_fin:pf,
+          proc_fin_sig:null, aplica_des:ad, aplica_col:ac,
+          des_ini:null, des_fin:null, col_ini:null, col_fin:null });
+      }
+    });
+  });
+
   try{
-    var res = await db.from('config_turnos').upsert(filas, { onConflict:'turno' });
-    if(res.error){ toast('Error: '+res.error.message,'error'); console.error(res.error); }
-    else { toast('✅ Horarios guardados','success'); }
-  }catch(e){ toast('Error al guardar','error'); console.error(e); }
+    var r1 = await db.from('config_turnos').upsert(filas, { onConflict:'turno' });
+    if(r1.error) throw r1.error;
+
+    // Borrar excepciones previas y reinsertar las actuales
+    await db.from('config_turnos_dia').delete().neq('id', 0);
+    if(filasDia.length){
+      var r2 = await db.from('config_turnos_dia').insert(filasDia);
+      if(r2.error) throw r2.error;
+    }
+    toast('✅ Horarios guardados ('+filasDia.length+' excepciones por día)','success');
+    cargarHorarios();
+  }catch(e){ toast('Error: '+(e.message||e),'error'); console.error(e); }
 }
 
 function cargarSettings() {
