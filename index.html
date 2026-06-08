@@ -3888,14 +3888,16 @@ function initListenersVerde(){
 //  CONFIG HORARIOS (cargada desde config_turnos)
 // ══════════════════════════════════════════
 var _HORARIOS_DEFAULT = {
-  'Día':   { proc_ini:'08:00', proc_fin:'16:00', proc_fin_sig:false, des_ini:'10:00', des_fin:'10:15', col_ini:'12:00', col_fin:'12:30' },
-  'Tarde': { proc_ini:'17:00', proc_fin:'00:00', proc_fin_sig:true,  des_ini:'19:00', des_fin:'19:15', col_ini:'21:00', col_fin:'21:30' },
-  'Noche': { proc_ini:'20:30', proc_fin:'06:00', proc_fin_sig:true,  des_ini:'02:00', des_fin:'02:15', col_ini:'23:00', col_fin:'23:30' }
+  'Día':   { proc_ini:'08:00', proc_fin:'16:00', proc_fin_sig:false, des_ini:'10:00', des_fin:'10:15', aplica_des:true,  col_ini:'12:00', col_fin:'12:30', aplica_col:true },
+  'Tarde': { proc_ini:'17:00', proc_fin:'00:00', proc_fin_sig:true,  des_ini:'19:00', des_fin:'19:15', aplica_des:false, col_ini:'21:00', col_fin:'21:30', aplica_col:true },
+  'Noche': { proc_ini:'20:30', proc_fin:'06:00', proc_fin_sig:true,  des_ini:'02:00', des_fin:'02:15', aplica_des:true,  col_ini:'23:00', col_fin:'23:30', aplica_col:true }
 };
 var _cfgHorarios = null;
+var _cfgHorariosDia = {};   // { 'Día': { 6: {proc_fin:'13:00', aplica_col:false} } }
 
 async function cargarConfigHorarios(){
   _cfgHorarios = JSON.parse(JSON.stringify(_HORARIOS_DEFAULT));
+  _cfgHorariosDia = {};
   try{
     var res = await _sbDb().from('config_turnos').select('*');
     if(!res.error && res.data){
@@ -3907,18 +3909,55 @@ async function cargarConfigHorarios(){
             proc_fin_sig: !!r.proc_fin_sig,
             des_ini:r.des_ini||_cfgHorarios[r.turno].des_ini,
             des_fin:r.des_fin||_cfgHorarios[r.turno].des_fin,
+            aplica_des: r.aplica_des !== false,
             col_ini:r.col_ini||_cfgHorarios[r.turno].col_ini,
-            col_fin:r.col_fin||_cfgHorarios[r.turno].col_fin
+            col_fin:r.col_fin||_cfgHorarios[r.turno].col_fin,
+            aplica_col: r.aplica_col !== false
           };
         }
       });
     }
   }catch(e){ console.warn('config_turnos no disponible',e); }
+  try{
+    var res2 = await _sbDb().from('config_turnos_dia').select('*');
+    if(!res2.error && res2.data){
+      res2.data.forEach(function(r){
+        if(!_cfgHorariosDia[r.turno]) _cfgHorariosDia[r.turno]={};
+        _cfgHorariosDia[r.turno][r.dia]=r;
+      });
+    }
+  }catch(e){ console.warn('config_turnos_dia no disponible',e); }
 }
 
-function _horTurno(turno){
+// Día semana 1=Lun..7=Dom a partir de una fecha 'yyyy-mm-dd'
+function _diaSemana(fecha){
+  if(!fecha) return null;
+  var d = new Date(fecha.substring(0,10)+'T12:00:00');
+  var js = d.getDay(); // 0=Dom..6=Sab
+  return js===0 ? 7 : js;
+}
+
+// Devuelve el horario del turno, fusionando la excepción del día si existe
+function _horTurno(turno, fecha){
   if(!_cfgHorarios) _cfgHorarios = JSON.parse(JSON.stringify(_HORARIOS_DEFAULT));
-  return _cfgHorarios[turno] || _cfgHorarios['Día'];
+  var base = _cfgHorarios[turno] || _cfgHorarios['Día'];
+  var h = JSON.parse(JSON.stringify(base));
+  if(fecha){
+    var dia = _diaSemana(fecha);
+    var ex = (_cfgHorariosDia[turno]||{})[dia];
+    if(ex){
+      if(ex.proc_ini) h.proc_ini = ex.proc_ini;
+      if(ex.proc_fin) h.proc_fin = ex.proc_fin;
+      if(ex.proc_fin_sig !== null && ex.proc_fin_sig !== undefined) h.proc_fin_sig = !!ex.proc_fin_sig;
+      if(ex.aplica_des !== null && ex.aplica_des !== undefined) h.aplica_des = !!ex.aplica_des;
+      if(ex.aplica_col !== null && ex.aplica_col !== undefined) h.aplica_col = !!ex.aplica_col;
+      if(ex.des_ini) h.des_ini = ex.des_ini;
+      if(ex.des_fin) h.des_fin = ex.des_fin;
+      if(ex.col_ini) h.col_ini = ex.col_ini;
+      if(ex.col_fin) h.col_fin = ex.col_fin;
+    }
+  }
+  return h;
 }
 function _hhmm(v){ var p=String(v||'00:00').split(':'); return {h:parseInt(p[0])||0, m:parseInt(p[1])||0}; }
 function _difHoras(ini, fin, finSig){
@@ -3942,7 +3981,7 @@ function toggleProceso(checked){
     d.setDate(d.getDate()+1);
     const fSig=localDate(d);
     const t = turnoActual || 'Día';
-    const h = _horTurno(t);
+    const h = _horTurno(t, f);
     const pi=_hhmm(h.proc_ini), pf=_hhmm(h.proc_fin);
     const fFin = h.proc_fin_sig ? fSig : f;
     ini.value=dtLocal(f, pi.h, pi.m);
@@ -4000,7 +4039,14 @@ function toggleDesayuno(checked){
   const ter=document.getElementById('descansoTermino');
   if(checked){
     const f=getFecha();
-    const h=_horTurno(turnoActual||'Día');
+    const h=_horTurno(turnoActual||'Día', f);
+    if(h.aplica_des===false){
+      showToast('Este turno no tiene desayuno','warning');
+      const chk=document.getElementById('desayunoProgramado'); if(chk) chk.checked=false;
+      ini.value=''; ter.value='';
+      document.getElementById('badgeDesayuno').classList.remove('visible');
+      return;
+    }
     const di=_hhmm(h.des_ini), df=_hhmm(h.des_fin);
     ini.value=dtLocal(f,di.h,di.m); ter.value=dtLocal(f,df.h,df.m);
     document.getElementById('badgeDesayuno').classList.add('visible');
@@ -4019,7 +4065,14 @@ function toggleColacion(checked){
   const txt=document.getElementById('badgeColTxt');
   if(checked){
     const f=getFecha();
-    const h=_horTurno(turnoActual||'Día');
+    const h=_horTurno(turnoActual||'Día', f);
+    if(h.aplica_col===false){
+      showToast('Este día no aplica colación','warning');
+      const chk=document.getElementById('colacionProgramado'); if(chk) chk.checked=false;
+      ini.value=''; ter.value='';
+      badge.classList.remove('visible');
+      return;
+    }
     const ci=_hhmm(h.col_ini), cf=_hhmm(h.col_fin);
     const lbl=h.col_ini+'–'+h.col_fin;
     ini.value=dtLocal(f,ci.h,ci.m);
@@ -6465,12 +6518,14 @@ function bemToggleColacion(checked){
 // Calcula horas de desayuno/colación igual que el formulario
 function _bemHorasDesayuno(fecha, turno){
   var d = fecha ? fecha.substring(0,10) : '';
-  var h = (typeof _horTurno==='function') ? _horTurno(turno||'Día') : {des_ini:'10:00',des_fin:'10:15'};
+  var h = (typeof _horTurno==='function') ? _horTurno(turno||'Día', fecha) : {des_ini:'10:00',des_fin:'10:15',aplica_des:true};
+  if(h.aplica_des===false) return null;   // turno/día sin desayuno
   return { ini: d+'T'+h.des_ini+':00', ter: d+'T'+h.des_fin+':00' };
 }
 function _bemHorasColacion(fecha, turno){
   var d = fecha ? fecha.substring(0,10) : '';
-  var h = (typeof _horTurno==='function') ? _horTurno(turno||'Día') : {col_ini:'12:00',col_fin:'12:30'};
+  var h = (typeof _horTurno==='function') ? _horTurno(turno||'Día', fecha) : {col_ini:'12:00',col_fin:'12:30',aplica_col:true};
+  if(h.aplica_col===false) return null;   // día sin colación
   return { ini: d+'T'+h.col_ini+':00', ter: d+'T'+h.col_fin+':00' };
 }
 
