@@ -1212,6 +1212,7 @@ body {
         </div>
         <div class="page-header-actions">
           <button class="btn btn-secondary" onclick="loadMapeo()">🔄 Recargar</button>
+          <button class="btn btn-secondary" onclick="abrirCategoriasModal()">🏷 Categorías</button>
           <label class="btn btn-secondary" style="cursor:pointer;margin:0">
             📥 Importar Excel
             <input type="file" id="mapeoFile" accept=".xlsx,.xls" style="display:none" onchange="mapeoImportarExcel(event)">
@@ -1314,6 +1315,52 @@ body {
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="cerrarModal('modalMapeo')">Cancelar</button>
           <button class="btn btn-primary" id="mpf-btn-guardar" onclick="guardarMapeo()">💾 Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL GESTIÓN DE CATEGORÍAS ══ -->
+    <div class="modal-overlay" id="modalCategorias">
+      <div class="modal" style="max-width:560px">
+        <div class="modal-header">
+          <h2>🏷 Gestión de Categorías</h2>
+          <button class="modal-close" onclick="cerrarModal('modalCategorias')">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Asigna cada línea a una categoría. Las líneas sin asignar se clasifican automáticamente. Puedes crear categorías nuevas como <strong>STAFF</strong>.</p>
+
+          <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px;padding:12px;background:var(--surface2);border-radius:8px">
+            <div style="flex:1">
+              <label class="form-label" style="font-size:11px">Línea</label>
+              <input class="form-input" id="cat-linea" list="dl-cat-linea" placeholder="Ej: STAFF" autocomplete="off">
+              <datalist id="dl-cat-linea"></datalist>
+            </div>
+            <div style="flex:1">
+              <label class="form-label" style="font-size:11px">Categoría</label>
+              <input class="form-input" id="cat-categoria" list="dl-cat-categoria" placeholder="Ej: STAFF" autocomplete="off">
+              <datalist id="dl-cat-categoria">
+                <option value="PRODUCCION"></option>
+                <option value="SERVICIOS"></option>
+                <option value="MATERIA PRIMA"></option>
+                <option value="STAFF"></option>
+              </datalist>
+            </div>
+            <button class="btn btn-primary" onclick="agregarCategoria()" style="white-space:nowrap">＋ Asignar</button>
+          </div>
+
+          <div class="data-table-wrap" style="max-height:340px;overflow-y:auto">
+            <table class="data-table" style="min-width:100%">
+              <thead><tr>
+                <th>Línea</th><th>Categoría</th><th style="width:60px">—</th>
+              </tr></thead>
+              <tbody id="tbodyCategorias">
+                <tr class="loading-row"><td colspan="3"><span class="spinner"></span>Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="cerrarModal('modalCategorias')">Cerrar</button>
         </div>
       </div>
     </div>
@@ -6136,8 +6183,27 @@ function _cmpLineaMP(a, b) {
 }
 
 // Clasifica una línea en su categoría para Mapeo de Procesos
+// Mapa línea→categoría cargado desde Supabase (lineas_categoria)
+var _mapaCategorias = null;
+
+async function cargarMapaCategorias(){
+  _mapaCategorias = {};
+  var db = getClient(); if(!db) return;
+  try{
+    var res = await db.from('lineas_categoria').select('*');
+    if(!res.error && res.data){
+      res.data.forEach(function(r){
+        if(r.linea) _mapaCategorias[String(r.linea).trim().toUpperCase()] = (r.categoria||'SIN ASIGNAR');
+      });
+    }
+  }catch(e){ console.warn('lineas_categoria no disponible',e); }
+}
+
 function _mpCategoria(linea) {
   var l = String(linea || '').trim().toUpperCase();
+  // 1) Mapa personalizado desde BD (prioridad)
+  if (_mapaCategorias && _mapaCategorias[l]) return _mapaCategorias[l];
+  // 2) Reglas por defecto (fallback)
   if (l === 'SERVICIOS') return 'SERVICIOS';
   if (l === 'MPRIMA')    return 'MATERIA PRIMA';
   var prod = ['1','1B','2','3','EMPAQUE','SUBPRODUCTO','S/L'];
@@ -6146,8 +6212,76 @@ function _mpCategoria(linea) {
   return 'SIN ASIGNAR';
 }
 
+// ════════════════════════════════════════════════════════════
+//  GESTIÓN DE CATEGORÍAS (lineas_categoria)
+// ════════════════════════════════════════════════════════════
+async function abrirCategoriasModal(){
+  document.getElementById('modalCategorias').classList.add('open');
+  await cargarMapaCategorias();
+  // Poblar datalist de líneas con las líneas únicas del mapeo
+  var dl = document.getElementById('dl-cat-linea');
+  if(dl && Array.isArray(_mapeoData)){
+    var set = new Set();
+    _mapeoData.forEach(function(r){ if(r.linea) set.add(String(r.linea).trim()); });
+    dl.innerHTML = Array.from(set).sort().map(function(l){ return '<option value="'+esc(l)+'"></option>'; }).join('');
+  }
+  renderCategorias();
+}
+
+function renderCategorias(){
+  var tbody = document.getElementById('tbodyCategorias');
+  if(!tbody) return;
+  var keys = Object.keys(_mapaCategorias||{}).sort();
+  if(!keys.length){
+    tbody.innerHTML = '<tr><td colspan="3"><div class="empty-state" style="padding:20px"><p>Sin categorías personalizadas. Asigna una arriba.</p></div></td></tr>';
+    return;
+  }
+  var colores = {'PRODUCCION':'#27ae60','SERVICIOS':'#0098d4','MATERIA PRIMA':'#e67e22','STAFF':'#9b59b6','SIN ASIGNAR':'#888'};
+  tbody.innerHTML = keys.map(function(linea){
+    var cat = _mapaCategorias[linea];
+    var color = colores[cat] || '#666';
+    return '<tr>'
+      +'<td><strong style="font-family:var(--mono)">'+esc(linea)+'</strong></td>'
+      +'<td><span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+color+'22;color:'+color+'">'+esc(cat)+'</span></td>'
+      +'<td><button class="btn btn-danger btn-sm" onclick="eliminarCategoria(\''+esc(linea).replace(/'/g,"\\'")+'\')" title="Quitar">🗑</button></td>'
+      +'</tr>';
+  }).join('');
+}
+
+async function agregarCategoria(){
+  var linea = (document.getElementById('cat-linea').value||'').trim().toUpperCase();
+  var cat   = (document.getElementById('cat-categoria').value||'').trim().toUpperCase();
+  if(!linea || !cat){ toast('Completa línea y categoría','error'); return; }
+  var db = getClient(); if(!db){ toast('Sin conexión','error'); return; }
+  try{
+    var res = await db.from('lineas_categoria').upsert({linea:linea, categoria:cat, updated_at:new Date().toISOString()}, {onConflict:'linea'});
+    if(res.error) throw res.error;
+    toast('✅ '+linea+' → '+cat,'success');
+    document.getElementById('cat-linea').value='';
+    document.getElementById('cat-categoria').value='';
+    await cargarMapaCategorias();
+    renderCategorias();
+    // Refrescar la tabla de mapeo si está visible
+    if(typeof renderMapeo==='function') renderMapeo();
+  }catch(e){ toast('Error: '+(e.message||e),'error'); console.error(e); }
+}
+
+async function eliminarCategoria(linea){
+  var db = getClient(); if(!db) return;
+  if(!confirm('¿Quitar la categoría de la línea "'+linea+'"?\n\nVolverá a clasificarse automáticamente.')) return;
+  try{
+    var res = await db.from('lineas_categoria').delete().eq('linea', linea);
+    if(res.error) throw res.error;
+    toast('Categoría eliminada','success');
+    await cargarMapaCategorias();
+    renderCategorias();
+    if(typeof renderMapeo==='function') renderMapeo();
+  }catch(e){ toast('Error: '+(e.message||e),'error'); console.error(e); }
+}
+
 async function loadMapeo() {
   var db = getClient(); if (!db) return;
+  if(_mapaCategorias === null) await cargarMapaCategorias();
   var tbody = document.getElementById('tbodyMapeo');
   if (tbody) tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr>';
 
