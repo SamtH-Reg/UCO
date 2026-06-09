@@ -3309,6 +3309,7 @@ function cargarListas(){
   getListData().then(aplicarListas).catch(e=>showToast('❌ Error al cargar listas: '+(e.message||e),'error'));
   cargarMapaSubproceso();
   cargarConfigHorarios();
+  cargarMapaCategorias();
 }
 
 function aplicarListas(d){
@@ -5148,6 +5149,7 @@ function _turnoSegunHora(){
 async function cargarDashboard(){
   // Asegurar que el mapa de subprocesos esté cargado antes de renderizar
   if (Object.keys(_mapaSubproceso).length === 0) { await cargarMapaSubproceso(); }
+  if (_mapaCategorias === null) { await cargarMapaCategorias(); }
   // Autoseleccionar turno según hora si no hay selección previa
   const selDash = document.getElementById('filtroTurnoDash');
   if(selDash && !selDash.dataset.userSet) {
@@ -7230,17 +7232,29 @@ window.onload=function(){
 
 // Clasificación por defecto cuando la línea no está en lineas_subproceso
 // Espeja la lógica de la tabla pivot de Excel de Friosur
+// Mapa línea→categoría desde Supabase (lineas_categoria)
+var _mapaCategorias = null;
+async function cargarMapaCategorias(){
+  _mapaCategorias = {};
+  try{
+    var res = await _sbDb().from('lineas_categoria').select('*');
+    if(!res.error && res.data){
+      res.data.forEach(function(r){
+        if(r.linea) _mapaCategorias[String(r.linea).trim().toUpperCase()] = (r.categoria||'SIN ASIGNAR');
+      });
+    }
+  }catch(e){ console.warn('lineas_categoria no disponible',e); }
+}
+
 function _clasificarSubproceso(linea) {
   var l = String(linea || '').trim().toUpperCase();
-  // SERVICIOS: la línea se llama exactamente SERVICIOS
+  // 1) Mapa personalizado desde BD (prioridad)
+  if (_mapaCategorias && _mapaCategorias[l]) return _mapaCategorias[l];
+  // 2) Reglas por defecto
   if (l === 'SERVICIOS') return 'SERVICIOS';
-  // MATERIA PRIMA: línea MPRIMA
   if (l === 'MPRIMA') return 'MATERIA PRIMA';
-  // PRODUCCION: líneas numéricas o conocidas de producción
   var lineasProd = ['1','1B','2','3','EMPAQUE','SUBPRODUCTO','S/L'];
   if (lineasProd.indexOf(l) !== -1) return 'PRODUCCION';
-  // Para cualquier otra línea sin mapeo explícito, asumir PRODUCCION
-  // si parece numérica, sino SIN ASIGNAR
   if (/^\d/.test(l)) return 'PRODUCCION';
   return 'SIN ASIGNAR';
 }
