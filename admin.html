@@ -2412,7 +2412,13 @@ function toast(msg, type = 'success', ms = 3000) {
 // ════════════════════════════════════════════════════
 //  NAVIGATION
 // ════════════════════════════════════════════════════
+var _settingsDesbloqueado = false;
 function goPage(name) {
+  // Configuración protegida: pedir contraseña de la cuenta antes de entrar
+  if (name === 'settings' && !_settingsDesbloqueado) {
+    pedirPassSettings();
+    return;
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
@@ -4598,6 +4604,29 @@ async function guardarHorarios(){
     toast('✅ Horarios guardados ('+filasDia.length+' excepciones)','success');
     cargarHorarios();
   }catch(e){ toast('Error: '+(e.message||e),'error'); console.error(e); }
+}
+
+// Pide la contraseña de la cuenta para desbloquear Configuración
+async function pedirPassSettings(){
+  if(!_sesionUsuario || !_sesionUsuario.email){
+    toast('Debes iniciar sesión','error'); return;
+  }
+  var pass = prompt('🔒 Sección protegida.\n\nIngresa la contraseña de tu cuenta ('+_sesionUsuario.email+') para acceder a Configuración:');
+  if(pass === null) return; // canceló
+  if(!pass){ toast('Contraseña vacía','error'); return; }
+
+  toast('Verificando…','info',2000);
+  try{
+    var ac = getAuthClient();
+    var { error } = await ac.auth.signInWithPassword({ email:_sesionUsuario.email, password:pass });
+    if(error) throw error;
+    _settingsDesbloqueado = true;   // desbloquea hasta recargar la página
+    toast('🔓 Acceso concedido','success');
+    goPage('settings');
+  }catch(e){
+    toast('Contraseña incorrecta','error');
+    console.warn('[SETTINGS] auth fail', e.message);
+  }
 }
 
 function cargarSettings() {
