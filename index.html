@@ -1056,6 +1056,7 @@ input.req-error,select.req-error{
   font-size:13px;font-weight:600;background:var(--card);color:var(--muted);transition:all .4s;letter-spacing:.5px}
 .turno-btn.active.dia{background:#fffae0;color:#b07a00}
 .turno-btn.active.tarde{background:linear-gradient(135deg,#fff3e0,#ffe0b2);color:#e65100;border-color:#ff9800}
+.turno-btn.active.otro{background:linear-gradient(135deg,#e8f4fd,#d0e8fa);color:#0066a0;border-color:#0098d4}
 .turno-btn.active.noche{background:linear-gradient(135deg,#061a30,#0a2840);color:#38b6ff;
   text-shadow:0 0 10px rgba(56,182,255,.5)}
 .turno-btn:hover:not(.active){background:var(--light)}
@@ -3178,11 +3179,12 @@ function setTurno(t){
   turnoActual=t;
   document.getElementById('turno').value=t;
   document.querySelectorAll('.turno-btn').forEach(b=>b.classList.remove('active'));
-  const cls = t==='Día'?'dia': t==='Tarde'?'tarde':'noche';
-  document.querySelector('.turno-btn.'+cls).classList.add('active');
-  // Recargar lista de empleados filtrada por el nuevo turno
-  // Limpiar caché de todos los turnos para forzar recarga fresca
-  ['Día','Tarde','Noche'].forEach(tr => _cDelPfx('emp_t'+tr));
+  // Marcar activo el botón cuyo texto contiene el turno (robusto para turnos nuevos)
+  document.querySelectorAll('.turno-btn').forEach(function(b){
+    if(b.textContent.toUpperCase().indexOf(t.toUpperCase())!==-1) b.classList.add('active');
+  });
+  // Limpiar caché de todos los turnos activos para forzar recarga
+  (_turnosActivos||[]).forEach(tr => _cDelPfx('emp_t'+tr.turno));
   empLimpiar();
   empCargar(false); // false porque ya limpiamos caché arriba
   const tg=document.querySelector('.turno-group');
@@ -3209,6 +3211,17 @@ function setTurno(t){
 function preRellenarHorasFiltro(t){
   const hoy    = localDate(new Date());
   const manana = localDate(new Date(Date.now()+86400000));
+  // Turnos nuevos (no base): usar el ciclo configurado
+  if(t!=='Día' && t!=='Tarde' && t!=='Noche'){
+    var h = (typeof _horTurno==='function') ? _horTurno(t) : null;
+    if(h){
+      document.getElementById('filtroDesde').value     = hoy;
+      document.getElementById('filtroDesdeHora').value = h.proc_ini || '07:00';
+      document.getElementById('filtroHasta').value     = h.proc_fin_sig ? manana : hoy;
+      document.getElementById('filtroHastaHora').value = h.proc_fin || '17:00';
+      return;
+    }
+  }
   if(t==='Día'){
     document.getElementById('filtroDesde').value     = hoy;
     document.getElementById('filtroDesdeHora').value = '07:00';
@@ -3896,29 +3909,42 @@ var _HORARIOS_DEFAULT = {
 var _cfgHorarios = null;
 var _cfgHorariosDia = {};   // { 'Día': { 6: {proc_fin:'13:00', aplica_col:false} } }
 
+var _turnosActivos = [];   // [{turno,emoji,orden}] activos, ordenados
+
 async function cargarConfigHorarios(){
   _cfgHorarios = JSON.parse(JSON.stringify(_HORARIOS_DEFAULT));
   _cfgHorariosDia = {};
+  _turnosActivos = [];
   try{
     var res = await _sbDb().from('config_turnos').select('*');
-    if(!res.error && res.data){
+    if(!res.error && res.data && res.data.length){
+      var nuevos = {};
       res.data.forEach(function(r){
-        if(_cfgHorarios[r.turno]){
-          _cfgHorarios[r.turno] = {
-            proc_ini:r.proc_ini||_cfgHorarios[r.turno].proc_ini,
-            proc_fin:r.proc_fin||_cfgHorarios[r.turno].proc_fin,
-            proc_fin_sig: !!r.proc_fin_sig,
-            des_ini:r.des_ini||_cfgHorarios[r.turno].des_ini,
-            des_fin:r.des_fin||_cfgHorarios[r.turno].des_fin,
-            aplica_des: r.aplica_des !== false,
-            col_ini:r.col_ini||_cfgHorarios[r.turno].col_ini,
-            col_fin:r.col_fin||_cfgHorarios[r.turno].col_fin,
-            aplica_col: r.aplica_col !== false
-          };
-        }
+        nuevos[r.turno] = {
+          proc_ini:r.proc_ini||'08:00',
+          proc_fin:r.proc_fin||'16:00',
+          proc_fin_sig: !!r.proc_fin_sig,
+          des_ini:r.des_ini||'10:00',
+          des_fin:r.des_fin||'10:15',
+          aplica_des: r.aplica_des !== false,
+          col_ini:r.col_ini||'12:00',
+          col_fin:r.col_fin||'12:30',
+          aplica_col: r.aplica_col !== false,
+          activo: r.activo !== false,
+          orden: (r.orden!=null?r.orden:99),
+          emoji: r.emoji||'🕐'
+        };
       });
+      _cfgHorarios = nuevos;
+      _turnosActivos = res.data.filter(function(r){ return r.activo !== false; })
+        .map(function(r){ return {turno:r.turno, emoji:r.emoji||'🕐', orden:(r.orden!=null?r.orden:99)}; })
+        .sort(function(a,b){ return a.orden-b.orden; });
     }
   }catch(e){ console.warn('config_turnos no disponible',e); }
+  if(!_turnosActivos.length){
+    _turnosActivos = [{turno:'Día',emoji:'☀️',orden:1},{turno:'Tarde',emoji:'🌅',orden:2},{turno:'Noche',emoji:'🌙',orden:3}];
+  }
+  _poblarSelectoresTurno();
   try{
     var res2 = await _sbDb().from('config_turnos_dia').select('*');
     if(!res2.error && res2.data){
@@ -3928,6 +3954,45 @@ async function cargarConfigHorarios(){
       });
     }
   }catch(e){ console.warn('config_turnos_dia no disponible',e); }
+}
+
+// Rellena los 3 selectores de turno (formulario, filtro registros, filtro dashboard)
+function _poblarSelectoresTurno(){
+  // 1) Botones del formulario
+  var grupo = document.querySelector('.turno-group');
+  if(grupo){
+    grupo.innerHTML = _turnosActivos.map(function(t){
+      var cls = t.turno==='Día'?'dia':t.turno==='Tarde'?'tarde':t.turno==='Noche'?'noche':'otro';
+      return '<button class="turno-btn '+cls+'" onclick="setTurno(\''+t.turno.replace(/'/g,"\\'")+'\')">'+t.emoji+' '+t.turno.toUpperCase()+'</button>';
+    }).join('');
+  }
+  // 2) Filtro registros
+  var fr = document.getElementById('filtroTurno');
+  if(fr){
+    var val = fr.value;
+    fr.innerHTML = '<option value="">Todos</option>' + _turnosActivos.map(function(t){
+      return '<option value="'+t.turno+'">'+t.emoji+' '+t.turno+'</option>';
+    }).join('');
+    fr.value = val;
+  }
+  // 3) Filtro dashboard (usa minúsculas en value)
+  var fd = document.getElementById('filtroTurnoDash');
+  if(fd){
+    var val2 = fd.value;
+    fd.innerHTML = '<option value="">Todos los turnos</option>' + _turnosActivos.map(function(t){
+      return '<option value="'+t.turno.toLowerCase()+'">'+t.emoji+' '+t.turno+'</option>';
+    }).join('');
+    fd.value = val2;
+  }
+  // 4) Modal editar registro
+  var mt = document.getElementById('m_turno');
+  if(mt){
+    var val3 = mt.value;
+    mt.innerHTML = _turnosActivos.map(function(t){
+      return '<option value="'+t.turno+'">'+t.emoji+' '+t.turno+'</option>';
+    }).join('');
+    mt.value = val3;
+  }
 }
 
 // Día semana 1=Lun..7=Dom a partir de una fecha 'yyyy-mm-dd'
