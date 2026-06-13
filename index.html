@@ -3228,42 +3228,39 @@ function _onFechaManual(){
 }
 
 function _ajustarFechaPorTurno(t){
+  // Los turnos base (Día, Tarde, Noche) usan la fecha del día actual — no se ajusta.
+  if(t==='Día' || t==='Tarde' || t==='Noche') return;
+
   var fechaEl = document.getElementById('fecha');
   var mesEl   = document.getElementById('mes');
   if(!fechaEl) return;
+  // Si el usuario ya fijó la fecha manualmente, no tocar
+  if(fechaEl.dataset.userSet) return;
 
   var h = (typeof _horTurno==='function') ? _horTurno(t) : null;
   if(!h) return;
 
-  var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  var now = new Date();
-  var hm  = now.getHours()*60 + now.getMinutes();
   var pi = _hhmm(h.proc_ini), pf = _hhmm(h.proc_fin);
   var ini = pi.h*60+pi.m, fin = pf.h*60+pf.m;
   var cruza = (h.proc_fin_sig || fin < ini);
 
-  // Fecha base = hoy
-  var fechaObj = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Solo ajustar para turnos de MADRUGADA: ciclo que NO cruza medianoche y
+  // termina temprano (ej. 00:00–08:00). Esos pertenecen al día que comienza.
+  var esMadrugada = (!cruza && fin <= 12*60);   // termina antes/al mediodía
+  if(!esMadrugada) return;
 
-  // ¿El ciclo de hoy ya terminó? Entonces la próxima jornada es mañana.
-  // Para ciclo normal (no cruza): si la hora actual ya pasó el fin del ciclo
-  // Para ciclo que cruza medianoche: si la hora actual está entre el fin (madrugada) y el inicio (tarde/noche)
-  var yaTermino;
-  if(cruza){
-    // dentro del ciclo si hm>=ini || hm<fin. Fuera si fin<=hm<ini.
-    yaTermino = (hm >= fin && hm < ini);
-  } else {
-    yaTermino = (hm >= fin);
-  }
+  var now = new Date();
+  var hm  = now.getHours()*60 + now.getMinutes();
 
-  if(yaTermino){
+  // Si el ciclo de madrugada de hoy ya terminó, la próxima jornada es mañana
+  if(hm >= fin){
+    var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    var fechaObj = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     fechaObj.setDate(fechaObj.getDate()+1);
+    fechaEl.value = localDate(fechaObj);
+    if(mesEl) mesEl.value = meses[fechaObj.getMonth()];
+    setVerde('fecha',true); if(mesEl) setVerde('mes',true);
   }
-
-  var nuevaFecha = localDate(fechaObj);
-  fechaEl.value = nuevaFecha;
-  if(mesEl) mesEl.value = meses[fechaObj.getMonth()];
-  setVerde('fecha',true); if(mesEl) setVerde('mes',true);
 }
 
 function preRellenarHorasFiltro(t){
