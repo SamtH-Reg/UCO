@@ -1051,58 +1051,9 @@ body {
         </label>
       </div>
 
-      <!-- 3 columnas -->
-      <div class="turnos-grid">
-        <!-- DÍA -->
-        <div class="turno-col">
-          <div class="turno-col-header dia">
-            ☀️ Turno Día
-            <span class="turno-col-count" id="turnoCountDia">—</span>
-          </div>
-          <div class="turno-col-search">
-            <input id="turnosBusqDia" placeholder="Filtrar turno día..." oninput="turnosFiltrarCol('Día',this.value)">
-          </div>
-          <div class="turno-col-list" id="turnoListaDia"></div>
-          <div class="turno-mover-bar">
-            <span id="turnoSelDia">Selecciona empleados</span>
-            <button class="btn-mover tarde" onclick="moverSeleccionados('Día','Tarde')" id="btnMoverDiaTarde" disabled>→ Tarde</button>
-            <button class="btn-mover noche" onclick="moverSeleccionados('Día','Noche')" id="btnMoverDiaNoche" disabled>→ Noche</button>
-          </div>
-        </div>
-
-        <!-- TARDE -->
-        <div class="turno-col">
-          <div class="turno-col-header tarde">
-            🌅 Turno Tarde
-            <span class="turno-col-count" id="turnoCountTarde">—</span>
-          </div>
-          <div class="turno-col-search">
-            <input id="turnosBusqTarde" placeholder="Filtrar turno tarde..." oninput="turnosFiltrarCol('Tarde',this.value)">
-          </div>
-          <div class="turno-col-list" id="turnoListaTarde"></div>
-          <div class="turno-mover-bar">
-            <span id="turnoSelTarde">Selecciona empleados</span>
-            <button class="btn-mover dia"   onclick="moverSeleccionados('Tarde','Día')"   id="btnMoverTardeDia"   disabled>→ Día</button>
-            <button class="btn-mover noche" onclick="moverSeleccionados('Tarde','Noche')" id="btnMoverTardeNoche" disabled>→ Noche</button>
-          </div>
-        </div>
-
-        <!-- NOCHE -->
-        <div class="turno-col">
-          <div class="turno-col-header noche">
-            🌙 Turno Noche
-            <span class="turno-col-count" id="turnoCountNoche">—</span>
-          </div>
-          <div class="turno-col-search">
-            <input id="turnosBusqNoche" placeholder="Filtrar turno noche..." oninput="turnosFiltrarCol('Noche',this.value)">
-          </div>
-          <div class="turno-col-list" id="turnoListaNoche"></div>
-          <div class="turno-mover-bar">
-            <span id="turnoSelNoche">Selecciona empleados</span>
-            <button class="btn-mover dia"   onclick="moverSeleccionados('Noche','Día')"   id="btnMoverNocheDia"   disabled>→ Día</button>
-            <button class="btn-mover tarde" onclick="moverSeleccionados('Noche','Tarde')" id="btnMoverNocheTarde" disabled>→ Tarde</button>
-          </div>
-        </div>
+      <!-- columnas dinámicas -->
+      <div class="turnos-grid" id="turnosGrid">
+        <div style="padding:30px;text-align:center;color:var(--muted)"><span class="spinner"></span> Cargando turnos…</div>
       </div>
     </div>
 
@@ -2508,14 +2459,55 @@ let _gFiltros = { Día: '', Tarde: '', Noche: '', global: '' };
 let _gSel = { Día: new Set(), Tarde: new Set(), Noche: new Set() };
 let _gDupCodigos = new Set(); // códigos que aparecen en más de un turno
 
+// Lista de turnos activos (desde config_turnos)
+var _turnosActivos = [];   // [{turno,emoji,orden}]
+
+function _sufTurno(t){ return t.replace(/é/g,'e').replace(/ó/g,'o').replace(/í/g,'i').replace(/á/g,'a').replace(/ú/g,'u').replace(/\s+/g,'_').replace(/[^A-Za-z0-9_]/g,''); }
+
+async function _cargarTurnosActivos(){
+  var db = getClient();
+  _turnosActivos = [];
+  if(db){
+    try{
+      var res = await db.from('config_turnos').select('turno,emoji,orden,activo');
+      if(!res.error && res.data){
+        _turnosActivos = res.data.filter(function(r){ return r.activo !== false; })
+          .map(function(r){ return {turno:r.turno, emoji:r.emoji||'🕐', orden:(r.orden!=null?r.orden:99)}; })
+          .sort(function(a,b){ return a.orden-b.orden; });
+      }
+    }catch(e){ console.warn('config_turnos no disponible',e); }
+  }
+  if(!_turnosActivos.length){
+    _turnosActivos = [{turno:'Día',emoji:'☀️',orden:1},{turno:'Tarde',emoji:'🌅',orden:2},{turno:'Noche',emoji:'🌙',orden:3}];
+  }
+}
+
 async function loadGestionTurnos() {
   const db = getClient(); if (!db) return;
-  ['Día','Tarde','Noche'].forEach(t => {
-    const listEl = document.getElementById('turnoLista'+t.replace('é','e').replace('ó','o'));
+  await _cargarTurnosActivos();
+
+  var grid = document.getElementById('turnosGrid');
+  if(grid){
+    grid.innerHTML = _turnosActivos.map(function(t){
+      var suf = _sufTurno(t.turno);
+      var otros = _turnosActivos.filter(function(o){ return o.turno !== t.turno; });
+      var botones = otros.map(function(o){
+        return '<button class="btn-mover" onclick="moverSeleccionados(\''+t.turno.replace(/'/g,"\\'")+'\',\''+o.turno.replace(/'/g,"\\'")+'\')" id="btnMover'+suf+_sufTurno(o.turno)+'" disabled>→ '+o.turno+'</button>';
+      }).join('');
+      return '<div class="turno-col">'
+        +'<div class="turno-col-header">'+t.emoji+' Turno '+t.turno+' <span class="turno-col-count" id="turnoCount'+suf+'">—</span></div>'
+        +'<div class="turno-col-search"><input id="turnosBusq'+suf+'" placeholder="Filtrar '+t.turno+'..." oninput="turnosFiltrarCol(\''+t.turno.replace(/'/g,"\\'")+'\',this.value)"></div>'
+        +'<div class="turno-col-list" id="turnoLista'+suf+'"></div>'
+        +'<div class="turno-mover-bar"><span id="turnoSel'+suf+'">Selecciona empleados</span>'+botones+'</div>'
+        +'</div>';
+    }).join('');
+  }
+
+  _turnosActivos.forEach(function(t){
+    const listEl = document.getElementById('turnoLista'+_sufTurno(t.turno));
     if (listEl) listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)"><span class="spinner"></span></div>';
   });
 
-  // Traer todos los empleados activos con turno
   let all = [], page = 0, hasMore = true;
   while (hasMore) {
     const { data, error } = await db.from('empleados')
@@ -2527,31 +2519,27 @@ async function loadGestionTurnos() {
     if (data.length < 1000) hasMore = false; else page++;
   }
 
-  // Separar por turno
-  _gTurnos = { Día: [], Tarde: [], Noche: [] };
+  // Separar por turno (dinámico)
+  _gTurnos = {};
+  _turnosActivos.forEach(function(t){ _gTurnos[t.turno] = []; });
+  var primerTurno = _turnosActivos[0] ? _turnosActivos[0].turno : 'Día';
   all.forEach(r => {
-    const t = r.turno || 'Día';
+    const t = r.turno || primerTurno;
     if (_gTurnos[t]) _gTurnos[t].push(r);
-    else _gTurnos['Día'].push(r); // fallback
+    else { if(!_gTurnos[t]) _gTurnos[t]=[]; _gTurnos[t].push(r); }  // turno fuera de los activos: crear bucket temporal
   });
 
-  // Detectar duplicados por código
+  // Duplicados por código
   const codCount = {};
-  ['Día','Tarde','Noche'].forEach(t => {
-    _gTurnos[t].forEach(r => {
-      codCount[r.codigo] = (codCount[r.codigo]||0) + 1;
-    });
+  Object.keys(_gTurnos).forEach(t => {
+    _gTurnos[t].forEach(r => { codCount[r.codigo] = (codCount[r.codigo]||0) + 1; });
   });
   _gDupCodigos = new Set(Object.entries(codCount).filter(([,v])=>v>1).map(([k])=>k));
 
-  // Resetear selecciones y filtros
-  _gSel = { Día: new Set(), Tarde: new Set(), Noche: new Set() };
-  _gFiltros = { Día: '', Tarde: '', Noche: '', global: '' };
-  ['turnosBusqDia','turnosBusqTarde','turnosBusqNoche','turnosBusqGlobal'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
-  });
+  _gSel = {}; _gFiltros = { global: '' };
+  Object.keys(_gTurnos).forEach(t => { _gSel[t] = new Set(); _gFiltros[t] = ''; });
+  var gb = document.getElementById('turnosBusqGlobal'); if(gb) gb.value='';
 
-  // Banner duplicados
   const banner = document.getElementById('turnoDupBanner');
   const dupSidebar = document.getElementById('cnt-dup-turnos');
   if (banner) {
@@ -2569,35 +2557,28 @@ async function loadGestionTurnos() {
 }
 
 function turnosRenderTodo() {
-  ['Día','Tarde','Noche'].forEach(t => turnosRenderCol(t));
-  // Resumen total
-  const tot = _gTurnos.Día.length + _gTurnos.Tarde.length + _gTurnos.Noche.length;
+  Object.keys(_gTurnos).forEach(t => turnosRenderCol(t));
+  var tot = 0;
+  Object.keys(_gTurnos).forEach(t => { tot += _gTurnos[t].length; });
   const el = document.getElementById('turnosResumenTotal');
   if (el) el.textContent = tot + ' empleados en total' + (_gDupCodigos.size ? ` · ⚠️ ${_gDupCodigos.size} duplicados` : '');
 }
 
 function turnosRenderCol(turno) {
   const soloDup = document.getElementById('turnosSoloDup')?.checked;
-  const busqGlobal = _gFiltros.global.toLowerCase();
-  const busqCol    = _gFiltros[turno].toLowerCase();
-  const sufijo = turno === 'Día' ? 'Dia' : turno === 'Tarde' ? 'Tarde' : 'Noche';
+  const busqGlobal = (_gFiltros.global||'').toLowerCase();
+  const busqCol    = (_gFiltros[turno]||'').toLowerCase();
+  const sufijo = _sufTurno(turno);
 
   let lista = _gTurnos[turno] || [];
-
-  // Aplicar filtros
   if (soloDup)     lista = lista.filter(r => _gDupCodigos.has(r.codigo));
-  if (busqGlobal)  lista = lista.filter(r =>
-    r.codigo.toLowerCase().includes(busqGlobal) ||
-    r.nombre.toLowerCase().includes(busqGlobal));
-  if (busqCol)     lista = lista.filter(r =>
-    r.codigo.toLowerCase().includes(busqCol) ||
-    r.nombre.toLowerCase().includes(busqCol));
+  if (busqGlobal)  lista = lista.filter(r => r.codigo.toLowerCase().includes(busqGlobal) || r.nombre.toLowerCase().includes(busqGlobal));
+  if (busqCol)     lista = lista.filter(r => r.codigo.toLowerCase().includes(busqCol) || r.nombre.toLowerCase().includes(busqCol));
 
   const listEl  = document.getElementById('turnoLista'+sufijo);
   const countEl = document.getElementById('turnoCount'+sufijo);
   if (!listEl) return;
-
-  if (countEl) countEl.textContent = `(${_gTurnos[turno].length})`;
+  if (countEl) countEl.textContent = `(${(_gTurnos[turno]||[]).length})`;
 
   if (!lista.length) {
     listEl.innerHTML = '<div style="padding:16px;text-align:center;font-size:12px;color:var(--muted)">Sin resultados</div>';
@@ -2611,7 +2592,7 @@ function turnosRenderCol(turno) {
     const dupBadge = isDup ? '<span class="turno-emp-dup-badge">DUP</span>' : '';
     return `<div class="${rowCls}" id="trow-${r.id}">
       <input type="checkbox" class="turno-emp-chk" ${isSel?'checked':''}
-        onchange="turnosToggleSel('${turno}','${r.id}',this.checked)">
+        onchange="turnosToggleSel('${turno.replace(/'/g,"\\'")}','${r.id}',this.checked)">
       <span class="turno-emp-codigo">${esc(r.codigo)}</span>
       <span class="turno-emp-nombre" title="${esc(r.nombre)}">${esc(r.nombre)}</span>
       ${dupBadge}
@@ -2625,7 +2606,6 @@ function turnosToggleSel(turno, id, checked) {
   if (checked) _gSel[turno].add(id);
   else _gSel[turno].delete(id);
   turnosActualizarBarra(turno);
-  // Re-render solo la fila visualmente
   const row = document.getElementById('trow-'+id);
   if (row && !_gDupCodigos.has(row.querySelector('.turno-emp-codigo')?.textContent)) {
     row.className = checked ? 'turno-emp-row seleccionado' : 'turno-emp-row';
@@ -2633,79 +2613,51 @@ function turnosToggleSel(turno, id, checked) {
 }
 
 function turnosActualizarBarra(turno) {
-  const n = _gSel[turno].size;
-  const sufijo = turno === 'Día' ? 'Dia' : turno === 'Tarde' ? 'Tarde' : 'Noche';
+  const n = _gSel[turno] ? _gSel[turno].size : 0;
+  const sufijo = _sufTurno(turno);
   const sel = document.getElementById('turnoSel'+sufijo);
   if (sel) sel.textContent = n > 0 ? `${n} seleccionado(s)` : 'Selecciona empleados';
-
-  // Habilitar/deshabilitar botones de mover
-  if (turno === 'Día') {
-    document.getElementById('btnMoverDiaTarde').disabled = n === 0;
-    document.getElementById('btnMoverDiaNoche').disabled = n === 0;
-  } else if (turno === 'Tarde') {
-    document.getElementById('btnMoverTardeDia').disabled  = n === 0;
-    document.getElementById('btnMoverTardeNoche').disabled = n === 0;
-  } else {
-    document.getElementById('btnMoverNocheDia').disabled   = n === 0;
-    document.getElementById('btnMoverNocheTarde').disabled = n === 0;
-  }
+  // Habilitar botones de mover hacia cada otro turno
+  _turnosActivos.forEach(function(o){
+    if(o.turno===turno) return;
+    var btn = document.getElementById('btnMover'+sufijo+_sufTurno(o.turno));
+    if(btn) btn.disabled = (n === 0);
+  });
 }
 
-function turnosFiltrarCol(turno, val) {
-  _gFiltros[turno] = val;
-  turnosRenderCol(turno);
-}
-
-function turnosFiltrarGlobal(val) {
-  _gFiltros.global = val;
-  turnosRenderTodo();
-}
+function turnosFiltrarCol(turno, val) { _gFiltros[turno] = val; turnosRenderCol(turno); }
+function turnosFiltrarGlobal(val) { _gFiltros.global = val; turnosRenderTodo(); }
 
 async function moverSeleccionados(desde, hacia) {
   const ids = [..._gSel[desde]];
   if (!ids.length) return;
 
-  // Verificar duplicados en destino — mismo código ya existe en turno destino
   const codsDesdeSel = ids.map(id => {
     const emp = _gTurnos[desde].find(r => r.id === id);
     return emp ? emp.codigo : null;
   }).filter(Boolean);
-
-  const codsEnDestino = new Set(_gTurnos[hacia].map(r => r.codigo));
+  const codsEnDestino = new Set((_gTurnos[hacia]||[]).map(r => r.codigo));
   const conflictos = codsDesdeSel.filter(c => codsEnDestino.has(c));
 
   if (conflictos.length > 0) {
-    if (!confirm(
-      `⚠️ ${conflictos.length} empleado(s) ya existen en Turno ${hacia}:
-${conflictos.slice(0,5).join(', ')}${conflictos.length>5?' ...':''}
-
-¿Mover de todas formas? El código quedará duplicado temporalmente.`
-    )) return;
+    if (!confirm(`⚠️ ${conflictos.length} empleado(s) ya existen en Turno ${hacia}:\n${conflictos.slice(0,5).join(', ')}${conflictos.length>5?' ...':''}\n\n¿Mover de todas formas?`)) return;
   }
 
   const db = getClient(); if (!db) return;
   toast(`Moviendo ${ids.length} empleado(s) a Turno ${hacia}...`);
-
-  const { error } = await db.from('empleados')
-    .update({ turno: hacia })
-    .in('id', ids);
-
+  const { error } = await db.from('empleados').update({ turno: hacia }).in('id', ids);
   if (error) { toast('Error: '+error.message,'error'); return; }
-
   toast(`✅ ${ids.length} empleado(s) movidos a Turno ${hacia}`);
 
-  // Actualizar datos locales sin recargar todo
   const movidos = _gTurnos[desde].filter(r => ids.includes(r.id));
   _gTurnos[desde] = _gTurnos[desde].filter(r => !ids.includes(r.id));
+  if(!_gTurnos[hacia]) _gTurnos[hacia]=[];
   movidos.forEach(r => { r.turno = hacia; _gTurnos[hacia].push(r); });
   _gTurnos[hacia].sort((a,b) => a.nombre.localeCompare(b.nombre,'es'));
   _gSel[desde].clear();
 
-  // Recalcular duplicados
   const codCount = {};
-  ['Día','Tarde','Noche'].forEach(t => {
-    _gTurnos[t].forEach(r => { codCount[r.codigo] = (codCount[r.codigo]||0)+1; });
-  });
+  Object.keys(_gTurnos).forEach(t => { _gTurnos[t].forEach(r => { codCount[r.codigo] = (codCount[r.codigo]||0)+1; }); });
   _gDupCodigos = new Set(Object.entries(codCount).filter(([,v])=>v>1).map(([k])=>k));
 
   const banner = document.getElementById('turnoDupBanner');
@@ -2720,7 +2672,6 @@ ${conflictos.slice(0,5).join(', ')}${conflictos.length>5?' ...':''}
   }
 
   turnosRenderTodo();
-  // Actualizar contadores del sidebar
   loadCounts();
 }
 
@@ -4398,13 +4349,14 @@ function renderPagination(containerId, total, current, perPage, onPage) {
 // ════════════════════════════════════════════════════════════
 // Valores por defecto (fallback si no hay config en BD)
 var _HORARIOS_DEFAULT = {
-  'Día':   { proc_ini:'08:00', proc_fin:'16:00', proc_fin_sig:false, des_ini:'10:00', des_fin:'10:15', aplica_des:true,  col_ini:'12:00', col_fin:'12:30', aplica_col:true },
-  'Tarde': { proc_ini:'17:00', proc_fin:'00:00', proc_fin_sig:true,  des_ini:'19:00', des_fin:'19:15', aplica_des:false, col_ini:'21:00', col_fin:'21:30', aplica_col:true },
-  'Noche': { proc_ini:'20:30', proc_fin:'06:00', proc_fin_sig:true,  des_ini:'02:00', des_fin:'02:15', aplica_des:true,  col_ini:'23:00', col_fin:'23:30', aplica_col:true }
+  'Día':   { proc_ini:'08:00', proc_fin:'16:00', proc_fin_sig:false, des_ini:'10:00', des_fin:'10:15', aplica_des:true,  col_ini:'12:00', col_fin:'12:30', aplica_col:true, activo:true, orden:1, emoji:'☀️' },
+  'Tarde': { proc_ini:'17:00', proc_fin:'00:00', proc_fin_sig:true,  des_ini:'19:00', des_fin:'19:15', aplica_des:false, col_ini:'21:00', col_fin:'21:30', aplica_col:true, activo:true, orden:2, emoji:'🌅' },
+  'Noche': { proc_ini:'20:30', proc_fin:'06:00', proc_fin_sig:true,  des_ini:'02:00', des_fin:'02:15', aplica_des:true,  col_ini:'23:00', col_fin:'23:30', aplica_col:true, activo:true, orden:3, emoji:'🌙' }
 };
 var _DIAS_SEM = [{n:1,l:'Lunes'},{n:2,l:'Martes'},{n:3,l:'Miércoles'},{n:4,l:'Jueves'},{n:5,l:'Viernes'},{n:6,l:'Sábado'},{n:7,l:'Domingo'}];
 var _horariosData = {};
-var _horariosDia  = {};   // { 'Día': { 6: {proc_fin:'13:00', aplica_col:false, ...} } }
+var _horariosDia  = {};
+var _turnosOrden  = [];   // lista ordenada de nombres de turno
 
 async function cargarHorarios(){
   var db = getClient();
@@ -4415,21 +4367,25 @@ async function cargarHorarios(){
     try{
       var res = await db.from('config_turnos').select('*');
       if(!res.error && res.data){
+        // Reemplazar completamente con lo que hay en BD (soporta turnos nuevos)
+        var nuevos = {};
         res.data.forEach(function(r){
-          if(_horariosData[r.turno]){
-            _horariosData[r.turno] = {
-              proc_ini:r.proc_ini||_horariosData[r.turno].proc_ini,
-              proc_fin:r.proc_fin||_horariosData[r.turno].proc_fin,
-              proc_fin_sig: !!r.proc_fin_sig,
-              des_ini:r.des_ini||_horariosData[r.turno].des_ini,
-              des_fin:r.des_fin||_horariosData[r.turno].des_fin,
-              aplica_des: r.aplica_des !== false,
-              col_ini:r.col_ini||_horariosData[r.turno].col_ini,
-              col_fin:r.col_fin||_horariosData[r.turno].col_fin,
-              aplica_col: r.aplica_col !== false
-            };
-          }
+          nuevos[r.turno] = {
+            proc_ini:r.proc_ini||'08:00',
+            proc_fin:r.proc_fin||'16:00',
+            proc_fin_sig: !!r.proc_fin_sig,
+            des_ini:r.des_ini||'10:00',
+            des_fin:r.des_fin||'10:15',
+            aplica_des: r.aplica_des !== false,
+            col_ini:r.col_ini||'12:00',
+            col_fin:r.col_fin||'12:30',
+            aplica_col: r.aplica_col !== false,
+            activo: r.activo !== false,
+            orden: (r.orden!=null?r.orden:99),
+            emoji: r.emoji||'🕐'
+          };
         });
+        if(Object.keys(nuevos).length) _horariosData = nuevos;
       }
     }catch(e){ console.warn('config_turnos no disponible',e); }
 
@@ -4443,51 +4399,68 @@ async function cargarHorarios(){
       }
     }catch(e){ console.warn('config_turnos_dia no disponible',e); }
   }
+
+  // Ordenar turnos
+  _turnosOrden = Object.keys(_horariosData).sort(function(a,b){
+    return (_horariosData[a].orden||99) - (_horariosData[b].orden||99);
+  });
   renderHorarios();
 }
 
 function renderHorarios(){
   var wrap = document.getElementById('horariosWrap');
   if(!wrap) return;
-  var iconos = {'Día':'☀️','Tarde':'🌅','Noche':'🌙'};
   var html = '';
-  ['Día','Tarde','Noche'].forEach(function(turno){
+
+  // Barra superior: agregar turno
+  html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px;background:var(--surface2);border-radius:10px;margin-bottom:4px">'
+    +'<span style="font-size:13px;font-weight:600;color:var(--muted)">＋ Nuevo turno:</span>'
+    +'<input class="form-input" id="nuevoTurnoNombre" placeholder="Ej: Madrugada" style="max-width:180px">'
+    +'<input class="form-input" id="nuevoTurnoEmoji" placeholder="🕐" maxlength="2" style="max-width:60px;text-align:center">'
+    +'<button class="btn btn-primary" onclick="agregarTurno()">Crear turno</button>'
+    +'</div>';
+
+  _turnosOrden.forEach(function(turno){
     var h = _horariosData[turno];
-    html += '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)">'
+    var inactivoStyle = h.activo ? '' : 'opacity:.55';
+    html += '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface);'+inactivoStyle+'">'
       +'<div style="padding:12px 16px;background:var(--surface2);font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px">'
-        +'<span style="font-size:18px">'+iconos[turno]+'</span> Turno '+turno+'</div>'
+        +'<span style="font-size:18px">'+(h.emoji||'🕐')+'</span> Turno '+turno
+        +(h.activo?'':' <span style="font-size:11px;background:#888;color:#fff;padding:2px 8px;border-radius:10px;font-weight:600">DESACTIVADO</span>')
+        +'<div style="margin-left:auto;display:flex;gap:6px">'
+          +'<button class="btn btn-secondary btn-sm" onclick="toggleTurnoActivo(\''+turno.replace(/'/g,"\\'")+'\')">'+(h.activo?'⛔ Desactivar':'✅ Activar')+'</button>'
+          +(['Día','Tarde','Noche'].indexOf(turno)===-1 ? '<button class="btn btn-danger btn-sm" onclick="eliminarTurno(\''+turno.replace(/'/g,"\\'")+'\')">🗑</button>' : '')
+        +'</div>'
+      +'</div>'
       +'<div style="padding:16px;display:grid;grid-template-columns:repeat(2,1fr);gap:14px">'
-        // Proceso
-        +'<div style="grid-column:1/-1;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.5px;border-bottom:1px solid var(--border);padding-bottom:6px">⚙️ PROCESO</div>'
-        +_hCampo(turno,'proc_ini','Inicio',h.proc_ini)
-        +_hCampo(turno,'proc_fin','Término',h.proc_fin)
+        // CICLO DE TURNO (antes PROCESO)
+        +'<div style="grid-column:1/-1;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.5px;border-bottom:1px solid var(--border);padding-bottom:6px">🔄 CICLO DE TURNO (define las horas de proceso de los registros)</div>'
+        +_hCampo(turno,'proc_ini','Inicio del ciclo',h.proc_ini)
+        +_hCampo(turno,'proc_fin','Término del ciclo',h.proc_fin)
         +'<label style="grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">'
           +'<input type="checkbox" id="h-'+turno+'-proc_fin_sig" '+(h.proc_fin_sig?'checked':'')+' style="width:16px;height:16px;accent-color:var(--accent)">'
           +'El término es al día siguiente (turno cruza medianoche)</label>'
-        // Desayuno con toggle
+        // Desayuno
         +'<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:6px;margin-top:8px">'
           +'<span style="font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.5px">☕ DESCANSO / DESAYUNO</span>'
           +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">'
-            +'<input type="checkbox" id="h-'+turno+'-aplica_des" '+(h.aplica_des?'checked':'')+' onchange="_hToggleAplica(\''+turno+'\',\'des\',this.checked)" style="width:15px;height:15px;accent-color:var(--accent)">'
+            +'<input type="checkbox" id="h-'+turno+'-aplica_des" '+(h.aplica_des?'checked':'')+' onchange="_hToggleAplica(\''+turno.replace(/'/g,"\\'")+'\',\'des\',this.checked)" style="width:15px;height:15px;accent-color:var(--accent)">'
             +'Aplica</label></div>'
         +'<div id="h-'+turno+'-desWrap" style="grid-column:1/-1;display:'+(h.aplica_des?'grid':'none')+';grid-template-columns:repeat(2,1fr);gap:14px">'
           +_hCampo(turno,'des_ini','Inicio',h.des_ini)
           +_hCampo(turno,'des_fin','Término',h.des_fin)
         +'</div>'
-        // Colación con toggle
+        // Colación
         +'<div style="grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:6px;margin-top:8px">'
           +'<span style="font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.5px">🍽 COLACIÓN</span>'
           +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">'
-            +'<input type="checkbox" id="h-'+turno+'-aplica_col" '+(h.aplica_col?'checked':'')+' onchange="_hToggleAplica(\''+turno+'\',\'col\',this.checked)" style="width:15px;height:15px;accent-color:var(--accent)">'
+            +'<input type="checkbox" id="h-'+turno+'-aplica_col" '+(h.aplica_col?'checked':'')+' onchange="_hToggleAplica(\''+turno.replace(/'/g,"\\'")+'\',\'col\',this.checked)" style="width:15px;height:15px;accent-color:var(--accent)">'
             +'Aplica</label></div>'
         +'<div id="h-'+turno+'-colWrap" style="grid-column:1/-1;display:'+(h.aplica_col?'grid':'none')+';grid-template-columns:repeat(2,1fr);gap:14px">'
           +_hCampo(turno,'col_ini','Inicio',h.col_ini)
           +_hCampo(turno,'col_fin','Término',h.col_fin)
         +'</div>'
-        // Excepciones por día
-        +'<div style="grid-column:1/-1;margin-top:10px">'
-          +_hExcepcionesDia(turno)
-        +'</div>'
+        +'<div style="grid-column:1/-1;margin-top:10px">'+_hExcepcionesDia(turno)+'</div>'
       +'</div></div>';
   });
   wrap.innerHTML = html;
@@ -4498,28 +4471,73 @@ function _hToggleAplica(turno, tipo, checked){
   if(wrap) wrap.style.display = checked ? 'grid' : 'none';
 }
 
+async function agregarTurno(){
+  var nombre = (document.getElementById('nuevoTurnoNombre').value||'').trim();
+  var emoji  = (document.getElementById('nuevoTurnoEmoji').value||'🕐').trim() || '🕐';
+  if(!nombre){ toast('Escribe el nombre del turno','error'); return; }
+  if(_horariosData[nombre]){ toast('Ese turno ya existe','error'); return; }
+  var db = getClient(); if(!db){ toast('Sin conexión','error'); return; }
+  var maxOrden = Math.max(0, ...Object.keys(_horariosData).map(function(t){return _horariosData[t].orden||0;}));
+  try{
+    var res = await db.from('config_turnos').insert({
+      turno:nombre, proc_ini:'08:00', proc_fin:'16:00', proc_fin_sig:false,
+      des_ini:'10:00', des_fin:'10:15', aplica_des:true,
+      col_ini:'12:00', col_fin:'12:30', aplica_col:true,
+      activo:true, orden:maxOrden+1, emoji:emoji
+    });
+    if(res.error) throw res.error;
+    toast('✅ Turno "'+nombre+'" creado','success');
+    document.getElementById('nuevoTurnoNombre').value='';
+    document.getElementById('nuevoTurnoEmoji').value='';
+    cargarHorarios();
+  }catch(e){ toast('Error: '+(e.message||e),'error'); console.error(e); }
+}
+
+async function toggleTurnoActivo(turno){
+  var db = getClient(); if(!db) return;
+  var nuevoEstado = !(_horariosData[turno] && _horariosData[turno].activo);
+  try{
+    var res = await db.from('config_turnos').update({activo:nuevoEstado}).eq('turno',turno);
+    if(res.error) throw res.error;
+    toast(nuevoEstado?'✅ Turno activado':'⛔ Turno desactivado','success');
+    cargarHorarios();
+  }catch(e){ toast('Error: '+(e.message||e),'error'); console.error(e); }
+}
+
+async function eliminarTurno(turno){
+  if(['Día','Tarde','Noche'].indexOf(turno)!==-1){ toast('Los turnos base no se pueden eliminar','error'); return; }
+  if(!confirm('¿Eliminar el turno "'+turno+'"?\n\nLos registros existentes con este turno NO se borran, pero el turno dejará de aparecer.')) return;
+  var db = getClient(); if(!db) return;
+  try{
+    await db.from('config_turnos_dia').delete().eq('turno',turno);
+    var res = await db.from('config_turnos').delete().eq('turno',turno);
+    if(res.error) throw res.error;
+    toast('Turno eliminado','success');
+    cargarHorarios();
+  }catch(e){ toast('Error: '+(e.message||e),'error'); console.error(e); }
+}
+
 function _hExcepcionesDia(turno){
   var ex = _horariosDia[turno] || {};
   var rows = _DIAS_SEM.map(function(d){
     var e = ex[d.n] || {};
-    var tiene = Object.keys(e).length > 0 && (e.proc_fin||e.proc_ini||e.aplica_col===false||e.aplica_des===false);
     return '<tr style="border-bottom:1px solid var(--border)">'
       +'<td style="padding:6px 8px;font-size:13px;font-weight:600;white-space:nowrap">'+d.l+'</td>'
-      +'<td style="padding:4px"><input type="time" id="d-'+turno+'-'+d.n+'-proc_ini" value="'+(e.proc_ini||'')+'" placeholder="base" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px"></td>'
-      +'<td style="padding:4px"><input type="time" id="d-'+turno+'-'+d.n+'-proc_fin" value="'+(e.proc_fin||'')+'" placeholder="base" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px"></td>'
+      +'<td style="padding:4px"><input type="time" id="d-'+turno+'-'+d.n+'-proc_ini" value="'+(e.proc_ini||'')+'" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px"></td>'
+      +'<td style="padding:4px"><input type="time" id="d-'+turno+'-'+d.n+'-proc_fin" value="'+(e.proc_fin||'')+'" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px"></td>'
       +'<td style="padding:4px;text-align:center"><input type="checkbox" id="d-'+turno+'-'+d.n+'-aplica_des" '+((e.aplica_des!==false)?'checked':'')+' style="width:15px;height:15px;accent-color:var(--accent)"></td>'
       +'<td style="padding:4px;text-align:center"><input type="checkbox" id="d-'+turno+'-'+d.n+'-aplica_col" '+((e.aplica_col!==false)?'checked':'')+' style="width:15px;height:15px;accent-color:var(--accent)"></td>'
       +'</tr>';
   }).join('');
 
   return '<details style="border:1px solid var(--border);border-radius:8px;overflow:hidden">'
-    +'<summary style="padding:8px 12px;cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface2);letter-spacing:.3px;user-select:none">📅 EXCEPCIONES POR DÍA (opcional — deja en blanco para usar el horario base)</summary>'
+    +'<summary style="padding:8px 12px;cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface2);letter-spacing:.3px;user-select:none">📅 EXCEPCIONES POR DÍA (opcional — deja en blanco para usar el ciclo base)</summary>'
     +'<div style="padding:8px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">'
       +'<thead><tr style="text-align:left;color:var(--muted);font-size:11px">'
-        +'<th style="padding:4px 8px">Día</th><th style="padding:4px 8px">Proc. Inicio</th><th style="padding:4px 8px">Proc. Término</th>'
+        +'<th style="padding:4px 8px">Día</th><th style="padding:4px 8px">Ciclo Inicio</th><th style="padding:4px 8px">Ciclo Término</th>'
         +'<th style="padding:4px 8px;text-align:center">Desayuno</th><th style="padding:4px 8px;text-align:center">Colación</th></tr></thead>'
       +'<tbody>'+rows+'</tbody></table>'
-      +'<p style="font-size:11px;color:var(--muted);margin:8px 0 0">Ejemplo: sábado, pon Proc. Término <strong>13:00</strong> y desmarca Colación si ese día no aplica.</p>'
+      +'<p style="font-size:11px;color:var(--muted);margin:8px 0 0">Ejemplo: sábado, pon Ciclo Término <strong>13:00</strong> y desmarca Colación si ese día no aplica.</p>'
     +'</div></details>';
 }
 
@@ -4535,8 +4553,8 @@ async function guardarHorarios(){
   var db = getClient();
   if(!db){ toast('Sin conexión a Supabase','error'); return; }
 
-  // Base por turno
-  var filas = ['Día','Tarde','Noche'].map(function(turno){
+  var filas = _turnosOrden.map(function(turno){
+    var h = _horariosData[turno];
     return {
       turno: turno,
       proc_ini: document.getElementById('h-'+turno+'-proc_ini').value || null,
@@ -4547,20 +4565,19 @@ async function guardarHorarios(){
       aplica_des: document.getElementById('h-'+turno+'-aplica_des').checked,
       col_ini: document.getElementById('h-'+turno+'-col_ini').value || null,
       col_fin: document.getElementById('h-'+turno+'-col_fin').value || null,
-      aplica_col: document.getElementById('h-'+turno+'-aplica_col').checked
+      aplica_col: document.getElementById('h-'+turno+'-aplica_col').checked,
+      activo: h.activo, orden: h.orden, emoji: h.emoji
     };
   });
 
-  // Excepciones por día — solo guardar las que tienen algún cambio
   var filasDia = [];
-  ['Día','Tarde','Noche'].forEach(function(turno){
+  _turnosOrden.forEach(function(turno){
     _DIAS_SEM.forEach(function(d){
       var pi = document.getElementById('d-'+turno+'-'+d.n+'-proc_ini').value || null;
       var pf = document.getElementById('d-'+turno+'-'+d.n+'-proc_fin').value || null;
       var ad = document.getElementById('d-'+turno+'-'+d.n+'-aplica_des').checked;
       var ac = document.getElementById('d-'+turno+'-'+d.n+'-aplica_col').checked;
       var base = _horariosData[turno];
-      // Solo es excepción si hay horario distinto o si desactivó algo que la base tiene activo
       var esExcepcion = pi || pf || (ad!==base.aplica_des) || (ac!==base.aplica_col);
       if(esExcepcion){
         filasDia.push({ turno:turno, dia:d.n, proc_ini:pi, proc_fin:pf,
@@ -4573,14 +4590,12 @@ async function guardarHorarios(){
   try{
     var r1 = await db.from('config_turnos').upsert(filas, { onConflict:'turno' });
     if(r1.error) throw r1.error;
-
-    // Borrar excepciones previas y reinsertar las actuales
     await db.from('config_turnos_dia').delete().neq('id', 0);
     if(filasDia.length){
       var r2 = await db.from('config_turnos_dia').insert(filasDia);
       if(r2.error) throw r2.error;
     }
-    toast('✅ Horarios guardados ('+filasDia.length+' excepciones por día)','success');
+    toast('✅ Horarios guardados ('+filasDia.length+' excepciones)','success');
     cargarHorarios();
   }catch(e){ toast('Error: '+(e.message||e),'error'); console.error(e); }
 }
