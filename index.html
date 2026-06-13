@@ -3193,21 +3193,26 @@ function setTurno(t){
   empCargar(false); // false porque ya limpiamos caché arriba
   var tg=document.getElementById('turnoSelect');
   if(tg){ tg.style.boxShadow='0 0 0 2px rgba(61,186,126,.3)'; tg.style.borderColor='#3dba7e'; }
-  if(t==='Noche'){
-    document.body.classList.add('noche-mode');
-    document.getElementById('desayunoProgramado').checked=false; toggleDesayuno(false);
-    document.getElementById('aplicaDesayuno').checked=false; toggleAplicaDesayuno(false);
-    showToast('🌙 Turno Noche seleccionado','success');
-  } else if(t==='Tarde'){
-    document.body.classList.remove('noche-mode');
-    // Tarde: sin desayuno
-    document.getElementById('aplicaDesayuno').checked=false; toggleAplicaDesayuno(false);
-    showToast('🌅 Turno Tarde seleccionado','success');
-  } else {
-    document.body.classList.remove('noche-mode');
-    document.getElementById('aplicaDesayuno').checked=true; toggleAplicaDesayuno(true);
-    showToast('☀️ Turno Día activado','success');
+  // Modo oscuro solo para Noche
+  if(t==='Noche') document.body.classList.add('noche-mode');
+  else document.body.classList.remove('noche-mode');
+
+  // Desayuno y Colación según la CONFIG del turno (aplica_des / aplica_col)
+  var hCfg = (typeof _horTurno==='function') ? _horTurno(t) : null;
+  var aplicaDes = hCfg ? (hCfg.aplica_des !== false) : true;
+  var aplicaCol = hCfg ? (hCfg.aplica_col !== false) : true;
+
+  var chkDes = document.getElementById('aplicaDesayuno');
+  if(chkDes){ chkDes.checked = aplicaDes; toggleAplicaDesayuno(aplicaDes); }
+  if(!aplicaDes){
+    var pd = document.getElementById('desayunoProgramado');
+    if(pd){ pd.checked=false; toggleDesayuno(false); }
   }
+  var chkCol = document.getElementById('aplicaColacion');
+  if(chkCol){ chkCol.checked = aplicaCol; if(typeof toggleAplicaColacion==='function') toggleAplicaColacion(aplicaCol); }
+
+  var emoji = (_turnosActivos||[]).reduce(function(acc,o){ return o.turno===t?o.emoji:acc; }, '🕐');
+  showToast(emoji+' Turno '+t+' seleccionado','success');
   preRellenarHorasFiltro(t);
 }
 
