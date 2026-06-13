@@ -5214,20 +5214,31 @@ function _turnoActualPorCiclo(){
   const now = new Date();
   const hm  = now.getHours()*60 + now.getMinutes();
   var lista = (_turnosActivos && _turnosActivos.length) ? _turnosActivos : [{turno:'Día'},{turno:'Tarde'},{turno:'Noche'}];
+
+  // Recolectar TODOS los turnos cuyo ciclo contiene la hora actual
+  var candidatos = [];
   for(var i=0;i<lista.length;i++){
     var t = lista[i].turno;
     var h = (typeof _horTurno==='function') ? _horTurno(t) : null;
     if(!h) continue;
     var pi = _hhmm(h.proc_ini), pf = _hhmm(h.proc_fin);
     var ini = pi.h*60+pi.m, fin = pf.h*60+pf.m;
-    if(h.proc_fin_sig || fin < ini){
-      // cruza medianoche
-      if(hm >= ini || hm < fin) return t;
-    } else {
-      if(hm >= ini && hm < fin) return t;
+    var cruza = (h.proc_fin_sig || fin < ini);
+    var dentro = cruza ? (hm >= ini || hm < fin) : (hm >= ini && hm < fin);
+    if(dentro){
+      // Minutos transcurridos desde el inicio del ciclo (manejando medianoche)
+      var transcurrido = (hm - ini + 1440) % 1440;
+      candidatos.push({ turno:t, ini:ini, transcurrido:transcurrido });
     }
   }
-  return lista[0] ? lista[0].turno : 'Día';
+
+  if(candidatos.length === 0){
+    return lista[0] ? lista[0].turno : 'Día';
+  }
+  // Si hay solapamiento, priorizar el turno que inició MÁS RECIENTE
+  // (menor tiempo transcurrido desde su inicio = su ciclo es el que acaba de empezar)
+  candidatos.sort(function(a,b){ return a.transcurrido - b.transcurrido; });
+  return candidatos[0].turno;
 }
 
 // Compat: versión antigua que devuelve minúsculas para el dashboard
