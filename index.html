@@ -2350,7 +2350,7 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
         </div>
         <div class="field">
           <label>Fecha</label>
-          <input type="date" id="fecha" readonly>
+          <input type="date" id="fecha" onchange="_onFechaManual()">
         </div>
 
         <!-- Responsable — Menú desplegable igual al de empleados -->
@@ -3156,10 +3156,13 @@ function cerrarTemas(e){
     if(st) st.textContent=timeStr;
     if(sd) sd.textContent=dayName+' '+dayDate;
     if(ss) ss.textContent=n.toLocaleDateString('es-CL',{day:'2-digit',month:'long',year:'numeric'});
-    // Form fields
-    document.getElementById('fecha').value=localDate(n);
-    document.getElementById('mes').value=meses[n.getMonth()];
-    setVerde('mes',true); setVerde('fecha',true);
+    // Form fields — solo auto-actualizar si el usuario no fijó turno ni tocó la fecha
+    var fEl=document.getElementById('fecha');
+    if(!turnoActual && !(fEl && fEl.dataset.userSet)){
+      fEl.value=localDate(n);
+      document.getElementById('mes').value=meses[n.getMonth()];
+      setVerde('mes',true); setVerde('fecha',true);
+    }
   }
   upd(); setInterval(upd,30000);
 })();
@@ -3182,6 +3185,8 @@ function setTurno(t){
   document.getElementById('turno').value=t;
   var _selF = document.getElementById('turnoSelect');
   if(_selF && _selF.value !== t) _selF.value = t;
+  // Ajustar la fecha del registro según el ciclo del turno seleccionado
+  _ajustarFechaPorTurno(t);
   // Limpiar caché de todos los turnos activos para forzar recarga
   (_turnosActivos||[]).forEach(tr => _cDelPfx('emp_t'+tr.turno));
   empLimpiar();
@@ -3204,6 +3209,61 @@ function setTurno(t){
     showToast('☀️ Turno Día activado','success');
   }
   preRellenarHorasFiltro(t);
+}
+
+// Ajusta la fecha del formulario según el ciclo del turno y la hora actual.
+// Si el ciclo del turno ya terminó hoy, la jornada corresponde al día siguiente.
+// Cuando el usuario cambia la fecha manualmente, sincronizar el mes
+function _onFechaManual(){
+  var fechaEl=document.getElementById('fecha');
+  var mesEl=document.getElementById('mes');
+  if(!fechaEl||!fechaEl.value||!mesEl) return;
+  fechaEl.dataset.userSet='1';
+  var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var d=new Date(fechaEl.value+'T12:00:00');
+  mesEl.value=meses[d.getMonth()];
+  setVerde('fecha',true); setVerde('mes',true);
+  // Recalcular proceso/desayuno/colación si están activos
+  if(document.getElementById('procesoProgramado') && document.getElementById('procesoProgramado').checked) toggleProceso(true);
+}
+
+function _ajustarFechaPorTurno(t){
+  var fechaEl = document.getElementById('fecha');
+  var mesEl   = document.getElementById('mes');
+  if(!fechaEl) return;
+
+  var h = (typeof _horTurno==='function') ? _horTurno(t) : null;
+  if(!h) return;
+
+  var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var now = new Date();
+  var hm  = now.getHours()*60 + now.getMinutes();
+  var pi = _hhmm(h.proc_ini), pf = _hhmm(h.proc_fin);
+  var ini = pi.h*60+pi.m, fin = pf.h*60+pf.m;
+  var cruza = (h.proc_fin_sig || fin < ini);
+
+  // Fecha base = hoy
+  var fechaObj = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // ¿El ciclo de hoy ya terminó? Entonces la próxima jornada es mañana.
+  // Para ciclo normal (no cruza): si la hora actual ya pasó el fin del ciclo
+  // Para ciclo que cruza medianoche: si la hora actual está entre el fin (madrugada) y el inicio (tarde/noche)
+  var yaTermino;
+  if(cruza){
+    // dentro del ciclo si hm>=ini || hm<fin. Fuera si fin<=hm<ini.
+    yaTermino = (hm >= fin && hm < ini);
+  } else {
+    yaTermino = (hm >= fin);
+  }
+
+  if(yaTermino){
+    fechaObj.setDate(fechaObj.getDate()+1);
+  }
+
+  var nuevaFecha = localDate(fechaObj);
+  fechaEl.value = nuevaFecha;
+  if(mesEl) mesEl.value = meses[fechaObj.getMonth()];
+  setVerde('fecha',true); if(mesEl) setVerde('mes',true);
 }
 
 function preRellenarHorasFiltro(t){
@@ -4390,6 +4450,7 @@ function limpiarFormulario(){
   const tg=document.getElementById('turnoSelect');
   if(tg){ tg.style.boxShadow=''; tg.style.borderColor=''; tg.value=''; }
   turnoActual='';
+  var _fEl=document.getElementById('fecha'); if(_fEl) delete _fEl.dataset.userSet;
   // Empleado
   clearEmp();
 }
