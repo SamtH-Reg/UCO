@@ -1052,6 +1052,10 @@ input.req-error,select.req-error{
 
 /* ── Turno toggle ── */
 .turno-group{display:flex;border-radius:8px;overflow:hidden;border:1.5px solid var(--border);transition:border-color .6s}
+.turno-select{width:100%;padding:11px 14px;border:2px solid var(--border);border-radius:10px;
+  font-family:'Calibri',sans-serif;font-size:15px;font-weight:600;cursor:pointer;
+  background:var(--card);color:var(--text);transition:border-color .15s,box-shadow .15s}
+.turno-select:focus{outline:none;border-color:var(--blue)}
 .turno-btn{flex:1;padding:9px;border:none;cursor:pointer;font-family:'Calibri',sans-serif;
   font-size:13px;font-weight:600;background:var(--card);color:var(--muted);transition:all .4s;letter-spacing:.5px}
 .turno-btn.active.dia{background:#fffae0;color:#b07a00}
@@ -2378,11 +2382,9 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
 
         <div class="field">
           <label>Turno <span class="req">*</span></label>
-          <div class="turno-group">
-            <button class="turno-btn dia"   onclick="setTurno('Día')">☀️ DÍA</button>
-            <button class="turno-btn tarde" onclick="setTurno('Tarde')">🌅 TARDE</button>
-            <button class="turno-btn noche" onclick="setTurno('Noche')">🌙 NOCHE</button>
-          </div>
+          <select id="turnoSelect" class="turno-select" onchange="setTurno(this.value)">
+            <option value="">— Seleccione turno —</option>
+          </select>
           <input type="hidden" id="turno">
         </div>
       </div>
@@ -3178,18 +3180,14 @@ let _temaAntesDeTurno = null;
 function setTurno(t){
   turnoActual=t;
   document.getElementById('turno').value=t;
-  document.querySelectorAll('.turno-btn').forEach(b=>b.classList.remove('active'));
-  // Marcar activo el botón cuyo texto contiene el turno (robusto para turnos nuevos)
-  document.querySelectorAll('.turno-btn').forEach(function(b){
-    if(b.textContent.toUpperCase().indexOf(t.toUpperCase())!==-1) b.classList.add('active');
-  });
+  var _selF = document.getElementById('turnoSelect');
+  if(_selF && _selF.value !== t) _selF.value = t;
   // Limpiar caché de todos los turnos activos para forzar recarga
   (_turnosActivos||[]).forEach(tr => _cDelPfx('emp_t'+tr.turno));
   empLimpiar();
   empCargar(false); // false porque ya limpiamos caché arriba
-  const tg=document.querySelector('.turno-group');
-  tg.style.boxShadow='0 0 0 2px rgba(61,186,126,.3)';
-  tg.style.borderColor='#3dba7e';
+  var tg=document.getElementById('turnoSelect');
+  if(tg){ tg.style.boxShadow='0 0 0 2px rgba(61,186,126,.3)'; tg.style.borderColor='#3dba7e'; }
   if(t==='Noche'){
     document.body.classList.add('noche-mode');
     document.getElementById('desayunoProgramado').checked=false; toggleDesayuno(false);
@@ -3958,13 +3956,14 @@ async function cargarConfigHorarios(){
 
 // Rellena los 3 selectores de turno (formulario, filtro registros, filtro dashboard)
 function _poblarSelectoresTurno(){
-  // 1) Botones del formulario
-  var grupo = document.querySelector('.turno-group');
-  if(grupo){
-    grupo.innerHTML = _turnosActivos.map(function(t){
-      var cls = t.turno==='Día'?'dia':t.turno==='Tarde'?'tarde':t.turno==='Noche'?'noche':'otro';
-      return '<button class="turno-btn '+cls+'" onclick="setTurno(\''+t.turno.replace(/'/g,"\\'")+'\')">'+t.emoji+' '+t.turno.toUpperCase()+'</button>';
+  // 1) Dropdown del formulario
+  var sf = document.getElementById('turnoSelect');
+  if(sf){
+    var val = sf.value;
+    sf.innerHTML = '<option value="">— Seleccione turno —</option>' + _turnosActivos.map(function(t){
+      return '<option value="'+t.turno+'">'+t.emoji+' '+t.turno+'</option>';
     }).join('');
+    if(val) sf.value = val;
   }
   // 2) Filtro registros
   var fr = document.getElementById('filtroTurno');
@@ -3992,6 +3991,16 @@ function _poblarSelectoresTurno(){
       return '<option value="'+t.turno+'">'+t.emoji+' '+t.turno+'</option>';
     }).join('');
     mt.value = val3;
+  }
+  // Autoseleccionar turno del formulario según el ciclo de la hora actual (solo si no hay turno)
+  var sf2 = document.getElementById('turnoSelect');
+  if(sf2 && !sf2.value && !turnoActual){
+    var auto = _turnoActualPorCiclo();
+    // Verificar que el turno auto esté entre los activos
+    if(_turnosActivos.some(function(t){return t.turno===auto;})){
+      sf2.value = auto;
+      setTurno(auto);
+    }
   }
 }
 
@@ -4220,9 +4229,8 @@ function validar(){
   if(!document.getElementById('turno').value){
     ok=false;
     if(!faltantes.includes('Turno')) faltantes.push('Turno');
-    const tg=document.querySelector('.turno-group');
-    tg.style.boxShadow='0 0 0 2px rgba(224,82,82,.5)';
-    setTimeout(()=>tg.style.boxShadow='',3000);
+    const tg=document.getElementById('turnoSelect');
+    if(tg){ tg.style.boxShadow='0 0 0 2px rgba(224,82,82,.5)'; setTimeout(()=>tg.style.boxShadow='',3000); }
   }
 
   // Descanso: solo obligatorio si aplica está marcado Y turno es día
@@ -4378,10 +4386,10 @@ function limpiarFormulario(){
   document.getElementById('aplicaColacion').checked=true;  toggleAplicaColacion(true);
   // Turno
   turnoActual=''; document.getElementById('turno').value='';
-  document.querySelectorAll('.turno-btn').forEach(b=>b.classList.remove('active'));
   document.body.classList.remove('noche-mode');
-  const tg=document.querySelector('.turno-group');
-  tg.style.boxShadow=''; tg.style.borderColor='';
+  const tg=document.getElementById('turnoSelect');
+  if(tg){ tg.style.boxShadow=''; tg.style.borderColor=''; tg.value=''; }
+  turnoActual='';
   // Empleado
   clearEmp();
 }
@@ -5200,15 +5208,32 @@ function fmtFechaCL(d){
 const DIAS_CORTOS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 
 // ── Cargar Dashboard
-function _turnoSegunHora(){
+// Devuelve el NOMBRE del turno cuyo ciclo (proc_ini→proc_fin) contiene la hora actual.
+// Usa los ciclos configurados; soporta turnos nuevos. Devuelve nombre real (ej 'Día','Madrugada').
+function _turnoActualPorCiclo(){
   const now = new Date();
-  const hm  = now.getHours() * 60 + now.getMinutes();
-  // Día:   07:00-17:59 (420-1079)
-  // Tarde: 18:00-20:29 (1080-1229)
-  // Noche: 20:30-06:59 (1230-419)
-  if(hm >= 420  && hm < 1080) return 'día';
-  if(hm >= 1080 && hm < 1230) return 'tarde';
-  return 'noche';
+  const hm  = now.getHours()*60 + now.getMinutes();
+  var lista = (_turnosActivos && _turnosActivos.length) ? _turnosActivos : [{turno:'Día'},{turno:'Tarde'},{turno:'Noche'}];
+  for(var i=0;i<lista.length;i++){
+    var t = lista[i].turno;
+    var h = (typeof _horTurno==='function') ? _horTurno(t) : null;
+    if(!h) continue;
+    var pi = _hhmm(h.proc_ini), pf = _hhmm(h.proc_fin);
+    var ini = pi.h*60+pi.m, fin = pf.h*60+pf.m;
+    if(h.proc_fin_sig || fin < ini){
+      // cruza medianoche
+      if(hm >= ini || hm < fin) return t;
+    } else {
+      if(hm >= ini && hm < fin) return t;
+    }
+  }
+  return lista[0] ? lista[0].turno : 'Día';
+}
+
+// Compat: versión antigua que devuelve minúsculas para el dashboard
+function _turnoSegunHora(){
+  var t = _turnoActualPorCiclo();
+  return String(t).toLowerCase();
 }
 
 async function cargarDashboard(){
@@ -5278,7 +5303,8 @@ function aplicarFiltroDash(){
   // Tabla dinámica jerárquica (SubProceso → Línea → Función)
   renderPivotTable(regs, _dashDias, filtro);
   // Limpiar caché de empleados para que ausentes recargue con el turno correcto
-  ['Día','Tarde','Noche','todos'].forEach(t => _cDelPfx('emp_t'+t));
+  (_turnosActivos||[]).forEach(t => _cDelPfx('emp_t'+t.turno));
+  _cDelPfx('emp_ttodos');
   cargarAusenciasSemana();
   cargarAusentes();
 }
