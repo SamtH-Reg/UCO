@@ -1422,45 +1422,9 @@ body {
         </div>
       </div>
 
-      <!-- 3 columnas por turno -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;padding:4px 0">
-
-        <!-- Turno Día -->
-        <div style="background:var(--surface2);border-radius:12px;border:1.5px solid var(--border);overflow:hidden">
-          <div style="padding:10px 16px;background:rgba(255,213,80,.08);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
-            <svg viewBox="0 0 16 16" fill="none" stroke="#b07a00" stroke-width="1.5" style="width:15px;height:15px"><circle cx="8" cy="8" r="3"/><line x1="8" y1="1" x2="8" y2="2.5"/><line x1="8" y1="13.5" x2="8" y2="15"/><line x1="1" y1="8" x2="2.5" y2="8"/><line x1="13.5" y1="8" x2="15" y2="8"/></svg>
-            <span style="font-size:13px;font-weight:700;color:#b07a00">Turno Día</span>
-            <span class="si-count" id="cnt-ausentes-dia" style="margin-left:auto">—</span>
-          </div>
-          <div id="lista-ausentes-dia" style="max-height:520px;overflow-y:auto;padding:4px 0">
-            <div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">Selecciona una fecha</div>
-          </div>
-        </div>
-
-        <!-- Turno Tarde -->
-        <div style="background:var(--surface2);border-radius:12px;border:1.5px solid var(--border);overflow:hidden">
-          <div style="padding:10px 16px;background:rgba(255,152,0,.08);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
-            <svg viewBox="0 0 16 16" fill="none" stroke="#c85000" stroke-width="1.5" style="width:15px;height:15px"><path d="M2 10a6 6 0 0 1 10.4-4"/><path d="M3 13h10"/></svg>
-            <span style="font-size:13px;font-weight:700;color:#c85000">Turno Tarde</span>
-            <span class="si-count" id="cnt-ausentes-tarde" style="margin-left:auto">—</span>
-          </div>
-          <div id="lista-ausentes-tarde" style="max-height:520px;overflow-y:auto;padding:4px 0">
-            <div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">Selecciona una fecha</div>
-          </div>
-        </div>
-
-        <!-- Turno Noche -->
-        <div style="background:var(--surface2);border-radius:12px;border:1.5px solid var(--border);overflow:hidden">
-          <div style="padding:10px 16px;background:rgba(56,189,248,.07);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
-            <svg viewBox="0 0 16 16" fill="none" stroke="#0284c7" stroke-width="1.5" style="width:15px;height:15px"><path d="M13 10A6 6 0 0 1 6 3a6 6 0 1 0 7 7z"/></svg>
-            <span style="font-size:13px;font-weight:700;color:#0284c7">Turno Noche</span>
-            <span class="si-count" id="cnt-ausentes-noche" style="margin-left:auto">—</span>
-          </div>
-          <div id="lista-ausentes-noche" style="max-height:520px;overflow-y:auto;padding:4px 0">
-            <div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">Selecciona una fecha</div>
-          </div>
-        </div>
-
+      <!-- columnas dinámicas por turno -->
+      <div id="ausentesGrid" style="display:grid;gap:16px;padding:4px 0;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+        <div style="padding:30px;text-align:center;color:var(--muted)">Selecciona una fecha</div>
       </div>
     </div>
 
@@ -2426,6 +2390,12 @@ function goPage(name) {
     if (i.getAttribute('onclick')?.includes("'" + name + "'")) i.classList.add('active');
   });
 
+  // Página dinámica de empleados de turno nuevo
+  if (name.indexOf('empleados-turno-')===0){
+    var pgEl = document.getElementById('page-'+name);
+    if (pgEl && pgEl.dataset.turno){ loadEmpleados(pgEl.dataset.turno); return; }
+  }
+
   // Cargar datos al entrar a la página
   const loaders = {
     registros:  loadRegistros,
@@ -3006,11 +2976,12 @@ async function loadEmpleados(turno) {
       const pid = pages[0].id;
       if (pid === 'page-empleados-tarde') turno = 'Tarde';
       else if (pid === 'page-empleados-noche') turno = 'Noche';
+      else if (pid.indexOf('page-empleados-turno-')===0 && pages[0].dataset.turno) turno = pages[0].dataset.turno;
       else turno = 'Día';
     } else turno = 'Día';
   }
 
-  const suf = turno === 'Tarde' ? 'Tarde' : turno === 'Noche' ? 'Noche' : 'Dia';
+  const suf = _sufTurno(turno);
   const tbodyId  = 'tbodyEmp'+suf;
   const searchId = 'empSearch'+suf;
   const badgeId  = 'empCountBadge'+suf;
@@ -5511,7 +5482,82 @@ function mostrarPanel() {
   // Iniciar panel
   iniciarTemaAdmin();
   cargarSettings();
-  checkConn().then(ok => { if (ok) { loadCounts(); loadRegistros(); } });
+  checkConn().then(ok => { if (ok) { _inyectarTurnosDinamicos().then(function(){ loadCounts(); }); loadRegistros(); } });
+}
+
+// Genera items de sidebar + páginas de empleados para turnos NUEVOS (no base)
+async function _inyectarTurnosDinamicos(){
+  await _cargarTurnosActivos();
+  var base = ['Día','Tarde','Noche'];
+  var nuevos = _turnosActivos.filter(function(t){ return base.indexOf(t.turno)===-1; });
+
+  // Limpiar inyecciones previas (por si se recarga)
+  document.querySelectorAll('.sidebar-item.turno-dinamico').forEach(function(el){ el.remove(); });
+  document.querySelectorAll('.page.turno-dinamico').forEach(function(el){ el.remove(); });
+
+  if(!nuevos.length) return;
+
+  // Punto de anclaje: el item "Empleados Noche" del sidebar
+  var anchorBtn = Array.from(document.querySelectorAll('.sidebar-item')).find(function(b){
+    return b.getAttribute('onclick') && b.getAttribute('onclick').indexOf("empleados-noche")!==-1;
+  });
+  var pagesContainer = document.getElementById('page-empleados-noche');
+
+  nuevos.forEach(function(t){
+    var suf = _sufTurno(t.turno);
+    var pid = 'page-empleados-turno-'+suf;
+
+    // 1) Item sidebar
+    if(anchorBtn){
+      var btn = document.createElement('button');
+      btn.className = 'sidebar-item turno-dinamico';
+      btn.setAttribute('onclick', "goPage('empleados-turno-"+suf+"')");
+      btn.innerHTML = '<span class="si-icon" style="font-size:15px">'+t.emoji+'</span> Empleados '+t.turno
+        +' <span class="si-count" id="cnt-empleados-'+suf+'">—</span>';
+      anchorBtn.parentNode.insertBefore(btn, anchorBtn.nextSibling);
+    }
+
+    // 2) Página de empleados (clonando estructura genérica)
+    if(pagesContainer){
+      var pg = document.createElement('div');
+      pg.className = 'page turno-dinamico';
+      pg.id = pid;
+      pg.dataset.turno = t.turno;
+      pg.innerHTML =
+        '<div class="page-header">'
+          +'<div><h1>'+t.emoji+' Empleados — Turno '+t.turno+'</h1><p>Lista maestra de trabajadores turno '+t.turno.toLowerCase()+'</p></div>'
+          +'<div class="page-header-actions">'
+            +'<button class="btn btn-secondary" onclick="loadEmpleados(\''+t.turno.replace(/'/g,"\\'")+'\')">🔄 Recargar</button>'
+            +'<button class="btn btn-primary" onclick="abrirModalEmpleado({turno:\''+t.turno.replace(/'/g,"\\'")+'\'})">＋ Nuevo empleado</button>'
+          +'</div>'
+        +'</div>'
+        +'<div class="table-area">'
+          +'<div class="toolbar" style="flex-wrap:wrap;gap:8px">'
+            +'<input class="search-input" id="empSearch'+suf+'" placeholder="🔍 Buscar por código o nombre..." oninput="debounceEmp(\''+t.turno.replace(/'/g,"\\'")+'\')" style="flex:1;min-width:200px">'
+            +'<select class="search-input" id="empFiltroCC'+suf+'" onchange="_empPage=1;loadEmpleados(\''+t.turno.replace(/'/g,"\\'")+'\')" style="min-width:200px;cursor:pointer"><option value="">Todos los centros de costo</option></select>'
+            +'<select class="search-input" id="empFiltroEstado'+suf+'" onchange="_empPage=1;loadEmpleados(\''+t.turno.replace(/'/g,"\\'")+'\')" style="min-width:150px;cursor:pointer"><option value="">Todos los estados</option><option value="activo">✅ Activo</option><option value="inactivo">⛔ Inactivo</option><option value="licencia">🏥 En licencia</option></select>'
+            +'<select class="search-input" id="empOrden'+suf+'" onchange="_empPage=1;loadEmpleados(\''+t.turno.replace(/'/g,"\\'")+'\')" style="min-width:130px;cursor:pointer"><option value="nombre">Nombre A→Z</option><option value="nombre_desc">Nombre Z→A</option><option value="codigo">Código A→Z</option></select>'
+            +'<span class="count-badge" id="empCountBadge'+suf+'">— empleados</span>'
+          +'</div>'
+          +'<div class="data-table-wrap"><table class="data-table"><thead><tr>'
+            +'<th style="width:90px">Acciones</th><th>Código</th><th>Nombre</th><th>Centro de Costo</th><th>Tipo Contrato</th><th>Estado</th>'
+          +'</tr></thead><tbody id="tbodyEmp'+suf+'"><tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr></tbody></table></div>'
+          +'<div class="pagination" id="empPagination'+suf+'"></div>'
+        +'</div>';
+      pagesContainer.parentNode.insertBefore(pg, pagesContainer.nextSibling);
+    }
+  });
+
+  // Contar empleados de turnos nuevos
+  var db = getClient();
+  if(db){
+    for(var i=0;i<nuevos.length;i++){
+      var suf2 = _sufTurno(nuevos[i].turno);
+      var { count } = await db.from('empleados').select('*',{count:'exact',head:true}).eq('turno', nuevos[i].turno);
+      var el = document.getElementById('cnt-empleados-'+suf2);
+      if(el) el.textContent = count ?? '—';
+    }
+  }
 }
 
 function aplicarPermisosPorRol(rol) {
@@ -5715,15 +5761,27 @@ async function loadAusentesAdmin() {
   var fecha = fechaEl.value;
   document.getElementById('ausentesAdmin-fecha-label').textContent = fecha.split('-').reverse().join('-');
 
-  // Loading en las 3 columnas
-  ['dia','tarde','noche'].forEach(function(t){
-    document.getElementById('lista-ausentes-'+t).innerHTML =
-      '<div style="padding:16px;text-align:center"><span class="spinner"></span></div>';
-    document.getElementById('cnt-ausentes-'+t).textContent = '…';
-  });
+  // Cargar turnos activos y generar columnas dinámicas
+  await _cargarTurnosActivos();
+  var grid = document.getElementById('ausentesGrid');
+  if(grid){
+    grid.innerHTML = _turnosActivos.map(function(t){
+      var suf = _sufTurno(t.turno);
+      return '<div style="background:var(--surface2);border-radius:12px;border:1.5px solid var(--border);overflow:hidden">'
+        +'<div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">'
+          +'<span style="font-size:15px">'+t.emoji+'</span>'
+          +'<span style="font-size:13px;font-weight:700">Turno '+t.turno+'</span>'
+          +'<span class="si-count" id="cnt-ausentes-'+suf+'" style="margin-left:auto">…</span>'
+        +'</div>'
+        +'<div id="lista-ausentes-'+suf+'" style="max-height:520px;overflow-y:auto;padding:4px 0">'
+          +'<div style="padding:16px;text-align:center"><span class="spinner"></span></div>'
+        +'</div></div>';
+    }).join('');
+  }
 
-  // 1. Empleados activos por turno
-  var empPorTurno = { Día:[], Tarde:[], Noche:[] };
+  // 1. Empleados activos por turno (dinámico)
+  var empPorTurno = {};
+  _turnosActivos.forEach(function(t){ empPorTurno[t.turno] = []; });
   var empPage = 0, empMore = true;
   while(empMore) {
     var { data: empData } = await db.from('empleados')
@@ -5732,8 +5790,9 @@ async function loadAusentesAdmin() {
       .range(empPage*1000, empPage*1000+999);
     if (!empData || !empData.length) { empMore = false; break; }
     empData.forEach(function(e){
-      var t = e.turno || 'Día';
-      if (empPorTurno[t]) empPorTurno[t].push(e);
+      var t = e.turno || (_turnosActivos[0]?_turnosActivos[0].turno:'Día');
+      if (!empPorTurno[t]) empPorTurno[t] = [];
+      empPorTurno[t].push(e);
     });
     if (empData.length < 1000) empMore = false; else empPage++;
   }
@@ -5778,10 +5837,10 @@ async function loadAusentesAdmin() {
       (!e.licencia_fin || fecha <= e.licencia_fin);
   }).map(function(e){ return (e.codigo||'').trim().toLowerCase(); }));
 
-  // 7. Para cada turno: filtrar ausentes
-  var turnosMap = { Día:'dia', Tarde:'tarde', Noche:'noche' };
-  Object.keys(turnosMap).forEach(function(turno) {
-    var colId = turnosMap[turno];
+  // 7. Para cada turno activo: filtrar ausentes
+  _turnosActivos.forEach(function(tObj) {
+    var turno = tObj.turno;
+    var colId = _sufTurno(turno);
     var emps = empPorTurno[turno] || [];
 
     // Excluir No Registrar
