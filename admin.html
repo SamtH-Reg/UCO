@@ -4896,12 +4896,24 @@ function renderRanking(){
       +'<td style="text-align:center">'+consecBadge+'</td>'
       +'<td style="font-size:11px;color:var(--muted)">'+diasShow+'</td>'
       +'<td><div style="display:flex;gap:4px">'
-        +'<button class="btn btn-secondary btn-sm" onclick="rkAccionLicencia('+JSON.stringify(r.codigo)+','+JSON.stringify(r.nombre)+')" title="Licencia/Editar">🏥</button>'
-        +'<button class="btn btn-secondary btn-sm" onclick="rkAccionPermiso('+JSON.stringify(r.codigo)+','+JSON.stringify(r.nombre)+','+JSON.stringify(r.dias)+')" title="Agregar permiso">📝</button>'
-        +'<button class="btn btn-secondary btn-sm" onclick="rkVerDetalle('+JSON.stringify(r.codigo)+')" title="Ver en Revisión">🔍</button>'
+        +'<button class="btn btn-secondary btn-sm rk-act-lic" data-idx="'+idx+'" title="Licencia/Editar">🏥</button>'
+        +'<button class="btn btn-secondary btn-sm rk-act-perm" data-idx="'+idx+'" title="Agregar permiso">📝</button>'
+        +'<button class="btn btn-secondary btn-sm rk-act-ver" data-idx="'+idx+'" title="Ver en Revisión">🔍</button>'
       +'</div></td>'
       +'</tr>';
   }).join('');
+
+  // Delegación de eventos: usar índice para acceder a la fila original
+  var _filaActual = lista;
+  tbody.querySelectorAll('.rk-act-lic').forEach(function(btn){
+    btn.onclick = function(){ var r = _filaActual[+this.dataset.idx]; if(r) rkAccionLicencia(r.codigo, r.nombre); };
+  });
+  tbody.querySelectorAll('.rk-act-perm').forEach(function(btn){
+    btn.onclick = function(){ var r = _filaActual[+this.dataset.idx]; if(r) rkAccionPermiso(r.codigo, r.nombre, r.dias); };
+  });
+  tbody.querySelectorAll('.rk-act-ver').forEach(function(btn){
+    btn.onclick = function(){ var r = _filaActual[+this.dataset.idx]; if(r) rkVerDetalle(r.codigo); };
+  });
 }
 
 function _kpiCard(icon, valor, label, color){
