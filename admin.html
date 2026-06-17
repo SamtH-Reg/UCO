@@ -771,6 +771,10 @@ body {
       <button class="sidebar-item" onclick="goPage('revision')">
         <span class="si-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1.5"/><polyline points="5,8.5 7,10.5 11,6.5"/></svg></span> Revisión Asistencia
       </button>
+      <button class="sidebar-item" onclick="goPage('ranking-faltas')">
+        <span class="si-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14h12M4 14V8M8 14V4M12 14v-3"/></svg></span> Ranking Inasistencias
+        <span class="si-count" id="cnt-ranking" style="background:#e05252;display:none">!</span>
+      </button>
       <button class="sidebar-item" onclick="goPage('ausentes')">
         <span class="si-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/><line x1="12" y1="3" x2="14" y2="3"/><line x1="13" y1="2" x2="13" y2="4"/></svg></span> Ausentes del Día
       </button>
@@ -1731,6 +1735,69 @@ body {
       </div>
     </div>
 
+    <!-- ══ RANKING DE INASISTENCIAS ══ -->
+    <div class="page" id="page-ranking-faltas">
+      <div class="page-header">
+        <div><h1>📉 Ranking de Inasistencias</h1><p>Trabajadores con días sin registro · prioriza faltas consecutivas</p></div>
+        <div class="page-header-actions">
+          <button class="btn btn-secondary" onclick="exportarRankingExcel()">📥 Exportar</button>
+          <button class="btn btn-primary" onclick="calcularRanking()">🔍 Analizar</button>
+        </div>
+      </div>
+
+      <div class="table-area">
+        <div class="toolbar" style="flex-wrap:wrap;gap:10px;align-items:flex-end">
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:11px;color:var(--muted);font-weight:600">DESDE</label>
+            <input type="date" class="form-input" id="rk-desde" style="width:150px">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:11px;color:var(--muted);font-weight:600">HASTA</label>
+            <input type="date" class="form-input" id="rk-hasta" style="width:150px">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:11px;color:var(--muted);font-weight:600">TURNO</label>
+            <select class="form-input" id="rk-turno" style="min-width:150px;cursor:pointer">
+              <option value="">Todos los turnos</option>
+            </select>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:11px;color:var(--muted);font-weight:600">MOSTRAR</label>
+            <select class="form-input" id="rk-filtro" style="min-width:200px;cursor:pointer" onchange="renderRanking()">
+              <option value="todos">Todos con faltas</option>
+              <option value="consecutivas">Solo 2+ faltas consecutivas</option>
+              <option value="3mas">Solo 3+ faltas totales</option>
+            </select>
+          </div>
+          <input class="search-input" id="rk-buscar" placeholder="🔍 Buscar trabajador..." oninput="renderRanking()" style="flex:1;min-width:180px">
+        </div>
+
+        <!-- KPIs -->
+        <div id="rk-kpis" style="display:none;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:4px 0 12px">
+        </div>
+
+        <div id="rk-empty" style="padding:40px;text-align:center;color:var(--muted)">
+          Selecciona un rango de fechas y presiona <strong>Analizar</strong>.
+        </div>
+
+        <div class="data-table-wrap" id="rk-tabla-wrap" style="display:none">
+          <table class="data-table">
+            <thead><tr>
+              <th style="width:60px">#</th>
+              <th onclick="rankingSort('codigo')" style="cursor:pointer">Código ↕</th>
+              <th onclick="rankingSort('nombre')" style="cursor:pointer">Nombre ↕</th>
+              <th onclick="rankingSort('turno')" style="cursor:pointer">Turno ↕</th>
+              <th onclick="rankingSort('faltas')" style="cursor:pointer">Faltas ↕</th>
+              <th onclick="rankingSort('maxConsec')" style="cursor:pointer">Consecutivas ↕</th>
+              <th>Días sin registro</th>
+              <th style="width:160px">Acciones</th>
+            </tr></thead>
+            <tbody id="tbodyRanking"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="page-settings">
       <div class="page-header">
         <div><h1>⚙️ Configuración</h1><p>Conexión a Supabase y opciones del sistema</p></div>
@@ -2049,6 +2116,35 @@ body {
 </div>
 
 <!-- ══ MODAL EMPLEADO ══ -->
+<div class="modal-overlay" id="modalRkPermiso">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <h2>📝 Registrar Permiso</h2>
+      <button class="modal-close" onclick="cerrarModal('modalRkPermiso')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Justifica un día de falta registrando un permiso para <strong id="rkperm-nombre"></strong>.</p>
+      <div class="form-group">
+        <label class="form-label">Día sin registro</label>
+        <select class="form-input" id="rkperm-fecha"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tipo de permiso</label>
+        <select class="form-input" id="rkperm-tipo">
+          <option value="Permiso Médico">Permiso Médico</option>
+          <option value="Permiso Personal">Permiso Personal</option>
+          <option value="Permiso Judicial">Permiso Judicial</option>
+          <option value="Permiso Administrativo">Permiso Administrativo</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="cerrarModal('modalRkPermiso')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarRkPermiso()">💾 Guardar permiso</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalEmp">
   <div class="modal">
     <div class="modal-header">
@@ -2404,6 +2500,7 @@ function goPage(name) {
     'empleados-noche': () => loadEmpleados('Noche'),
     'gestion-turnos':  loadGestionTurnos,
     'ausentes':        loadAusentesAdmin,
+    'ranking-faltas':  initRanking,
     'prod-procesos':     () => loadProdPage('procesos'),
     'prod-responsables': () => loadProdPage('responsables'),
     'prod-lineas':       () => loadProdPage('lineas'),
@@ -4575,6 +4672,306 @@ async function guardarHorarios(){
     toast('✅ Horarios guardados ('+filasDia.length+' excepciones)','success');
     cargarHorarios();
   }catch(e){ toast('Error: '+(e.message||e),'error'); console.error(e); }
+}
+
+// ════════════════════════════════════════════════════════════
+//  RANKING DE INASISTENCIAS
+// ════════════════════════════════════════════════════════════
+var _rankingData = [];   // resultado calculado
+var _rankingSort = { col:'maxConsec', dir:'desc' };
+
+async function initRanking(){
+  // Poblar selector de turnos (dinámico)
+  await _cargarTurnosActivos();
+  var sel = document.getElementById('rk-turno');
+  if(sel){
+    sel.innerHTML = '<option value="">Todos los turnos</option>' + _turnosActivos.map(function(t){
+      return '<option value="'+t.turno+'">'+t.emoji+' '+t.turno+'</option>';
+    }).join('');
+  }
+  // Fechas por defecto: últimos 7 días
+  var hoy = new Date();
+  var hace7 = new Date(Date.now() - 6*86400000);
+  var fmt = function(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+  if(!document.getElementById('rk-desde').value) document.getElementById('rk-desde').value = fmt(hace7);
+  if(!document.getElementById('rk-hasta').value) document.getElementById('rk-hasta').value = fmt(hoy);
+}
+
+async function calcularRanking(){
+  var db = getClient(); if(!db){ toast('Sin conexión','error'); return; }
+  var desde = document.getElementById('rk-desde').value;
+  var hasta = document.getElementById('rk-hasta').value;
+  var turnoFiltro = document.getElementById('rk-turno').value;
+  if(!desde || !hasta){ toast('Selecciona el rango de fechas','warning'); return; }
+  if(desde > hasta){ toast('La fecha "desde" es posterior a "hasta"','error'); return; }
+
+  document.getElementById('rk-empty').style.display = '';
+  document.getElementById('rk-empty').innerHTML = '<span class="spinner"></span> Analizando asistencia…';
+  document.getElementById('rk-tabla-wrap').style.display = 'none';
+  document.getElementById('rk-kpis').style.display = 'none';
+
+  // 1. Empleados activos (filtrar por turno si corresponde)
+  var emps = [], ePage = 0, eMore = true;
+  while(eMore){
+    var q = db.from('empleados').select('codigo,nombre,turno,centro_costo,activo,licencia_inicio,licencia_fin')
+      .eq('activo', true).order('nombre').range(ePage*1000, ePage*1000+999);
+    if(turnoFiltro) q = q.eq('turno', turnoFiltro);
+    var { data } = await q;
+    if(!data || !data.length){ eMore=false; break; }
+    emps = emps.concat(data);
+    if(data.length<1000) eMore=false; else ePage++;
+  }
+
+  // 2. Lista No Registrar (excluir)
+  var { data: noReg } = await db.from('noregistrar').select('codigo,nombre');
+  var nrCods = new Set((noReg||[]).map(function(r){ return (r.codigo||'').trim().toLowerCase(); }));
+  var nrNoms = new Set((noReg||[]).map(function(r){ return (r.nombre||'').trim().toLowerCase(); }));
+
+  // 3. Registros del período (solo códigos + fecha)
+  var regs = [], rPage = 0, rMore = true;
+  while(rMore){
+    var { data: rData } = await db.from('registros').select('codigo,fecha')
+      .gte('fecha', desde).lte('fecha', hasta).range(rPage*1000, rPage*1000+999);
+    if(!rData || !rData.length){ rMore=false; break; }
+    regs = regs.concat(rData);
+    if(rData.length<1000) rMore=false; else rPage++;
+  }
+  // Mapa: codigo → Set de fechas con registro
+  var regPorCod = {};
+  regs.forEach(function(r){
+    var c = (r.codigo||'').trim().toLowerCase();
+    if(!regPorCod[c]) regPorCod[c] = new Set();
+    regPorCod[c].add(r.fecha);
+  });
+
+  // 4. Vacaciones (justifican)
+  var { data: vacData } = await db.from('vacaciones').select('codigo,fecha_inicio,fecha_fin');
+  var vacPorCod = {};
+  (vacData||[]).forEach(function(v){
+    var c = (v.codigo||'').trim().toLowerCase();
+    if(!vacPorCod[c]) vacPorCod[c] = [];
+    vacPorCod[c].push({ ini:v.fecha_inicio||'', fin:v.fecha_fin||'9999-12-31' });
+  });
+
+  // 5. Permisos del período (justifican)
+  var { data: permData } = await db.from('permisos').select('codigo,fecha,tipo')
+    .gte('fecha', desde).lte('fecha', hasta);
+  var permPorCod = {};
+  (permData||[]).forEach(function(p){
+    var c = (p.codigo||'').trim().toLowerCase();
+    if(!permPorCod[c]) permPorCod[c] = {};
+    permPorCod[c][p.fecha] = p.tipo || 'Permiso';
+  });
+
+  // 6. Generar lista de días del período (excluyendo domingos)
+  var dias = [];
+  var cur = new Date(desde+'T12:00:00'), end = new Date(hasta+'T12:00:00');
+  while(cur <= end){
+    var dow = cur.getDay(); // 0=domingo
+    var fStr = cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');
+    if(dow !== 0) dias.push(fStr);   // domingo NO cuenta
+    cur.setDate(cur.getDate()+1);
+  }
+
+  // 7. Para cada empleado, calcular faltas
+  _rankingData = [];
+  emps.forEach(function(e){
+    var cod = (e.codigo||'').trim().toLowerCase();
+    var nom = (e.nombre||'').trim().toLowerCase();
+    if(nrCods.has(cod) || nrNoms.has(nom)) return; // excluir No Registrar
+
+    var conReg = regPorCod[cod] || new Set();
+    var vacs   = vacPorCod[cod] || [];
+    var perms  = permPorCod[cod] || {};
+    var licIni = e.licencia_inicio || null;
+    var licFin = e.licencia_fin || null;
+
+    var diasFalta = [];     // fechas que cuentan como falta real
+    dias.forEach(function(f){
+      if(conReg.has(f)) return;                                   // presente
+      if(licIni && f >= licIni && (!licFin || f <= licFin)) return; // licencia
+      if(vacs.some(function(v){ return f >= v.ini && f <= v.fin; })) return; // vacaciones
+      if(perms[f]) return;                                         // permiso
+      diasFalta.push(f);                                           // falta real
+    });
+
+    if(!diasFalta.length) return; // sin faltas → fuera del ranking
+
+    // Calcular máxima racha consecutiva (sobre días hábiles, excluyendo domingos)
+    var maxConsec = 0, actual = 0, prevIdx = -2;
+    var idxDia = {}; dias.forEach(function(f,i){ idxDia[f]=i; });
+    diasFalta.forEach(function(f){
+      var i = idxDia[f];
+      if(i === prevIdx + 1) actual++; else actual = 1;
+      if(actual > maxConsec) maxConsec = actual;
+      prevIdx = i;
+    });
+
+    _rankingData.push({
+      codigo: e.codigo, nombre: e.nombre, turno: e.turno||'—',
+      centro_costo: e.centro_costo||'', faltas: diasFalta.length,
+      maxConsec: maxConsec, dias: diasFalta,
+      licencia_inicio: e.licencia_inicio, licencia_fin: e.licencia_fin
+    });
+  });
+
+  // Badge sidebar: cuántos tienen 2+ consecutivas
+  var conConsec = _rankingData.filter(function(r){ return r.maxConsec >= 2; }).length;
+  var badge = document.getElementById('cnt-ranking');
+  if(badge){
+    if(conConsec > 0){ badge.textContent = conConsec; badge.style.display = ''; }
+    else badge.style.display = 'none';
+  }
+
+  renderRanking();
+  toast('✅ Análisis completo: '+_rankingData.length+' trabajadores con faltas','success');
+}
+
+function rankingSort(col){
+  if(_rankingSort.col === col) _rankingSort.dir = _rankingSort.dir==='asc'?'desc':'asc';
+  else { _rankingSort.col = col; _rankingSort.dir = (col==='nombre'||col==='codigo'||col==='turno')?'asc':'desc'; }
+  renderRanking();
+}
+
+function renderRanking(){
+  var tbody = document.getElementById('tbodyRanking');
+  var wrap  = document.getElementById('rk-tabla-wrap');
+  var empty = document.getElementById('rk-empty');
+  var kpis  = document.getElementById('rk-kpis');
+  if(!tbody) return;
+
+  var filtro = document.getElementById('rk-filtro').value;
+  var busq   = (document.getElementById('rk-buscar').value||'').trim().toLowerCase();
+
+  var lista = _rankingData.slice();
+  if(filtro==='consecutivas') lista = lista.filter(function(r){ return r.maxConsec >= 2; });
+  if(filtro==='3mas')         lista = lista.filter(function(r){ return r.faltas >= 3; });
+  if(busq) lista = lista.filter(function(r){
+    return (r.codigo||'').toLowerCase().includes(busq) || (r.nombre||'').toLowerCase().includes(busq);
+  });
+
+  // Ordenar
+  var c = _rankingSort.col, d = _rankingSort.dir==='asc'?1:-1;
+  lista.sort(function(a,b){
+    var va=a[c], vb=b[c];
+    if(typeof va==='string') return va.localeCompare(vb,'es')*d;
+    return (va-vb)*d;
+  });
+
+  if(!_rankingData.length){
+    empty.style.display=''; empty.innerHTML='Sin resultados. Presiona <strong>Analizar</strong>.';
+    wrap.style.display='none'; kpis.style.display='none'; return;
+  }
+
+  // KPIs
+  var totalFaltas = _rankingData.reduce(function(s,r){ return s+r.faltas; },0);
+  var conConsec   = _rankingData.filter(function(r){ return r.maxConsec>=2; }).length;
+  var peor = _rankingData.slice().sort(function(a,b){ return b.maxConsec-a.maxConsec; })[0];
+  kpis.style.display='grid';
+  kpis.innerHTML =
+    _kpiCard('👥', _rankingData.length, 'Trabajadores con faltas', '#e05252') +
+    _kpiCard('📅', totalFaltas, 'Total días de falta', '#c0392b') +
+    _kpiCard('⚠️', conConsec, '2+ faltas consecutivas', '#e67e22') +
+    _kpiCard('🔴', peor?peor.maxConsec:0, 'Mayor racha (días)', '#9b59b6');
+
+  if(!lista.length){
+    empty.style.display=''; empty.innerHTML='Sin coincidencias con el filtro actual.';
+    wrap.style.display='none'; return;
+  }
+  empty.style.display='none'; wrap.style.display='';
+
+  tbody.innerHTML = lista.map(function(r, idx){
+    var consecBadge = r.maxConsec>=2
+      ? '<span style="background:rgba(230,126,34,.15);color:#c0660e;font-weight:700;padding:2px 9px;border-radius:10px;font-size:12px">⚠️ '+r.maxConsec+' seguidas</span>'
+      : '<span style="color:var(--muted);font-size:12px">'+r.maxConsec+'</span>';
+    var diasTxt = r.dias.map(function(f){ return f.split('-').reverse().slice(0,2).join('/'); }).join(', ');
+    var diasShow = r.dias.length>6 ? diasTxt.split(', ').slice(0,6).join(', ')+' +'+(r.dias.length-6) : diasTxt;
+    var faltasColor = r.faltas>=4?'#c0392b':r.faltas>=2?'#e67e22':'#888';
+    return '<tr'+(r.maxConsec>=2?' style="background:rgba(230,126,34,.04)"':'')+'>'
+      +'<td style="text-align:center;color:var(--muted);font-weight:700">'+(idx+1)+'</td>'
+      +'<td><strong style="font-family:var(--mono)">'+esc(r.codigo)+'</strong></td>'
+      +'<td>'+esc(r.nombre)+'</td>'
+      +'<td><span style="font-size:12px">'+esc(r.turno)+'</span></td>'
+      +'<td style="text-align:center"><span style="font-weight:800;font-size:15px;color:'+faltasColor+'">'+r.faltas+'</span></td>'
+      +'<td style="text-align:center">'+consecBadge+'</td>'
+      +'<td style="font-size:11px;color:var(--muted)">'+diasShow+'</td>'
+      +'<td><div style="display:flex;gap:4px">'
+        +'<button class="btn btn-secondary btn-sm" onclick="rkAccionLicencia('+JSON.stringify(r.codigo)+','+JSON.stringify(r.nombre)+')" title="Licencia/Editar">🏥</button>'
+        +'<button class="btn btn-secondary btn-sm" onclick="rkAccionPermiso('+JSON.stringify(r.codigo)+','+JSON.stringify(r.nombre)+','+JSON.stringify(r.dias)+')" title="Agregar permiso">📝</button>'
+        +'<button class="btn btn-secondary btn-sm" onclick="rkVerDetalle('+JSON.stringify(r.codigo)+')" title="Ver en Revisión">🔍</button>'
+      +'</div></td>'
+      +'</tr>';
+  }).join('');
+}
+
+function _kpiCard(icon, valor, label, color){
+  return '<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid '+color+';border-radius:10px;padding:12px 14px">'
+    +'<div style="font-size:22px;font-weight:800;color:'+color+'">'+icon+' '+valor+'</div>'
+    +'<div style="font-size:11px;color:var(--muted);margin-top:2px">'+label+'</div></div>';
+}
+
+// Editar empleado / agregar licencia
+async function rkAccionLicencia(codigo, nombre){
+  var db = getClient(); if(!db) return;
+  var { data } = await db.from('empleados').select('*').eq('codigo', codigo).limit(1).single();
+  if(data){ await abrirModalEmpleado(data); }
+  else toast('No se encontró el empleado','error');
+}
+
+// Agregar permiso para uno de los días de falta
+function rkAccionPermiso(codigo, nombre, dias){
+  _rkPermisoCtx = { codigo:codigo, nombre:nombre, dias:dias };
+  var sel = document.getElementById('rkperm-fecha');
+  if(sel){
+    sel.innerHTML = dias.map(function(f){ return '<option value="'+f+'">'+f.split('-').reverse().join('-')+'</option>'; }).join('');
+  }
+  document.getElementById('rkperm-nombre').textContent = nombre + ' (' + codigo + ')';
+  document.getElementById('rkperm-tipo').value = 'Permiso Médico';
+  document.getElementById('modalRkPermiso').classList.add('open');
+}
+
+async function guardarRkPermiso(){
+  var db = getClient(); if(!db) return;
+  var ctx = _rkPermisoCtx; if(!ctx) return;
+  var fecha = document.getElementById('rkperm-fecha').value;
+  var tipo  = document.getElementById('rkperm-tipo').value;
+  if(!fecha){ toast('Selecciona la fecha','error'); return; }
+  try{
+    var res = await db.from('permisos').upsert({ codigo:ctx.codigo, nombre:ctx.nombre, fecha:fecha, tipo:tipo }, { onConflict:'codigo,fecha' });
+    if(res.error) throw res.error;
+    toast('✅ Permiso registrado para '+ctx.nombre,'success');
+    cerrarModal('modalRkPermiso');
+    calcularRanking();   // recalcular
+  }catch(e){ toast('Error: '+(e.message||e),'error'); console.error(e); }
+}
+var _rkPermisoCtx = null;
+
+// Ver detalle en la página Revisión
+function rkVerDetalle(codigo){
+  var desde = document.getElementById('rk-desde').value;
+  var hasta = document.getElementById('rk-hasta').value;
+  goPage('revision');
+  setTimeout(function(){
+    var dEl=document.getElementById('rev-desde'), hEl=document.getElementById('rev-hasta');
+    if(dEl) dEl.value=desde; if(hEl) hEl.value=hasta;
+    var busq = document.getElementById('rev-busq');
+    if(busq){ busq.value = codigo; if(typeof revBuscarEmpleados==='function') revBuscarEmpleados(codigo); }
+  }, 300);
+}
+
+function exportarRankingExcel(){
+  if(!_rankingData.length){ toast('Primero analiza un período','warning'); return; }
+  var rows = [['Código','Nombre','Turno','Centro Costo','Faltas','Máx Consecutivas','Días sin registro']];
+  _rankingData.forEach(function(r){
+    rows.push([r.codigo, r.nombre, r.turno, r.centro_costo, r.faltas, r.maxConsec, r.dias.join(' | ')]);
+  });
+  var csv = rows.map(function(fila){ return fila.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
+  var blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'ranking_inasistencias_'+document.getElementById('rk-desde').value+'_'+document.getElementById('rk-hasta').value+'.csv';
+  a.click(); URL.revokeObjectURL(url);
+  toast('📥 Ranking exportado','success');
 }
 
 // Pide la contraseña de la cuenta para desbloquear Configuración
