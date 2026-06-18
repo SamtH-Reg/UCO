@@ -2080,9 +2080,9 @@ body {
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="form-field"><label class="form-label">Fecha *</label><input class="form-input" id="rf-fecha" type="date"></div>
+        <div class="form-field"><label class="form-label">Fecha *</label><input class="form-input" id="rf-fecha" type="date" onchange="_rfRecalcular()"></div>
         <div class="form-field"><label class="form-label">Turno *</label>
-          <select class="form-select" id="rf-turno"><option>Día</option><option>Tarde</option><option>Noche</option></select></div>
+          <select class="form-select" id="rf-turno" onchange="_rfRecalcular()"><option>Día</option><option>Tarde</option><option>Noche</option></select></div>
         <div class="form-field"><label class="form-label">Código Empleado *</label><input class="form-input" id="rf-codigo" placeholder="Ej: M6327"></div>
         <div class="form-field"><label class="form-label">Nombre *</label><input class="form-input" id="rf-nombre" placeholder="Apellido Nombre"></div>
         <div class="form-field"><label class="form-label">Responsable</label><input class="form-input" id="rf-resp" placeholder="Nombre responsable"></div>
@@ -2954,6 +2954,74 @@ function clearRegFiltros() {
   loadRegistros();
 }
 
+// Poblar select de turnos en modal con los turnos activos
+async function _rfPoblarTurnos(){
+  if(typeof _cargarTurnosActivos==='function'){ await _cargarTurnosActivos(); }
+  var sel = document.getElementById('rf-turno');
+  if(!sel || !_turnosActivos || !_turnosActivos.length) return;
+  var val = sel.value;
+  sel.innerHTML = _turnosActivos.map(function(t){
+    return '<option value="'+t.turno+'">'+t.emoji+' '+t.turno+'</option>';
+  }).join('');
+  if(val) sel.value = val;
+}
+
+// Cargar config de horarios desde Supabase (cache)
+var _rfCfgHorarios = null;
+async function _rfCargarHorarios(){
+  if(_rfCfgHorarios) return _rfCfgHorarios;
+  var db = getClient(); if(!db) return null;
+  try{
+    var res = await db.from('config_turnos').select('*');
+    if(!res.error && res.data){
+      _rfCfgHorarios = {};
+      res.data.forEach(function(r){ _rfCfgHorarios[r.turno] = r; });
+    }
+  }catch(e){ console.warn('config_turnos no disponible',e); }
+  return _rfCfgHorarios;
+}
+
+// Recalcular proceso/colación cuando cambia fecha o turno en el modal
+async function _rfRecalcular(){
+  var fecha = document.getElementById('rf-fecha').value;
+  var turno = document.getElementById('rf-turno').value;
+  if(!fecha || !turno) return;
+
+  var cfg = await _rfCargarHorarios();
+  if(!cfg || !cfg[turno]) return;
+  var h = cfg[turno];
+
+  // Para Madrugada/Amanecida: la fecha del registro = fecha del proceso inicio
+  // Para turnos que cruzan medianoche: termino al día siguiente
+  var fSig = new Date(fecha+'T12:00:00'); fSig.setDate(fSig.getDate()+1);
+  var fSigStr = fSig.getFullYear()+'-'+String(fSig.getMonth()+1).padStart(2,'0')+'-'+String(fSig.getDate()).padStart(2,'0');
+  var fFin = h.proc_fin_sig ? fSigStr : fecha;
+
+  // Solo sobreescribir si los campos están vacíos o si el usuario confirma
+  var pi = document.getElementById('rf-proc-ini');
+  var pt = document.getElementById('rf-proc-ter');
+  if(pi && h.proc_ini) pi.value = fecha+'T'+h.proc_ini;
+  if(pt && h.proc_fin) pt.value = fFin+'T'+h.proc_fin;
+
+  // Colación
+  if(h.aplica_col !== false){
+    var ci = document.getElementById('rf-col-ini');
+    var ct = document.getElementById('rf-col-ter');
+    // Si la colación es en la madrugada/temprano y el turno cruza medianoche → día siguiente
+    var fCol = (h.proc_fin_sig && h.col_ini && h.col_ini < h.proc_ini) ? fSigStr : fecha;
+    if(ci && h.col_ini) ci.value = fCol+'T'+h.col_ini;
+    if(ct && h.col_fin) ct.value = fCol+'T'+h.col_fin;
+  }
+  // Desayuno
+  if(h.aplica_des !== false){
+    var di = document.getElementById('rf-desc-ini');
+    var dt = document.getElementById('rf-desc-ter');
+    var fDes = (h.proc_fin_sig && h.des_ini && h.des_ini < h.proc_ini) ? fSigStr : fecha;
+    if(di && h.des_ini) di.value = fDes+'T'+h.des_ini;
+    if(dt && h.des_fin) dt.value = fDes+'T'+h.des_fin;
+  }
+}
+
 function abrirModalRegistro(r = null) {
   _editingId = r ? r.id : null;
   document.getElementById('modalRegTitle').textContent = r ? 'Editar Registro' : 'Nuevo Registro';
@@ -2990,6 +3058,9 @@ function abrirModalRegistro(r = null) {
     const el = document.getElementById('rf-' + k);
     if (el) el.value = v;
   }
+  // Poblar select de turnos dinámicamente
+  _rfPoblarTurnos();
+  if(r && r.turno) document.getElementById('rf-turno').value = r.turno;
   document.getElementById('modalReg').classList.add('open');
 }
 
