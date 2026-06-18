@@ -3187,6 +3187,14 @@ function setTurno(t){
   if(_selF && _selF.value !== t) _selF.value = t;
   // Ajustar la fecha del registro según el ciclo del turno seleccionado
   _ajustarFechaPorTurno(t);
+  // Si el proceso ya estaba marcado, recalcular con la nueva fecha/turno
+  var procChk = document.getElementById('procesoProgramado');
+  if(procChk && procChk.checked) toggleProceso(true);
+  // Igual para desayuno y colación
+  var desChk = document.getElementById('desayunoProgramado');
+  if(desChk && desChk.checked) toggleDesayuno(true);
+  var colChk = document.getElementById('colacionProgramado');
+  if(colChk && colChk.checked) toggleColacion(true);
   // Limpiar caché de todos los turnos activos para forzar recarga
   (_turnosActivos||[]).forEach(tr => _cDelPfx('emp_t'+tr.turno));
   empLimpiar();
