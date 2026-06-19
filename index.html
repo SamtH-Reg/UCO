@@ -2853,24 +2853,6 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
   <div class="dash-card-full">
     <div class="dash-card-header">
       <span>📊</span>
-      <h4>Registros por Línea · Centro de Costo · Día</h4>
-      <span class="dash-card-badge" id="badgeCombo">0 registros</span>
-      <button class="btn btn-pdf btn-sm" style="margin-left:auto" onclick="exportarDashboardPDF()">📄 Exportar PDF</button>
-    </div>
-    <div class="combo-wrap">
-      <table class="combo-table" id="comboTable">
-        <thead id="comboThead"></thead>
-        <tbody id="comboTbody">
-          <tr><td colspan="3"><div class="dash-loading">Cargando...</div></td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- ── Tabla dinámica jerárquica: SubProceso → Línea → Función ── -->
-  <div class="dash-card-full">
-    <div class="dash-card-header">
-      <span>📊</span>
       <h4>Área de Producción — Semana</h4>
       <span class="dash-card-badge" id="badgePivot" style="background:var(--t-accent2,#0098d4)">—</span>
       <div style="display:flex;gap:6px;margin-left:auto">
@@ -2904,6 +2886,25 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
       </table>
     </div>
   </div>
+
+  <div class="dash-card-full">
+    <div class="dash-card-header">
+      <span>📊</span>
+      <h4>Registros por Línea · Centro de Costo · Diario</h4>
+      <span class="dash-card-badge" id="badgeCombo">0 registros</span>
+      <button class="btn btn-pdf btn-sm" style="margin-left:auto" onclick="exportarDashboardPDF()">📄 Exportar PDF</button>
+    </div>
+    <div class="combo-wrap">
+      <table class="combo-table" id="comboTable">
+        <thead id="comboThead"></thead>
+        <tbody id="comboTbody">
+          <tr><td colspan="3"><div class="dash-loading">Cargando...</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Tabla dinámica jerárquica: SubProceso → Línea → Función ── -->
 
   <!-- Resumen semanal de ausencias por estado -->
   <div class="dash-card-full">
@@ -5822,7 +5823,7 @@ function exportarDashboardPDF(){
   </div>
   <div class="meta">Generado: ${new Date().toLocaleDateString('es-CL',{year:'numeric',month:'long',day:'numeric'})}<br>${new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}</div>
 </div>
-<h2>📊 Registros por Línea · Centro de Costo · Día</h2>
+<h2>📊 Registros por Línea · Centro de Costo · Diario</h2>
 <table>
   <thead><tr><th>Línea</th><th>Centro de Costo</th>${diasHeader}</tr></thead>
   <tbody>${filas}</tbody>
