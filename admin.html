@@ -882,20 +882,20 @@ body {
                     style="width:15px;height:15px;cursor:pointer;accent-color:var(--danger)">
                 </th>
                 <th style="width:80px;white-space:nowrap">Acciones</th>
-                <th style="white-space:nowrap">Mes</th>
-                <th style="white-space:nowrap">Fecha</th>
-                <th style="white-space:nowrap">Responsable</th>
-                <th style="white-space:nowrap">Turno</th>
-                <th style="white-space:nowrap">Línea</th>
-                <th style="white-space:nowrap">Código</th>
-                <th style="white-space:nowrap">Nombre</th>
-                <th style="white-space:nowrap">Tipo Contrato</th>
-                <th style="white-space:nowrap">Función</th>
-                <th style="white-space:nowrap">Centro Costo</th>
-                <th style="white-space:nowrap">Especie</th>
-                <th style="white-space:nowrap">Producto</th>
-                <th style="white-space:nowrap">Proceso</th>
-                <th style="white-space:nowrap">Operación</th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('mes')">Mes <span id="ar-mes">↕</span></th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('fecha')">Fecha <span id="ar-fecha">↓</span></th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('responsable')">Responsable <span id="ar-responsable">↕</span></th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('turno')">Turno <span id="ar-turno">↕</span></th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('linea')">Línea <span id="ar-linea">↕</span></th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('codigo')">Código <span id="ar-codigo">↕</span></th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('nombre')">Nombre <span id="ar-nombre">↕</span></th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('tipo_contrato')">Tipo Contrato <span id="ar-tipo_contrato">↕</span></th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('funcion')">Función <span id="ar-funcion">↕</span></th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('centro_costo')">Centro Costo <span id="ar-centro_costo">↕</span></th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('especie')">Especie <span id="ar-especie">↕</span></th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('producto')">Producto <span id="ar-producto">↕</span></th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('proceso')">Proceso <span id="ar-proceso">↕</span></th>
+                <th class="th-sort" style="white-space:nowrap" onclick="sortReg('operacion')">Operación <span id="ar-operacion">↕</span></th>
                 <th style="white-space:nowrap">P. Inicio</th>
                 <th style="white-space:nowrap">P. Término</th>
                 <th style="white-space:nowrap">Atraso (min)</th>
@@ -2977,6 +2977,29 @@ async function _cargarFiltroLineas(){
   _lineasCargadas = true;
 }
 
+// Estado del orden de la tabla de registros
+var _regSort = { col: 'fecha', dir: 'desc' };
+
+function sortReg(col){
+  if(_regSort.col === col){
+    _regSort.dir = _regSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _regSort.col = col;
+    // Por defecto: textos a-z, fechas/números desc
+    _regSort.dir = (col === 'fecha' || col === 'mes') ? 'desc' : 'asc';
+  }
+  // Actualizar flechas visuales
+  var cols = ['mes','fecha','responsable','turno','linea','codigo','nombre','tipo_contrato','funcion','centro_costo','especie','producto','proceso','operacion'];
+  cols.forEach(function(c){
+    var el = document.getElementById('ar-'+c);
+    if(!el) return;
+    if(c === _regSort.col) el.textContent = _regSort.dir === 'asc' ? '↑' : '↓';
+    else el.textContent = '↕';
+  });
+  _regPage = 1;
+  loadRegistros();
+}
+
 async function loadRegistros() {
   const db = getClient();
   if (!db) { toast('Configura la conexión Supabase primero','error'); return; }
@@ -3001,7 +3024,12 @@ async function loadRegistros() {
   if (search) q = q.or(`codigo.ilike.%${search}%,nombre.ilike.%${search}%,responsable.ilike.%${search}%`);
 
   const from = (_regPage - 1) * REG_PER_PAGE;
-  q = q.order('fecha', {ascending:false}).order('created_at',{ascending:false}).range(from, from + REG_PER_PAGE - 1);
+  // Aplicar orden seleccionado por el usuario (por defecto: fecha desc)
+  var sortCol = _regSort.col || 'fecha';
+  var sortAsc = _regSort.dir === 'asc';
+  q = q.order(sortCol, {ascending: sortAsc});
+  if(sortCol !== 'fecha') q = q.order('fecha', {ascending:false});
+  q = q.order('created_at',{ascending:false}).range(from, from + REG_PER_PAGE - 1);
 
   const { data, error, count } = await q;
   if (error) { toast('Error cargando registros: '+error.message,'error'); tbody.innerHTML=''; return; }
