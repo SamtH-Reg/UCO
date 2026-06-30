@@ -826,6 +826,9 @@ body {
           <button class="btn btn-secondary" onclick="loadRegistros()">🔄 Recargar</button>
           <button class="btn btn-secondary" id="btnExportarReg" onclick="exportarRegistrosExcel()" title="Exporta los registros filtrados en pantalla a Excel">🟢 Exportar Excel</button>
           <button class="btn btn-secondary" onclick="abrirImportarRegistros()" title="Importar registros desde Excel">📥 Importar Excel</button>
+          <button class="btn btn-primary"   id="btnEditarSel" onclick="abrirEditarMasivo()" style="display:none;background:#0098d4;border-color:#0098d4">
+            ✏️ Editar masivo (<span id="cntSelE">0</span>)
+          </button>
           <button class="btn btn-danger"    id="btnEliminarSel" onclick="confirmarEliminarSeleccion()" style="display:none">
             🗑 Eliminar seleccionados (<span id="cntSel">0</span>)
           </button>
@@ -2072,6 +2075,84 @@ body {
 </div>
 
 <!-- ══ MODAL REGISTRO ══ -->
+<!-- ══ MODAL EDICIÓN MASIVA ══ -->
+<div class="modal-overlay" id="modalEdicMasiva">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-header">
+      <h2>✏️ Editar masivo</h2>
+      <button class="modal-close" onclick="cerrarModal('modalEdicMasiva')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin:0 0 14px">
+        Cambiarás los campos marcados en <strong id="em-cnt">0</strong> registro(s).
+        Los campos en blanco <strong>no se modifican</strong>.
+      </p>
+
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" type="button" onclick="emSelVisibles()">☑ Seleccionar visibles</button>
+        <button class="btn btn-secondary btn-sm" type="button" onclick="emDeselTodos()">✕ Deseleccionar todos</button>
+      </div>
+
+      <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-field">
+          <label class="form-label">Línea</label>
+          <input class="form-input" id="em-linea" list="dl-em-linea" placeholder="Sin cambio" autocomplete="off">
+          <datalist id="dl-em-linea"></datalist>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Especie</label>
+          <input class="form-input" id="em-especie" list="dl-em-especie" placeholder="Sin cambio" autocomplete="off">
+          <datalist id="dl-em-especie"></datalist>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Producto</label>
+          <input class="form-input" id="em-producto" list="dl-em-producto" placeholder="Sin cambio" autocomplete="off">
+          <datalist id="dl-em-producto"></datalist>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Proceso</label>
+          <input class="form-input" id="em-proceso" list="dl-em-proceso" placeholder="Sin cambio" autocomplete="off">
+          <datalist id="dl-em-proceso"></datalist>
+        </div>
+        <div class="form-field" style="grid-column:1/-1">
+          <label class="form-label">Operación</label>
+          <input class="form-input" id="em-operacion" list="dl-em-operacion" placeholder="Sin cambio" autocomplete="off">
+          <datalist id="dl-em-operacion"></datalist>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="cerrarModal('modalEdicMasiva')">Cancelar</button>
+      <button class="btn btn-primary" onclick="emVistaPrevia()">👁 Vista previa</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL VISTA PREVIA EDICIÓN MASIVA ══ -->
+<div class="modal-overlay" id="modalEdicMasivaPrev">
+  <div class="modal" style="max-width:900px">
+    <div class="modal-header">
+      <h2>👁 Vista previa de cambios</h2>
+      <button class="modal-close" onclick="cerrarModal('modalEdicMasivaPrev')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="em-resumen" style="background:var(--surface2);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px"></div>
+      <div class="data-table-wrap" style="max-height:380px;overflow-y:auto">
+        <table class="data-table" style="font-size:12px">
+          <thead><tr>
+            <th>Código</th><th>Nombre</th><th>Campo</th><th>Actual</th><th>Nuevo</th>
+          </tr></thead>
+          <tbody id="em-prev-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="cerrarModal('modalEdicMasivaPrev')">Volver a editar</button>
+      <button class="btn btn-primary" id="em-btn-aplicar" onclick="emAplicar()">✅ Aplicar cambios</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalReg">
   <div class="modal">
     <div class="modal-header">
@@ -4182,6 +4263,10 @@ function actualizarSeleccion() {
   var master  = document.getElementById('chkTodos');
   if (cnt)  cnt.textContent = marcados.length;
   if (btn)  btn.style.display = marcados.length > 0 ? '' : 'none';
+  var btnE = document.getElementById('btnEditarSel');
+  var cntE = document.getElementById('cntSelE');
+  if (cntE) cntE.textContent = marcados.length;
+  if (btnE) btnE.style.display = marcados.length > 0 ? '' : 'none';
   if (master) {
     master.checked       = marcados.length > 0 && marcados.length === checks.length;
     master.indeterminate = marcados.length > 0 && marcados.length < checks.length;
@@ -4196,6 +4281,179 @@ function actualizarSeleccion() {
 function toggleTodos(checked) {
   document.querySelectorAll('.chk-reg').forEach(function(c) { c.checked = checked; });
   actualizarSeleccion();
+}
+
+// ════════════════════════════════════════════════════════════
+//  EDICIÓN MASIVA DE REGISTROS
+// ════════════════════════════════════════════════════════════
+var _emIdsSel = [];   // ids seleccionados al abrir el modal
+var _emCambios = null; // {linea, especie, producto, proceso, operacion}
+
+async function abrirEditarMasivo(){
+  _emIdsSel = Array.from(document.querySelectorAll('.chk-reg:checked')).map(function(c){ return c.value; });
+  if(!_emIdsSel.length){ toast('No hay registros seleccionados','warning'); return; }
+
+  // Resetear campos del modal
+  ['linea','especie','producto','proceso','operacion'].forEach(function(c){
+    var el = document.getElementById('em-'+c); if(el) el.value = '';
+  });
+  document.getElementById('em-cnt').textContent = _emIdsSel.length;
+
+  // Poblar datalists con valores existentes en los registros cargados
+  await _emCargarSugerencias();
+
+  document.getElementById('modalEdicMasiva').classList.add('open');
+}
+
+async function _emCargarSugerencias(){
+  // Tomar valores únicos de los registros visibles para los datalists
+  var data = window._regDataActual || [];
+  var sets = { linea:new Set(), especie:new Set(), producto:new Set(), proceso:new Set(), operacion:new Set() };
+  data.forEach(function(r){
+    if(r.linea)     sets.linea.add(r.linea);
+    if(r.especie)   sets.especie.add(r.especie);
+    if(r.producto)  sets.producto.add(r.producto);
+    if(r.proceso)   sets.proceso.add(r.proceso);
+    if(r.operacion) sets.operacion.add(r.operacion);
+  });
+
+  // Complementar desde Supabase con valores únicos de las tablas maestras
+  var db = getClient();
+  if(db){
+    try{
+      var rL = await db.from('lineas').select('nombre');
+      (rL.data||[]).forEach(function(x){ if(x.nombre) sets.linea.add(x.nombre); });
+    }catch(e){}
+    try{
+      var rP = await db.from('procesos').select('nombre');
+      (rP.data||[]).forEach(function(x){ if(x.nombre) sets.proceso.add(x.nombre); });
+    }catch(e){}
+  }
+
+  ['linea','especie','producto','proceso','operacion'].forEach(function(c){
+    var dl = document.getElementById('dl-em-'+c);
+    if(!dl) return;
+    var arr = Array.from(sets[c]).sort();
+    dl.innerHTML = arr.map(function(v){ return '<option value="'+esc(v)+'"></option>'; }).join('');
+  });
+}
+
+function emSelVisibles(){
+  document.querySelectorAll('.chk-reg').forEach(function(c){ c.checked = true; });
+  actualizarSeleccion();
+  _emIdsSel = Array.from(document.querySelectorAll('.chk-reg:checked')).map(function(c){ return c.value; });
+  document.getElementById('em-cnt').textContent = _emIdsSel.length;
+  toast(_emIdsSel.length+' registros seleccionados','info',2000);
+}
+
+function emDeselTodos(){
+  document.querySelectorAll('.chk-reg').forEach(function(c){ c.checked = false; });
+  actualizarSeleccion();
+  cerrarModal('modalEdicMasiva');
+}
+
+function emVistaPrevia(){
+  var cambios = {
+    linea:     (document.getElementById('em-linea').value || '').trim(),
+    especie:   (document.getElementById('em-especie').value || '').trim(),
+    producto:  (document.getElementById('em-producto').value || '').trim(),
+    proceso:   (document.getElementById('em-proceso').value || '').trim(),
+    operacion: (document.getElementById('em-operacion').value || '').trim()
+  };
+  // Filtrar campos vacíos (no se modifican)
+  var aplicar = {};
+  Object.keys(cambios).forEach(function(k){ if(cambios[k]) aplicar[k] = cambios[k]; });
+
+  if(!Object.keys(aplicar).length){
+    toast('No hay cambios para aplicar — todos los campos están vacíos','warning');
+    return;
+  }
+
+  _emCambios = aplicar;
+
+  // Construir vista previa con los datos en memoria
+  var data = window._regDataActual || [];
+  var idsSet = new Set(_emIdsSel.map(String));
+  var seleccionados = data.filter(function(r){ return idsSet.has(String(r.id)); });
+
+  // Resumen arriba
+  var resumen = '<strong>'+_emIdsSel.length+' registro(s) afectado(s).</strong><br>'
+    + 'Cambios a aplicar: '
+    + Object.keys(aplicar).map(function(k){
+        return '<span style="background:#0098d422;color:#0098d4;padding:2px 8px;border-radius:10px;font-weight:600;margin:0 2px">'+k+' → '+esc(aplicar[k])+'</span>';
+      }).join('');
+  document.getElementById('em-resumen').innerHTML = resumen;
+
+  // Lista de diferencias por fila (solo muestra primeras 50 para no saturar)
+  var rows = [];
+  var muestra = seleccionados.slice(0, 50);
+  muestra.forEach(function(r){
+    Object.keys(aplicar).forEach(function(campo){
+      var valActual = r[campo] || '—';
+      var valNuevo  = aplicar[campo];
+      if(String(valActual).trim() === String(valNuevo).trim()) return; // sin cambio real
+      rows.push('<tr>'
+        + '<td><strong style="font-family:var(--mono);color:var(--accent2)">'+esc(r.codigo||'')+'</strong></td>'
+        + '<td>'+esc(r.nombre||'')+'</td>'
+        + '<td><span style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted)">'+campo+'</span></td>'
+        + '<td style="color:#888"><s>'+esc(valActual)+'</s></td>'
+        + '<td style="color:#0098d4;font-weight:600">'+esc(valNuevo)+'</td>'
+        + '</tr>');
+    });
+  });
+
+  var body = document.getElementById('em-prev-body');
+  if(!rows.length){
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--muted)">Los registros seleccionados ya tienen estos valores — no hay cambios reales que aplicar.</td></tr>';
+    document.getElementById('em-btn-aplicar').disabled = true;
+  } else {
+    body.innerHTML = rows.join('');
+    if(seleccionados.length > 50){
+      body.innerHTML += '<tr><td colspan="5" style="text-align:center;padding:10px;color:var(--muted);font-style:italic">+ '+(seleccionados.length-50)+' registros más con cambios similares…</td></tr>';
+    }
+    document.getElementById('em-btn-aplicar').disabled = false;
+  }
+
+  cerrarModal('modalEdicMasiva');
+  document.getElementById('modalEdicMasivaPrev').classList.add('open');
+}
+
+async function emAplicar(){
+  if(!_emCambios || !_emIdsSel.length) return;
+  var db = getClient(); if(!db){ toast('Sin conexión','error'); return; }
+
+  var btn = document.getElementById('em-btn-aplicar');
+  btn.disabled = true;
+  btn.textContent = '⏳ Aplicando…';
+
+  // Actualizar en lotes (Supabase admite UPDATE con .in())
+  var BATCH = 200;
+  var totalOk = 0;
+  var errores = [];
+
+  try{
+    for(var i=0; i<_emIdsSel.length; i+=BATCH){
+      var lote = _emIdsSel.slice(i, i+BATCH);
+      var { error } = await db.from('registros').update(_emCambios).in('id', lote);
+      if(error){ errores.push(error.message); console.error(error); }
+      else totalOk += lote.length;
+    }
+  } catch(e){
+    errores.push(e.message);
+  }
+
+  cerrarModal('modalEdicMasivaPrev');
+
+  if(errores.length){
+    toast('Error en '+errores.length+' lote(s): '+errores[0],'error');
+  } else {
+    toast('✅ '+totalOk+' registro(s) actualizados','success');
+  }
+
+  // Limpiar selección y recargar
+  document.querySelectorAll('.chk-reg').forEach(function(c){ c.checked = false; });
+  actualizarSeleccion();
+  loadRegistros();
 }
 
 function confirmarEliminarSeleccion() {
