@@ -848,6 +848,9 @@ body {
             <option>Tarde</option>
             <option>Noche</option>
           </select>
+          <select class="filter-select" id="regLinea" onchange="loadRegistros()" style="min-width:140px">
+            <option value="">Todas las líneas</option>
+          </select>
           <input type="date" class="filter-select" id="regDesde" onchange="loadRegistros()">
           <input type="date" class="filter-select" id="regHasta" onchange="loadRegistros()">
           <button class="btn btn-secondary btn-sm" onclick="clearRegFiltros()">✕ Limpiar</button>
@@ -2940,6 +2943,40 @@ async function loadCounts() {
 let _regPage = 1;
 const REG_PER_PAGE = 50;
 
+// Carga las líneas únicas desde Supabase para poblar el filtro
+var _lineasCargadas = false;
+async function _cargarFiltroLineas(){
+  if(_lineasCargadas) return;
+  var sel = document.getElementById('regLinea');
+  if(!sel) return;
+  var db = getClient(); if(!db) return;
+
+  // 1) Intentar desde tabla maestra lineas
+  var lineas = new Set();
+  try{
+    var rL = await db.from('lineas').select('nombre');
+    (rL.data||[]).forEach(function(x){ if(x.nombre) lineas.add(String(x.nombre).trim()); });
+  }catch(e){}
+
+  // 2) Complementar con líneas únicas de registros (las que realmente se usan)
+  try{
+    var pag = 0, more = true;
+    while(more && pag < 30){   // máximo 30 lotes (30k filas)
+      var rR = await db.from('registros').select('linea').range(pag*1000, pag*1000+999);
+      if(!rR.data || !rR.data.length){ more = false; break; }
+      rR.data.forEach(function(x){ if(x.linea) lineas.add(String(x.linea).trim()); });
+      if(rR.data.length < 1000) more = false; else pag++;
+    }
+  }catch(e){}
+
+  var valActual = sel.value;
+  var arr = Array.from(lineas).sort();
+  sel.innerHTML = '<option value="">Todas las líneas</option>' +
+    arr.map(function(l){ return '<option value="'+esc(l)+'">'+esc(l)+'</option>'; }).join('');
+  if(valActual) sel.value = valActual;
+  _lineasCargadas = true;
+}
+
 async function loadRegistros() {
   const db = getClient();
   if (!db) { toast('Configura la conexión Supabase primero','error'); return; }
@@ -2949,11 +2986,16 @@ async function loadRegistros() {
 
   const search = document.getElementById('regSearch').value.trim();
   const turno  = document.getElementById('regTurno').value;
+  const linea  = document.getElementById('regLinea') ? document.getElementById('regLinea').value : '';
   const desde  = document.getElementById('regDesde').value;
   const hasta  = document.getElementById('regHasta').value;
 
+  // Poblar el selector de líneas la primera vez con todas las líneas disponibles
+  _cargarFiltroLineas();
+
   let q = db.from('registros').select('*', { count:'exact' });
   if (turno)  q = q.eq('turno', turno);
+  if (linea)  q = q.eq('linea', linea);
   if (desde)  q = q.gte('fecha', desde);
   if (hasta)  q = q.lte('fecha', hasta);
   if (search) q = q.or(`codigo.ilike.%${search}%,nombre.ilike.%${search}%,responsable.ilike.%${search}%`);
@@ -3039,6 +3081,7 @@ async function renderRegStats(total) {
 function clearRegFiltros() {
   document.getElementById('regSearch').value = '';
   document.getElementById('regTurno').value  = '';
+  var lineaSel = document.getElementById('regLinea'); if(lineaSel) lineaSel.value = '';
   document.getElementById('regDesde').value  = '';
   document.getElementById('regHasta').value  = '';
   _regPage = 1;
