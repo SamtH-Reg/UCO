@@ -403,6 +403,11 @@ async function eliminarRegistro(id){
     const {error}=await _sbDb().from('registros').delete().eq('id',id);
     if(error) return _err('Error al eliminar: '+error.message,'ERR_DELETE');
     if(antes?.fecha){const [s,a]=_isoSem(new Date(antes.fecha+'T12:00:00')); _cDel('sem_'+s+'_'+a);}
+    // Limpiar el registro eliminado de la caché de conflictos si existía
+    if(antes?.fecha && typeof _conflictosSemana !== 'undefined' && _conflictosSemana[antes.fecha]){
+      _conflictosSemana[antes.fecha] = _conflictosSemana[antes.fecha].filter(function(c){ return c.codigo !== antes.codigo; });
+      if(!_conflictosSemana[antes.fecha].length) delete _conflictosSemana[antes.fecha];
+    }
     await _audit('DELETE',`id ${id} | ${antes?.codigo} ${antes?.nombre} | ${antes?.fecha}`);
     return _ok(null,'✅ Registro eliminado correctamente.');
   }catch(e){ return _err('Error al eliminar: '+e.message,'ERR_DELETE'); }
@@ -5862,6 +5867,40 @@ let _ausentesEstado  = '';      // '' | 'Sin registro' | 'Permiso Personal' | 'P
 let _ausenciasSemanales = {}; // fecha → {sinRegistro, permiso, vacaciones}
 let _conflictosSemana   = {}; // fecha → [{codigo,nombre,estado}]
 
+// Descarta un conflicto: verifica en Supabase si el registro aún existe
+// y si NO existe (era un bug de caché), lo elimina del panel definitivamente
+async function descartarConflicto(codigo, fecha){
+  if(!codigo || !fecha) return;
+  try{
+    const {data, error} = await _sbDb().from('registros')
+      .select('id', {count:'exact', head:false})
+      .eq('codigo', codigo).eq('fecha', fecha).limit(1);
+    if(error){ showToast('Error verificando: '+error.message, 'error'); return; }
+
+    if(!data || !data.length){
+      // No existe → era caché stale, lo quitamos del panel
+      if(_conflictosSemana[fecha]){
+        _conflictosSemana[fecha] = _conflictosSemana[fecha].filter(c=>c.codigo !== codigo);
+        if(!_conflictosSemana[fecha].length) delete _conflictosSemana[fecha];
+      }
+      renderConflictos();
+      showToast('✅ Conflicto descartado (el registro ya no existe)','success');
+    } else {
+      // Sí existe → preguntar si quiere eliminarlo
+      if(confirm('El registro '+codigo+' del '+fecha+' SÍ existe en la base de datos.\n\n¿Quieres eliminarlo? El empleado tiene permiso/vacación ese día.')){
+        const {error:err2} = await _sbDb().from('registros').delete().eq('codigo', codigo).eq('fecha', fecha);
+        if(err2){ showToast('Error al eliminar: '+err2.message,'error'); return; }
+        if(_conflictosSemana[fecha]){
+          _conflictosSemana[fecha] = _conflictosSemana[fecha].filter(c=>c.codigo !== codigo);
+          if(!_conflictosSemana[fecha].length) delete _conflictosSemana[fecha];
+        }
+        renderConflictos();
+        showToast('🗑 Registro eliminado','success');
+      }
+    }
+  }catch(e){ showToast('Error: '+e.message,'error'); }
+}
+
 function renderConflictos(){
   // Renderiza el panel de alertas encima de la tabla de ausencias
   const container = document.getElementById('conflictosPanel');
@@ -5901,6 +5940,10 @@ function renderConflictos(){
       <span style="flex:1">${c.nombre}</span>
       <span class="conf-fecha">${fmtFecha(c.fecha)}</span>
       <span class="conf-tipo ${tipoClass(c.estado)}">${c.estado}</span>
+      <button onclick="descartarConflicto('${c.codigo}','${c.fecha}')" title="Verificar/Descartar este conflicto"
+        style="background:transparent;border:1px solid rgba(224,82,82,.4);color:#e05252;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">
+        ✕
+      </button>
     </div>`).join('');
 
   container.innerHTML = `
