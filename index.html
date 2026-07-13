@@ -2,8 +2,21 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Registro de Asistencia</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Registro de Asistencia · Friosur</title>
+
+<!-- ═══ PWA META TAGS ═══ -->
+<meta name="theme-color" content="#0098d4">
+<meta name="description" content="Sistema de Registro de Asistencia - Pesquera Friosur SpA">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Friosur">
+<meta name="application-name" content="Friosur">
+
+<!-- Icono base64 SVG (logo simplificado con casa/planta) -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230098d4'/><path d='M20 75 L20 45 L50 25 L80 45 L80 75 Z' fill='none' stroke='white' stroke-width='4' stroke-linejoin='round'/><rect x='42' y='55' width='16' height='20' fill='white'/><circle cx='30' cy='58' r='3' fill='white'/><circle cx='70' cy='58' r='3' fill='white'/></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230098d4'/><path d='M20 75 L20 45 L50 25 L80 45 L80 75 Z' fill='none' stroke='white' stroke-width='4' stroke-linejoin='round'/><rect x='42' y='55' width='16' height='20' fill='white'/><circle cx='30' cy='58' r='3' fill='white'/><circle cx='70' cy='58' r='3' fill='white'/></svg>">
 <!-- ── SUPABASE: reemplaza Google Apps Script backend ── -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -1260,6 +1273,8 @@ input.req-error,select.req-error{
 .pivot-table .pivot-l3 td{background:transparent;padding:5px 12px;padding-left:58px;font-size:12px;color:var(--muted)}
 .pivot-table .pivot-l3:hover td{background:color-mix(in srgb,var(--t-accent2,#0098d4) 7%,transparent)}
 .pivot-table .pivot-num{text-align:center;font-family:'Calibri',sans-serif;font-weight:600}
+.pivot-table td[data-tip]{cursor:help;position:relative}
+.pivot-table td[data-tip]:hover{background:color-mix(in srgb,var(--t-accent2,#0098d4) 18%,transparent)!important}
 .pivot-table tr.pivot-total td{background:linear-gradient(90deg,var(--t-navy,#0d2137),var(--t-blue,#1a3a5c))!important;padding:10px 12px;font-weight:700;font-size:13px;border-top:2px solid var(--t-accent2,#0098d4);color:var(--t-text-inv,#fff)!important}
 /* ── FIN PIVOT ─── */
 
@@ -1652,7 +1667,7 @@ body.noche-mode .row-cambio-proceso{background:rgba(255,140,0,.08)!important;out
   background:var(--t-card,#0f1e2d);border:1px solid var(--t-border,#2a4a6a);
   border-radius:10px;padding:10px 13px;
   box-shadow:0 8px 28px rgba(0,0,0,.45);
-  min-width:200px;max-width:280px;
+  min-width:200px;max-width:340px;max-height:400px;overflow-y:auto;
   font-family:'Calibri',sans-serif;font-size:12px;color:#e8f0f7;
   pointer-events:none;
 }
@@ -5867,38 +5882,89 @@ let _ausentesEstado  = '';      // '' | 'Sin registro' | 'Permiso Personal' | 'P
 let _ausenciasSemanales = {}; // fecha → {sinRegistro, permiso, vacaciones}
 let _conflictosSemana   = {}; // fecha → [{codigo,nombre,estado}]
 
-// Descarta un conflicto: verifica en Supabase si el registro aún existe
-// y si NO existe (era un bug de caché), lo elimina del panel definitivamente
+// Descarta un conflicto verificando AMBAS fuentes en Supabase:
+//   1) ¿El registro existe? Si no, era caché stale del panel.
+//   2) ¿La vacación/permiso/licencia existe aún y cubre esa fecha? Si no,
+//      es basura en Supabase — te ofrece limpiarla.
 async function descartarConflicto(codigo, fecha){
   if(!codigo || !fecha) return;
+  const db = _sbDb();
   try{
-    const {data, error} = await _sbDb().from('registros')
-      .select('id', {count:'exact', head:false})
-      .eq('codigo', codigo).eq('fecha', fecha).limit(1);
-    if(error){ showToast('Error verificando: '+error.message, 'error'); return; }
+    // 1. ¿Existe registro para ese código+fecha?
+    const {data: regs, error: err1} = await db.from('registros')
+      .select('id').eq('codigo', codigo).eq('fecha', fecha).limit(1);
+    if(err1){ showToast('Error verificando registro: '+err1.message,'error'); return; }
+    const tieneRegistro = regs && regs.length > 0;
 
-    if(!data || !data.length){
-      // No existe → era caché stale, lo quitamos del panel
+    // 2. ¿Tiene vacación/permiso activo esa fecha?
+    let tieneVacacion = false;
+    let vacInfo = null;
+    try{
+      const {data: vacs} = await db.from('vacaciones')
+        .select('id,fecha_inicio,fecha_fin').eq('codigo', codigo);
+      (vacs||[]).forEach(v=>{
+        const ini = v.fecha_inicio || '';
+        const fin = v.fecha_fin || '';
+        const enRango = (!ini || fecha >= ini) && (!fin || fecha <= fin);
+        if(enRango){ tieneVacacion = true; vacInfo = v; }
+      });
+    }catch(e){}
+
+    let tienePermiso = false;
+    try{
+      const {data: perms} = await db.from('permisos')
+        .select('id').eq('codigo', codigo).eq('fecha', fecha).limit(1);
+      tienePermiso = perms && perms.length > 0;
+    }catch(e){}
+
+    // Diagnóstico según los cuatro estados posibles
+    const _quitarConflictoLocal = () => {
       if(_conflictosSemana[fecha]){
         _conflictosSemana[fecha] = _conflictosSemana[fecha].filter(c=>c.codigo !== codigo);
         if(!_conflictosSemana[fecha].length) delete _conflictosSemana[fecha];
       }
       renderConflictos();
-      showToast('✅ Conflicto descartado (el registro ya no existe)','success');
-    } else {
-      // Sí existe → preguntar si quiere eliminarlo
-      if(confirm('El registro '+codigo+' del '+fecha+' SÍ existe en la base de datos.\n\n¿Quieres eliminarlo? El empleado tiene permiso/vacación ese día.')){
-        const {error:err2} = await _sbDb().from('registros').delete().eq('codigo', codigo).eq('fecha', fecha);
-        if(err2){ showToast('Error al eliminar: '+err2.message,'error'); return; }
-        if(_conflictosSemana[fecha]){
-          _conflictosSemana[fecha] = _conflictosSemana[fecha].filter(c=>c.codigo !== codigo);
-          if(!_conflictosSemana[fecha].length) delete _conflictosSemana[fecha];
-        }
-        renderConflictos();
-        showToast('🗑 Registro eliminado','success');
-      }
+    };
+
+    if(!tieneRegistro && !tieneVacacion && !tienePermiso){
+      // Todo limpio — era caché stale
+      _quitarConflictoLocal();
+      _cDel('ext_vac'); _cDelPfx('ext_perm_');
+      showToast('✅ No hay conflicto real. Panel actualizado.','success');
+      return;
     }
-  }catch(e){ showToast('Error: '+e.message,'error'); }
+
+    if(!tieneRegistro && (tieneVacacion || tienePermiso)){
+      // Registro ya no existe, pero el conflicto quedó por caché
+      _quitarConflictoLocal();
+      showToast('✅ Conflicto descartado (el registro ya fue eliminado)','success');
+      return;
+    }
+
+    if(tieneRegistro && !tieneVacacion && !tienePermiso){
+      // Al revés: hay registro pero NO hay vacación/permiso → falso positivo
+      _quitarConflictoLocal();
+      _cDel('ext_vac'); _cDelPfx('ext_perm_');
+      showToast('✅ El empleado ya no tiene vacación/permiso ese día. Conflicto descartado.','success');
+      return;
+    }
+
+    // Caso real: existen ambos → conflicto legítimo, ofrecer resoluciones
+    let msg = 'Este conflicto ES real:\n\n';
+    msg += '• Registro del '+fecha+' ✓\n';
+    if(tieneVacacion) msg += '• Vacación activa ('+vacInfo.fecha_inicio+' → '+vacInfo.fecha_fin+') ✓\n';
+    if(tienePermiso)  msg += '• Permiso ese día ✓\n';
+    msg += '\n¿Qué quieres hacer?\n';
+    msg += '  Aceptar = Eliminar el REGISTRO\n';
+    msg += '  Cancelar = No hacer nada';
+
+    if(confirm(msg)){
+      const {error:err2} = await db.from('registros').delete().eq('codigo', codigo).eq('fecha', fecha);
+      if(err2){ showToast('Error al eliminar: '+err2.message,'error'); return; }
+      _quitarConflictoLocal();
+      showToast('🗑 Registro eliminado','success');
+    }
+  }catch(e){ showToast('Error: '+e.message,'error'); console.error(e); }
 }
 
 function renderConflictos(){
@@ -6423,15 +6489,18 @@ function ausTipShow(e, el){
   try { data = JSON.parse(decodeURIComponent(el.dataset.tip)); } catch{ return; }
 
   const { label, fecha, personas } = data;
+  const MAX_MOSTRAR = 30;
+  const mostrar = personas.slice(0, MAX_MOSTRAR);
+  const restante = personas.length - mostrar.length;
   const rows = personas.length
-    ? personas.map(p=>`<div class="aus-tip-row">
+    ? mostrar.map(p=>`<div class="aus-tip-row">
         <span class="aus-tip-cod">${p.codigo||'—'}</span>
         <span class="aus-tip-nom">${p.nombre||'—'}</span>
-      </div>`).join('')
+      </div>`).join('') + (restante > 0 ? `<div class="aus-tip-empty">+ ${restante} más…</div>` : '')
     : `<div class="aus-tip-empty">Sin detalle disponible</div>`;
 
   tip.innerHTML = `
-    <div class="aus-tip-title">${label} &nbsp;·&nbsp; ${fecha}</div>
+    <div class="aus-tip-title">${label} &nbsp;·&nbsp; ${fecha} &nbsp;·&nbsp; ${personas.length} persona(s)</div>
     ${rows}`;
   tip.style.display = 'block';
   ausTipMove(e);
@@ -7531,6 +7600,8 @@ function renderPivotTable(regs, dias, filtro) {
     if (data.totals[fec] === undefined) return;
 
     var cod = String(r[5]||'').trim().toLowerCase();
+    var codOrig = String(r[5]||'').trim();
+    var nomOrig = String(r[6]||'').trim();
     var tur = String(r[3]||'').trim().toLowerCase();
     var lin = String(r[4]||'').trim() || '—';
     var fun = String(r[8]||'').trim() || '—';
@@ -7544,19 +7615,27 @@ function renderPivotTable(regs, dias, filtro) {
     // Buscar subproceso de la línea
     var sub = (_mapaSubproceso[lin.toUpperCase()] || _clasificarSubproceso(lin)).toUpperCase();
 
+    var _persona = { codigo: codOrig || '—', nombre: nomOrig || '' };
+
     // Nivel 1: SubProceso
-    if (!data.l1[sub]) data.l1[sub] = { totals: {}, l2: {}, granTotal: 0 };
+    if (!data.l1[sub]) data.l1[sub] = { totals: {}, personas: {}, l2: {}, granTotal: 0 };
     data.l1[sub].totals[fec] = (data.l1[sub].totals[fec] || 0) + 1;
+    if (!data.l1[sub].personas[fec]) data.l1[sub].personas[fec] = [];
+    data.l1[sub].personas[fec].push(_persona);
     data.l1[sub].granTotal++;
 
     // Nivel 2: Línea
-    if (!data.l1[sub].l2[lin]) data.l1[sub].l2[lin] = { totals: {}, l3: {}, granTotal: 0 };
+    if (!data.l1[sub].l2[lin]) data.l1[sub].l2[lin] = { totals: {}, personas: {}, l3: {}, granTotal: 0 };
     data.l1[sub].l2[lin].totals[fec] = (data.l1[sub].l2[lin].totals[fec] || 0) + 1;
+    if (!data.l1[sub].l2[lin].personas[fec]) data.l1[sub].l2[lin].personas[fec] = [];
+    data.l1[sub].l2[lin].personas[fec].push(_persona);
     data.l1[sub].l2[lin].granTotal++;
 
     // Nivel 3: Función
-    if (!data.l1[sub].l2[lin].l3[fun]) data.l1[sub].l2[lin].l3[fun] = { totals: {}, granTotal: 0 };
+    if (!data.l1[sub].l2[lin].l3[fun]) data.l1[sub].l2[lin].l3[fun] = { totals: {}, personas: {}, granTotal: 0 };
     data.l1[sub].l2[lin].l3[fun].totals[fec] = (data.l1[sub].l2[lin].l3[fun].totals[fec] || 0) + 1;
+    if (!data.l1[sub].l2[lin].l3[fun].personas[fec]) data.l1[sub].l2[lin].l3[fun].personas[fec] = [];
+    data.l1[sub].l2[lin].l3[fun].personas[fec].push(_persona);
     data.l1[sub].l2[lin].l3[fun].granTotal++;
 
     data.totals[fec]++;
@@ -7588,6 +7667,24 @@ function _pivotProm(totals, dias) {
   return '≈ ' + Math.round(gt / con);
 }
 
+// Helper: genera atributos onmouseenter/leave para celda con tooltip
+function _pivotTipAttr(label, fecha, personas){
+  if(!personas || !personas.length) return '';
+  // Deduplicar personas por código
+  var vistos = {};
+  var uniq = [];
+  personas.forEach(function(p){
+    var k = (p.codigo||'')+'|'+(p.nombre||'');
+    if(!vistos[k]){ vistos[k]=1; uniq.push(p); }
+  });
+  uniq.sort(function(a,b){ return (a.nombre||'').localeCompare(b.nombre||'','es'); });
+  // Convertir fecha yyyy-mm-dd a dd-mm-yyyy
+  var f = fecha ? fecha.split('-').reverse().join('-') : '';
+  var data = { label:label, fecha:f, personas:uniq };
+  var enc = encodeURIComponent(JSON.stringify(data));
+  return ' data-tip="'+enc+'" onmouseenter="ausTipShow(event,this)" onmousemove="ausTipMove(event)" onmouseleave="ausTipHide()"';
+}
+
 function renderPivotBody() {
   var tbody = document.getElementById('tbodyPivot');
   if (!tbody || !_pivotData) return;
@@ -7614,7 +7711,9 @@ function renderPivotBody() {
     // Fila SubProceso (Nivel 1)
     var colsSub = dias.map(function(d) {
       var n = nodoSub.totals[d.fecha] || 0;
-      return '<td class="pivot-num">'+(n||'—')+'</td>';
+      var pers = (nodoSub.personas || {})[d.fecha] || [];
+      var attr = n > 0 ? _pivotTipAttr(sub, d.fecha, pers) : '';
+      return '<td class="pivot-num"'+attr+'>'+(n||'—')+'</td>';
     }).join('');
     filas += '<tr class="pivot-row pivot-l1" onclick="pivotToggle(\'L1\',\''+sub.replace(/\\/g,'\\\\').replace(/\'/g,"\\'")+'\')">' +
       '<td><span class="pivot-toggle">'+toggleL1+'</span><span class="pivot-label">'+x(sub)+'</span></td>' +
@@ -7637,7 +7736,9 @@ function renderPivotBody() {
 
       var colsLin = dias.map(function(d) {
         var n = nodoLin.totals[d.fecha] || 0;
-        return '<td class="pivot-num">'+(n||'—')+'</td>';
+        var pers = (nodoLin.personas || {})[d.fecha] || [];
+        var attr = n > 0 ? _pivotTipAttr(sub+' · Línea '+lin, d.fecha, pers) : '';
+        return '<td class="pivot-num"'+attr+'>'+(n||'—')+'</td>';
       }).join('');
       var keyL2 = sub+'::'+lin;
       filas += '<tr class="pivot-row pivot-l2" onclick="pivotToggle(\'L2\',\''+keyL2.replace(/\\/g,'\\\\').replace(/\'/g,"\\'")+'\')">' +
@@ -7654,7 +7755,9 @@ function renderPivotBody() {
         var nodoFun = nodoLin.l3[fun];
         var colsFun = dias.map(function(d) {
           var n = nodoFun.totals[d.fecha] || 0;
-          return '<td class="pivot-num">'+(n||'—')+'</td>';
+          var pers = (nodoFun.personas || {})[d.fecha] || [];
+          var attr = n > 0 ? _pivotTipAttr('Línea '+lin+' · '+fun, d.fecha, pers) : '';
+          return '<td class="pivot-num"'+attr+'>'+(n||'—')+'</td>';
         }).join('');
         filas += '<tr class="pivot-l3">' +
           '<td>'+x(fun)+'</td>' +
@@ -7728,6 +7831,164 @@ function renderPivotBody() {
     </div>
   </div>
 </div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     PWA — Manifest inline + Service Worker + Botón instalar
+     ═══════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+  'use strict';
+
+  // ═══ 1. MANIFEST INLINE ═══
+  // Se genera dinámicamente y se registra como blob URL
+  var manifest = {
+    name: 'Registro de Asistencia · Friosur',
+    short_name: 'Friosur',
+    description: 'Sistema de Registro de Asistencia - Pesquera Friosur',
+    start_url: './index.html',
+    scope: './',
+    display: 'standalone',
+    orientation: 'any',
+    background_color: '#0098d4',
+    theme_color: '#0098d4',
+    lang: 'es-CL',
+    dir: 'ltr',
+    icons: [
+      {
+        src: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='96' fill='%230098d4'/><path d='M102 384 L102 230 L256 128 L410 230 L410 384 Z' fill='none' stroke='white' stroke-width='20' stroke-linejoin='round'/><rect x='215' y='281' width='82' height='103' fill='white'/><circle cx='154' cy='297' r='15' fill='white'/><circle cx='358' cy='297' r='15' fill='white'/></svg>",
+        sizes: '192x192 512x512',
+        type: 'image/svg+xml',
+        purpose: 'any maskable'
+      }
+    ]
+  };
+
+  try {
+    var blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+    var link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = URL.createObjectURL(blob);
+    document.head.appendChild(link);
+  } catch (e) {
+    console.warn('[PWA] No se pudo registrar el manifest:', e);
+  }
+
+  // ═══ 2. SERVICE WORKER (inline como blob) ═══
+  // Cachea los recursos externos (Supabase, XLSX) para arranque más rápido.
+  // El HTML mismo no se cachea agresivamente para que actualizaciones lleguen.
+  if ('serviceWorker' in navigator) {
+    var swCode = "" +
+      "const CACHE = 'friosur-v1';" +
+      "const RUNTIME = 'friosur-runtime-v1';" +
+      "self.addEventListener('install', e => { self.skipWaiting(); });" +
+      "self.addEventListener('activate', e => {" +
+      "  e.waitUntil(caches.keys().then(keys => Promise.all(" +
+      "    keys.filter(k => k !== CACHE && k !== RUNTIME).map(k => caches.delete(k))" +
+      "  )).then(() => self.clients.claim()));" +
+      "});" +
+      "self.addEventListener('fetch', event => {" +
+      "  const req = event.request;" +
+      "  if (req.method !== 'GET') return;" +
+      "  const url = new URL(req.url);" +
+      "  // No cachear peticiones a Supabase (datos en vivo)" +
+      "  if (url.hostname.indexOf('supabase.co') !== -1) return;" +
+      "  // Solo GET a mismo origen y CDN comunes" +
+      "  const cacheable = url.origin === location.origin ||" +
+      "    url.hostname.indexOf('jsdelivr.net') !== -1 ||" +
+      "    url.hostname.indexOf('cdnjs.cloudflare.com') !== -1 ||" +
+      "    url.hostname.indexOf('googleapis.com') !== -1;" +
+      "  if (!cacheable) return;" +
+      "  event.respondWith(" +
+      "    caches.match(req).then(cached => {" +
+      "      const fetchPromise = fetch(req).then(resp => {" +
+      "        if (resp && resp.status === 200 && resp.type !== 'opaque') {" +
+      "          const clone = resp.clone();" +
+      "          caches.open(RUNTIME).then(c => c.put(req, clone));" +
+      "        }" +
+      "        return resp;" +
+      "      }).catch(() => cached);" +
+      "      return cached || fetchPromise;" +
+      "    })" +
+      "  );" +
+      "});";
+
+    try {
+      var swBlob = new Blob([swCode], { type: 'application/javascript' });
+      var swUrl = URL.createObjectURL(swBlob);
+      navigator.serviceWorker.register(swUrl, { scope: './' })
+        .then(reg => console.log('[PWA] Service Worker registrado:', reg.scope))
+        .catch(err => console.warn('[PWA] SW no registrado:', err.message));
+    } catch (e) {
+      console.warn('[PWA] SW blob no soportado:', e);
+    }
+  }
+
+  // ═══ 3. BOTÓN DE INSTALACIÓN ═══
+  var deferredPrompt = null;
+  var btnInstalar = null;
+
+  function crearBotonInstalar() {
+    if (btnInstalar) return btnInstalar;
+    btnInstalar = document.createElement('button');
+    btnInstalar.id = 'btnPWAInstalar';
+    btnInstalar.setAttribute('aria-label', 'Instalar aplicación');
+    btnInstalar.innerHTML = '📲 Instalar app';
+    btnInstalar.style.cssText =
+      'position:fixed;bottom:20px;right:20px;z-index:9998;' +
+      'background:linear-gradient(135deg,#0098d4,#005f8a);color:#fff;' +
+      'border:none;border-radius:28px;padding:12px 20px;font-size:14px;font-weight:700;' +
+      'box-shadow:0 6px 22px rgba(0,152,212,.45);cursor:pointer;' +
+      'font-family:Calibri,sans-serif;letter-spacing:.3px;' +
+      'display:none;transition:transform .15s,box-shadow .15s;';
+    btnInstalar.onmouseover = function() {
+      btnInstalar.style.transform = 'translateY(-2px)';
+      btnInstalar.style.boxShadow = '0 8px 28px rgba(0,152,212,.55)';
+    };
+    btnInstalar.onmouseout = function() {
+      btnInstalar.style.transform = '';
+      btnInstalar.style.boxShadow = '0 6px 22px rgba(0,152,212,.45)';
+    };
+    btnInstalar.onclick = function() {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(choice) {
+        if (choice.outcome === 'accepted') {
+          console.log('[PWA] Usuario aceptó instalar');
+          if (typeof showToast === 'function') showToast('✅ App instalada', 'success');
+        }
+        deferredPrompt = null;
+        btnInstalar.style.display = 'none';
+      });
+    };
+    document.body.appendChild(btnInstalar);
+    return btnInstalar;
+  }
+
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    var btn = crearBotonInstalar();
+    // Solo mostrar si NO está ya instalada
+    if (!window.matchMedia('(display-mode: standalone)').matches) {
+      btn.style.display = 'block';
+    }
+  });
+
+  window.addEventListener('appinstalled', function() {
+    console.log('[PWA] Aplicación instalada');
+    if (btnInstalar) btnInstalar.style.display = 'none';
+    deferredPrompt = null;
+  });
+
+  // Si ya está corriendo instalada, log
+  if (window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true) {
+    console.log('[PWA] Ejecutando como app instalada');
+    document.documentElement.classList.add('pwa-standalone');
+  }
+})();
+</script>
 
 </body>
 </html>
