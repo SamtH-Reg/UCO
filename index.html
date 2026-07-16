@@ -3023,6 +3023,111 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════
+     CHAT DE PROCESO — notas y cambios de proceso (compartido en la nube)
+     ══════════════════════════════════════════════════════════ -->
+<style>
+#chatFab{position:fixed;right:20px;bottom:20px;z-index:900;width:58px;height:58px;border:none;border-radius:50%;
+  background:var(--t-grad,linear-gradient(135deg,var(--t-accent,#00c6a2),var(--t-accent2,#0098d4)));color:#fff;cursor:pointer;
+  display:none;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.28);
+  transition:transform .18s ease,box-shadow .18s ease;}
+#chatFab:hover{transform:translateY(-3px) scale(1.05);box-shadow:0 12px 30px rgba(0,0,0,.34);}
+#chatFab:active{transform:scale(.95);}
+#chatFab svg{width:26px;height:26px;}
+.chat-fab-dot{position:absolute;top:9px;right:9px;width:13px;height:13px;border-radius:50%;
+  background:var(--t-danger,#e05252);border:2px solid #fff;box-shadow:0 0 0 rgba(224,82,82,.5);animation:chatDotPulse 1.8s infinite;}
+@keyframes chatDotPulse{0%{box-shadow:0 0 0 0 rgba(224,82,82,.5)}70%{box-shadow:0 0 0 8px rgba(224,82,82,0)}100%{box-shadow:0 0 0 0 rgba(224,82,82,0)}}
+.chat-overlay{position:fixed;inset:0;background:rgba(4,9,15,.45);opacity:0;visibility:hidden;
+  transition:opacity .25s ease;z-index:950;}
+.chat-overlay.show{opacity:1;visibility:visible;}
+.chat-panel{position:fixed;top:0;right:0;height:100%;width:392px;max-width:92vw;z-index:960;
+  background:var(--t-bg,#0b1220);border-left:1px solid var(--t-border,#142840);
+  box-shadow:-12px 0 40px rgba(0,0,0,.35);display:flex;flex-direction:column;
+  transform:translateX(106%);transition:transform .32s cubic-bezier(.22,1,.36,1);}
+.chat-panel.open{transform:translateX(0);}
+.chat-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 18px;
+  background:var(--t-grad,linear-gradient(135deg,var(--t-accent,#00c6a2),var(--t-accent2,#0098d4)));color:#fff;}
+.chat-head-title{font-weight:800;font-size:16px;display:block;letter-spacing:.2px;}
+.chat-head-sub{font-size:11.5px;opacity:.92;display:block;margin-top:2px;}
+.chat-head-actions{display:flex;gap:6px;flex:none;}
+.chat-icon-btn{width:34px;height:34px;border:none;border-radius:10px;background:rgba(255,255,255,.18);
+  color:#fff;cursor:pointer;font-size:15px;line-height:1;transition:background .15s;}
+.chat-icon-btn:hover{background:rgba(255,255,255,.34);}
+.chat-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--t-bg);}
+.chat-empty{margin:auto;text-align:center;color:var(--t-muted,#8aa);font-size:13.5px;line-height:1.7;padding:20px;}
+.chat-msg{display:flex;}
+.chat-msg.mine{justify-content:flex-end;}
+.chat-bubble{max-width:82%;padding:9px 12px 7px;border-radius:15px;background:var(--t-card,#fff);
+  border:1px solid var(--t-border,#e2e8f0);box-shadow:0 2px 8px var(--t-shadow,rgba(0,0,0,.06));
+  border-left:3px solid var(--t-accent2,#0098d4);}
+.chat-bubble.proceso{border-left-color:var(--t-accent,#00c6a2);}
+.chat-msg.mine .chat-bubble{background:var(--t-grad,linear-gradient(135deg,var(--t-accent,#00c6a2),var(--t-accent2,#0098d4)));
+  color:#fff;border-color:transparent;border-left:none;}
+.chat-meta{display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;}
+.chat-autor{font-weight:700;font-size:12px;color:var(--t-accent2,#0098d4);}
+.chat-msg.mine .chat-autor{color:#fff;}
+.chat-chip{font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:20px;text-transform:uppercase;
+  letter-spacing:.4px;background:rgba(127,127,127,.16);color:var(--t-accent2,#0098d4);white-space:nowrap;}
+.chat-chip.proceso{color:var(--t-accent,#00c6a2);}
+.chat-msg.mine .chat-chip{background:rgba(255,255,255,.24);color:#fff;}
+.chat-text{font-size:13.5px;line-height:1.45;color:var(--t-text,#1a2b3c);word-break:break-word;white-space:pre-wrap;}
+.chat-msg.mine .chat-text{color:#fff;}
+.chat-foot{display:flex;align-items:center;justify-content:flex-end;gap:9px;margin-top:4px;}
+.chat-time{font-size:10.5px;color:var(--t-muted,#8aa);}
+.chat-msg.mine .chat-time{color:rgba(255,255,255,.85);}
+.chat-del{border:none;background:transparent;cursor:pointer;font-size:12.5px;opacity:.4;padding:0;line-height:1;
+  transition:opacity .15s,transform .15s;}
+.chat-del:hover{opacity:1;transform:scale(1.2);}
+.chat-input-wrap{border-top:1px solid var(--t-border,#e2e8f0);padding:10px 12px 12px;background:var(--t-card,#fff);}
+.chat-tipos{display:flex;gap:8px;margin-bottom:8px;}
+.chat-tipo-btn{flex:1;padding:7px 8px;border-radius:10px;border:1px solid var(--t-border,#e2e8f0);
+  background:transparent;color:var(--t-muted,#8aa);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;}
+.chat-tipo-btn.active{background:var(--t-accent2,#0098d4);border-color:var(--t-accent2,#0098d4);color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.16);}
+.chat-tipo-btn[data-tipo="proceso"].active{background:var(--t-accent,#00c6a2);border-color:var(--t-accent,#00c6a2);}
+.chat-input-row{display:flex;align-items:flex-end;gap:8px;}
+.chat-input{flex:1;resize:none;border:1px solid var(--t-border,#e2e8f0);border-radius:12px;padding:10px 12px;
+  font-family:inherit;font-size:13.5px;background:var(--t-bg,#0b1220);color:var(--t-text,#1a2b3c);
+  max-height:120px;line-height:1.4;transition:border-color .15s;}
+.chat-input:focus{outline:none;border-color:var(--t-accent2,#0098d4);}
+.chat-send{width:42px;height:42px;flex:none;border:none;border-radius:12px;cursor:pointer;font-size:16px;
+  background:var(--t-grad,linear-gradient(135deg,var(--t-accent,#00c6a2),var(--t-accent2,#0098d4)));
+  color:#fff;transition:transform .15s,opacity .15s;}
+.chat-send:hover{transform:scale(1.06);}
+.chat-send:disabled{opacity:.5;cursor:default;transform:none;}
+@media(max-width:480px){.chat-panel{width:100vw;max-width:100vw;}#chatFab{right:16px;bottom:16px;}}
+</style>
+
+<button id="chatFab" onclick="chatToggle()" aria-label="Abrir chat de proceso" title="Chat de proceso">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  <span id="chatFabDot" class="chat-fab-dot" hidden></span>
+</button>
+<div id="chatOverlay" class="chat-overlay" onclick="chatClose()"></div>
+<aside id="chatPanel" class="chat-panel" aria-hidden="true" aria-label="Chat de proceso">
+  <header class="chat-head">
+    <div>
+      <span class="chat-head-title">💬 Chat de proceso</span>
+      <span class="chat-head-sub" id="chatNombreLbl"></span>
+    </div>
+    <div class="chat-head-actions">
+      <button class="chat-icon-btn" onclick="chatCambiarNombre()" title="Cambiar mi nombre">✎</button>
+      <button class="chat-icon-btn" onclick="chatClose()" title="Cerrar">✕</button>
+    </div>
+  </header>
+  <div id="chatBody" class="chat-body">
+    <div class="chat-empty">Cargando…</div>
+  </div>
+  <div class="chat-input-wrap">
+    <div class="chat-tipos">
+      <button type="button" class="chat-tipo-btn active" data-tipo="nota" onclick="chatSetTipo('nota')">📝 Nota</button>
+      <button type="button" class="chat-tipo-btn" data-tipo="proceso" onclick="chatSetTipo('proceso')">🔄 Cambio de proceso</button>
+    </div>
+    <div class="chat-input-row">
+      <textarea id="chatInput" class="chat-input" rows="1" placeholder="Escribe una nota o cambio de proceso…" oninput="chatAutosize(this)" onkeydown="chatKey(event)"></textarea>
+      <button id="chatSend" class="chat-send" onclick="chatEnviar()" title="Enviar" aria-label="Enviar">&#10148;</button>
+    </div>
+  </div>
+</aside>
+
 <div id="toast"></div>
 <div id="ausTip" class="aus-tip"></div>
 <div id="offlineBanner">
@@ -7987,6 +8092,174 @@ function renderPivotBody() {
     console.log('[PWA] Ejecutando como app instalada');
     document.documentElement.classList.add('pwa-standalone');
   }
+})();
+</script>
+
+<!-- ══ CHAT DE PROCESO — lógica ══ -->
+<script>
+(function(){
+  'use strict';
+  var CHAT_TABLE='chat_mensajes';
+  var _tipo='nota', _open=false, _poll=null, _chan=null;
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  function sesionNombre(){
+    try{ var s=JSON.parse(localStorage.getItem('friosur_sesion_idx')||'null'); if(s&&s.nombre) return s.nombre; }catch(e){}
+    return '';
+  }
+  function nombre(){
+    var n=localStorage.getItem('uco_chat_nombre');
+    if(n&&n.trim()) return n.trim();
+    var s=sesionNombre();
+    if(s){ localStorage.setItem('uco_chat_nombre',s); return s; }
+    return '';
+  }
+  function pintarNombre(){
+    var el=document.getElementById('chatNombreLbl');
+    if(el) el.textContent = nombre()? ('Escribes como: '+nombre()) : 'Sin nombre — toca ✎';
+  }
+  window.chatCambiarNombre=function(){
+    var n=prompt('¿Con qué nombre quieres aparecer en el chat?', nombre()||'');
+    if(n===null) return;
+    n=n.trim();
+    if(!n){ if(window.showToast) showToast('El nombre no puede quedar vacío','error'); return; }
+    localStorage.setItem('uco_chat_nombre',n);
+    pintarNombre(); cargar();
+    if(window.showToast) showToast('Nombre actualizado','success');
+  };
+
+  function db(){ try{ return _sbDb(); }catch(e){ return (window._sbClient||null); } }
+
+  window.chatSetTipo=function(t){
+    _tipo=t;
+    var bs=document.querySelectorAll('.chat-tipo-btn');
+    for(var i=0;i<bs.length;i++){ bs[i].classList.toggle('active', bs[i].getAttribute('data-tipo')===t); }
+  };
+  window.chatAutosize=function(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,120)+'px'; };
+  window.chatKey=function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); chatEnviar(); } };
+
+  function fmtHora(iso){
+    try{
+      var d=new Date(iso), now=new Date();
+      var hh=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+      if(d.toDateString()===now.toDateString()) return hh;
+      return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+' '+hh;
+    }catch(e){ return ''; }
+  }
+
+  function render(rows){
+    var body=document.getElementById('chatBody'); if(!body) return;
+    var yo=nombre();
+    if(!rows||!rows.length){
+      body.innerHTML='<div class="chat-empty">Aún no hay mensajes.<br>Escribe la primera nota o cambio de proceso 👇</div>';
+      return;
+    }
+    var out=[];
+    for(var i=0;i<rows.length;i++){
+      var m=rows[i];
+      var mine=(m.autor||'')===yo;
+      var esProc=m.tipo==='proceso';
+      var lbl=esProc?'🔄 Cambio de proceso':'📝 Nota';
+      var cls=esProc?'proceso':'nota';
+      out.push('<div class="chat-msg '+(mine?'mine':'')+'">'+
+        '<div class="chat-bubble '+cls+'">'+
+          '<div class="chat-meta"><span class="chat-autor">'+esc(m.autor)+'</span>'+
+            '<span class="chat-chip '+cls+'">'+lbl+'</span></div>'+
+          '<div class="chat-text">'+esc(m.mensaje)+'</div>'+
+          '<div class="chat-foot"><span class="chat-time">'+fmtHora(m.created_at)+'</span>'+
+            '<button class="chat-del" title="Borrar mensaje" onclick="chatBorrar(\''+m.id+'\')">🗑</button></div>'+
+        '</div></div>');
+    }
+    body.innerHTML=out.join('');
+    body.scrollTop=body.scrollHeight;
+  }
+
+  function cargar(){
+    var c=db(); if(!c) return;
+    c.from(CHAT_TABLE).select('*').order('created_at',{ascending:true}).limit(300).then(function(res){
+      if(res.error) throw res.error;
+      render(res.data||[]);
+    }).catch(function(e){
+      var body=document.getElementById('chatBody');
+      if(body) body.innerHTML='<div class="chat-empty">No se pudo cargar el chat.<br><small>'+esc(e.message||'')+
+        '</small><br><br><small>¿Ya creaste la tabla <b>chat_mensajes</b> en Supabase?</small></div>';
+    });
+  }
+  window.chatCargar=cargar;
+
+  window.chatEnviar=function(){
+    var input=document.getElementById('chatInput'); if(!input) return;
+    var txt=(input.value||'').trim();
+    if(!txt){ input.focus(); return; }
+    var autor=nombre();
+    if(!autor){ chatCambiarNombre(); autor=nombre(); if(!autor) return; }
+    var c=db(); if(!c){ if(window.showToast) showToast('Sin conexión a la base','error'); return; }
+    var btn=document.getElementById('chatSend'); if(btn) btn.disabled=true;
+    c.from(CHAT_TABLE).insert({autor:autor,tipo:_tipo,mensaje:txt}).then(function(res){
+      if(res.error) throw res.error;
+      input.value=''; chatAutosize(input); cargar();
+    }).catch(function(e){
+      if(window.showToast) showToast('No se pudo enviar: '+(e.message||''),'error');
+    }).finally(function(){ if(btn) btn.disabled=false; input.focus(); });
+  };
+
+  window.chatBorrar=function(id){
+    if(!id) return;
+    if(!confirm('¿Borrar este mensaje para todos?')) return;
+    var c=db(); if(!c) return;
+    c.from(CHAT_TABLE).delete().eq('id',id).then(function(res){
+      if(res.error) throw res.error;
+      cargar();
+      if(window.showToast) showToast('Mensaje borrado','success');
+    }).catch(function(e){
+      if(window.showToast) showToast('No se pudo borrar: '+(e.message||''),'error');
+    });
+  };
+
+  function suscribir(){
+    if(_chan) return;
+    var c=db(); if(!c||!c.channel) return;
+    try{
+      _chan=c.channel('chat_uco')
+        .on('postgres_changes',{event:'*',schema:'public',table:CHAT_TABLE},function(){
+          if(_open) cargar();
+          else { var dot=document.getElementById('chatFabDot'); if(dot) dot.hidden=false; }
+        }).subscribe();
+    }catch(e){}
+  }
+
+  window.chatToggle=function(){ _open?chatClose():chatOpen(); };
+  window.chatOpen=function(){
+    _open=true;
+    document.getElementById('chatPanel').classList.add('open');
+    document.getElementById('chatPanel').setAttribute('aria-hidden','false');
+    document.getElementById('chatOverlay').classList.add('show');
+    var dot=document.getElementById('chatFabDot'); if(dot) dot.hidden=true;
+    pintarNombre(); cargar(); suscribir();
+    if(_poll) clearInterval(_poll);
+    _poll=setInterval(cargar,12000);
+    setTimeout(function(){ var i=document.getElementById('chatInput'); if(i) i.focus(); },260);
+  };
+  window.chatClose=function(){
+    _open=false;
+    document.getElementById('chatPanel').classList.remove('open');
+    document.getElementById('chatPanel').setAttribute('aria-hidden','true');
+    document.getElementById('chatOverlay').classList.remove('show');
+    if(_poll){ clearInterval(_poll); _poll=null; }
+  };
+
+  var _fabTimer=null;
+  function initFab(){
+    var fab=document.getElementById('chatFab'); if(!fab) return;
+    var hay=!!localStorage.getItem('friosur_sesion_idx');
+    fab.style.display = hay?'flex':'none';
+    if(hay){ suscribir(); if(_fabTimer){ clearInterval(_fabTimer); _fabTimer=null; } }
+  }
+  function arranque(){ initFab(); _fabTimer=setInterval(initFab,4000); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',arranque);
+  else arranque();
 })();
 </script>
 
