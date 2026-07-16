@@ -3128,6 +3128,59 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
   </div>
 </aside>
 
+<style>
+/* ══ POLISH — carga suave, popover interactivo, micro-interacciones ══ */
+@keyframes softFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes ausTipIn{from{opacity:0;transform:translateY(5px) scale(.99)}to{opacity:1;transform:none}}
+@keyframes skelShimmer{0%{background-position:-450px 0}100%{background-position:450px 0}}
+@keyframes softPulse{0%,100%{opacity:.5}50%{opacity:1}}
+
+/* Filas de registros entran suave (evita el "pop" abrupto al cargar) */
+#tbodyReg tr{animation:softFadeIn .30s ease-out both}
+#tbodyReg tr:nth-child(1){animation-delay:0s}
+#tbodyReg tr:nth-child(2){animation-delay:.02s}
+#tbodyReg tr:nth-child(3){animation-delay:.04s}
+#tbodyReg tr:nth-child(4){animation-delay:.06s}
+#tbodyReg tr:nth-child(5){animation-delay:.08s}
+#tbodyReg tr:nth-child(6){animation-delay:.10s}
+#tbodyReg tr:nth-child(7){animation-delay:.12s}
+#tbodyReg tr:nth-child(8){animation-delay:.14s}
+#tbodyReg td{transition:background .12s ease}
+#tbodyReg tr:hover td{background:rgba(127,127,127,.08)}
+
+/* Skeleton de carga (shimmer suave en vez del "Cargando..." abrupto) */
+.skel-wrap{display:flex;flex-direction:column;gap:13px;padding:16px 8px}
+.skel-row{height:15px;border-radius:7px;
+  background:linear-gradient(90deg,rgba(127,127,127,.10) 25%,rgba(127,127,127,.22) 37%,rgba(127,127,127,.10) 63%);
+  background-size:900px 100%;animation:skelShimmer 1.25s linear infinite}
+.skel-row:nth-child(2){width:92%}.skel-row:nth-child(3){width:78%}
+.skel-row:nth-child(4){width:88%}.skel-row:nth-child(5){width:70%}.skel-row:nth-child(6){width:84%}
+.empty-state .ei{animation:softPulse 1.4s ease-in-out infinite}
+
+/* Popover de personas: ahora INTERACTIVO y arrastrable con el mouse */
+.aus-tip{pointer-events:auto;cursor:grab;overscroll-behavior:contain;
+  animation:ausTipIn .18s cubic-bezier(.22,1,.36,1);
+  scrollbar-width:thin;scrollbar-color:var(--t-accent2,#7eb8d4) transparent}
+.aus-tip::-webkit-scrollbar{width:9px}
+.aus-tip::-webkit-scrollbar-track{background:rgba(127,127,127,.10);border-radius:5px}
+.aus-tip::-webkit-scrollbar-thumb{background:var(--t-accent2,#7eb8d4);border-radius:5px;border:2px solid transparent;background-clip:padding-box}
+.aus-tip.dragging{cursor:grabbing;user-select:none}
+.aus-tip-title{position:sticky;top:-10px;margin:-10px -13px 7px;padding:10px 13px 6px;background:var(--t-card,#0f1e2d);z-index:2}
+.aus-tip-row{transition:background .12s ease;border-radius:5px;padding-left:4px;padding-right:4px}
+.aus-tip-row:hover{background:rgba(127,127,127,.12)}
+.aus-tip-hint{position:sticky;bottom:-11px;margin:7px -13px -10px;padding:6px 0;
+  background:var(--t-card,#0f1e2d);border-top:1px solid rgba(127,127,127,.18);
+  font-size:10px;color:var(--t-muted,#9ab);text-align:center;letter-spacing:.2px}
+
+/* Micro-interacciones */
+.btn,.btn-primary{transition:transform .14s ease,box-shadow .14s ease,background .14s ease,opacity .14s ease}
+.btn:active,.btn-primary:active{transform:translateY(1px)}
+
+@media (prefers-reduced-motion: reduce){
+  #tbodyReg tr,.aus-tip,.skel-row,.empty-state .ei{animation:none}
+}
+</style>
+
 <div id="toast"></div>
 <div id="ausTip" class="aus-tip"></div>
 <div id="offlineBanner">
@@ -4607,9 +4660,15 @@ function initFiltros(){
   // (líneas se actualizan en _aplicarFiltrosServidor tras recibir datos)
 }
 
+function _skelRows(cols){
+  return '<tr><td colspan="'+(cols||26)+'" style="padding:0;border:none">'+
+    '<div class="skel-wrap">'+
+    '<div class="skel-row"></div><div class="skel-row"></div><div class="skel-row"></div>'+
+    '<div class="skel-row"></div><div class="skel-row"></div><div class="skel-row"></div></div></td></tr>';
+}
 async function cargarRegistros(){
   const tbody=document.getElementById('tbodyReg');
-  tbody.innerHTML='<tr><td colspan="25"><div class="empty-state"><div class="ei">⏳</div><p>Cargando...</p></div></td></tr>';
+  tbody.innerHTML=_skelRows(25);
 
   // ── Autodetectar turno por hora actual (igual que dashboard) ──
   // Solo aplica si no hay filtro de turno ya seleccionado
@@ -4742,7 +4801,7 @@ function aplicarFiltros(){
 function _aplicarFiltrosServidor(pagina){
   const tbody=document.getElementById('tbodyReg');
   if(!tbody) return;
-  tbody.innerHTML='<tr><td colspan="26"><div class="empty-state"><div class="ei">⏳</div><p>Buscando...</p></div></td></tr>';
+  tbody.innerHTML=_skelRows(26);
 
   const filtros = {
     desde: document.getElementById('filtroDesde').value || '',
@@ -6587,44 +6646,76 @@ function exportarAusentesPDF(){
 // ══════════════════════════════════════════
 //  TOOLTIP — Ausencias por Estado Semana
 // ══════════════════════════════════════════
+let _ausTipFijo = false;       // una vez mostrado, no seguir el cursor (deja mover el mouse al popover)
+let _ausTipHideT = null;       // timer de cierre diferido
+let _ausTipDragInit = false;   // listeners de arrastre ya montados
+
+function _ausTipInit(){
+  if(_ausTipDragInit) return;
+  const tip = document.getElementById('ausTip');
+  if(!tip) return;
+  _ausTipDragInit = true;
+  // Mantener abierto mientras el mouse está sobre el popover
+  tip.addEventListener('mouseenter', ()=>{ if(_ausTipHideT){ clearTimeout(_ausTipHideT); _ausTipHideT=null; } });
+  tip.addEventListener('mouseleave', ausTipHide);
+  // Arrastrar para desplazar (drag-to-scroll)
+  let down=false, startY=0, startTop=0;
+  tip.addEventListener('mousedown', e=>{
+    down=true; startY=e.clientY; startTop=tip.scrollTop;
+    tip.classList.add('dragging'); e.preventDefault();
+  });
+  window.addEventListener('mousemove', e=>{
+    if(!down) return;
+    tip.scrollTop = startTop - (e.clientY - startY);
+  });
+  window.addEventListener('mouseup', ()=>{ if(down){ down=false; tip.classList.remove('dragging'); } });
+}
+
 function ausTipShow(e, el){
   const tip = document.getElementById('ausTip');
   if(!tip) return;
+  _ausTipInit();
+  if(_ausTipHideT){ clearTimeout(_ausTipHideT); _ausTipHideT=null; }
   let data;
   try { data = JSON.parse(decodeURIComponent(el.dataset.tip)); } catch{ return; }
 
   const { label, fecha, personas } = data;
-  const MAX_MOSTRAR = 30;
-  const mostrar = personas.slice(0, MAX_MOSTRAR);
-  const restante = personas.length - mostrar.length;
+  // Ahora se muestran TODAS las personas (el popover es desplazable con rueda o arrastre)
   const rows = personas.length
-    ? mostrar.map(p=>`<div class="aus-tip-row">
+    ? personas.map(p=>`<div class="aus-tip-row">
         <span class="aus-tip-cod">${p.codigo||'—'}</span>
         <span class="aus-tip-nom">${p.nombre||'—'}</span>
-      </div>`).join('') + (restante > 0 ? `<div class="aus-tip-empty">+ ${restante} más…</div>` : '')
+      </div>`).join('')
     : `<div class="aus-tip-empty">Sin detalle disponible</div>`;
+  const hint = personas.length > 8 ? `<div class="aus-tip-hint">↕ Arrastra o usa la rueda para desplazar</div>` : '';
 
   tip.innerHTML = `
     <div class="aus-tip-title">${label} &nbsp;·&nbsp; ${fecha} &nbsp;·&nbsp; ${personas.length} persona(s)</div>
-    ${rows}`;
+    ${rows}${hint}`;
+  tip.scrollTop = 0;
   tip.style.display = 'block';
-  ausTipMove(e);
+  _ausTipFijo = false;
+  ausTipMove(e);        // posición inicial junto al cursor
+  _ausTipFijo = true;   // fijar: a partir de aquí no persigue el cursor
 }
 function ausTipMove(e){
   const tip = document.getElementById('ausTip');
-  if(!tip || tip.style.display==='none') return;
+  if(!tip || tip.style.display==='none' || _ausTipFijo) return;
   const tw = tip.offsetWidth, th = tip.offsetHeight;
   const vw = window.innerWidth,  vh = window.innerHeight;
   let left = e.clientX + 14;
   let top  = e.clientY + 14;
   if(left + tw > vw - 10) left = e.clientX - tw - 14;
-  if(top  + th > vh - 10) top  = e.clientY - th - 14;
+  if(top  + th > vh - 10) top  = Math.max(10, vh - th - 10);
   tip.style.left = left + 'px';
   tip.style.top  = top  + 'px';
 }
 function ausTipHide(){
   const tip = document.getElementById('ausTip');
-  if(tip) tip.style.display = 'none';
+  if(!tip) return;
+  if(_ausTipHideT) clearTimeout(_ausTipHideT);
+  // cierre diferido: da tiempo a mover el mouse del cell hacia el popover
+  _ausTipHideT = setTimeout(()=>{ tip.style.display='none'; _ausTipHideT=null; }, 280);
 }
 
 function showToast(msg, type, duracion){
