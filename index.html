@@ -8169,7 +8169,7 @@ function renderPivotBody() {
             '<span class="chat-chip '+cls+'">'+lbl+'</span></div>'+
           '<div class="chat-text">'+esc(m.mensaje)+'</div>'+
           '<div class="chat-foot"><span class="chat-time">'+fmtHora(m.created_at)+'</span>'+
-            '<button class="chat-del" title="Borrar mensaje" onclick="chatBorrar(\''+m.id+'\')">🗑</button></div>'+
+            (mine ? '<button class="chat-del" title="Borrar mi mensaje" onclick="chatBorrar(\''+m.id+'\')">🗑</button>' : '')+'</div>'+
         '</div></div>');
     }
     body.innerHTML=out.join('');
@@ -8207,7 +8207,7 @@ function renderPivotBody() {
 
   window.chatBorrar=function(id){
     if(!id) return;
-    if(!confirm('¿Borrar este mensaje para todos?')) return;
+    if(!confirm('¿Borrar tu mensaje?')) return;
     var c=db(); if(!c) return;
     c.from(CHAT_TABLE).delete().eq('id',id).then(function(res){
       if(res.error) throw res.error;
