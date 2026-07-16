@@ -3038,6 +3038,14 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
   display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;
   background:var(--t-danger,#e05252);border:2px solid var(--t-bg,#0b1220);box-shadow:0 0 0 rgba(224,82,82,.5);animation:chatDotPulse 1.8s infinite;}
 @keyframes chatDotPulse{0%{box-shadow:0 0 0 0 rgba(224,82,82,.5)}70%{box-shadow:0 0 0 8px rgba(224,82,82,0)}100%{box-shadow:0 0 0 0 rgba(224,82,82,0)}}
+/* Botón con mensajes sin leer: rebote + anillo rojo expansivo (muy visible) */
+#chatFab.has-unread{animation:chatFabBob 1.35s ease-in-out infinite}
+#chatFab.has-unread::after{content:'';position:absolute;inset:-3px;border-radius:50%;
+  border:2px solid var(--t-danger,#e05252);opacity:0;pointer-events:none;animation:chatFabRing 1.35s ease-out infinite}
+@keyframes chatFabBob{0%,55%,100%{transform:translateY(0)}25%{transform:translateY(-6px)}40%{transform:translateY(-2px)}}
+@keyframes chatFabRing{0%{transform:scale(1);opacity:.55}100%{transform:scale(1.45);opacity:0}}
+.chat-fab-dot{animation:chatDotPulse 1.8s infinite,chatDotPop .28s cubic-bezier(.22,1.4,.4,1)}
+@keyframes chatDotPop{0%{transform:scale(0)}100%{transform:scale(1)}}
 .chat-overlay{position:fixed;inset:0;background:rgba(4,9,15,.45);opacity:0;visibility:hidden;
   transition:opacity .25s ease;z-index:950;}
 .chat-overlay.show{opacity:1;visibility:visible;}
@@ -3195,7 +3203,8 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
 .btn:active,.btn-primary:active{transform:translateY(1px)}
 
 @media (prefers-reduced-motion: reduce){
-  #tbodyReg tr,.aus-tip,.skel-row,.empty-state .ei{animation:none}
+  #tbodyReg tr,.aus-tip,.skel-row,.empty-state .ei,
+  #chatFab.has-unread,#chatFab.has-unread::after,.chat-fab-dot{animation:none}
 }
 </style>
 
@@ -8271,9 +8280,14 @@ function renderPivotBody() {
   // ── Contador de no leídos en el botón flotante ──
   function setUnread(n){
     _unread = n<0?0:n;
-    var dot=document.getElementById('chatFabDot'); if(!dot) return;
-    if(_unread>0){ dot.textContent = _unread>99?'99+':String(_unread); dot.hidden=false; }
-    else { dot.textContent=''; dot.hidden=true; }
+    var dot=document.getElementById('chatFabDot');
+    var fab=document.getElementById('chatFab');
+    if(dot){
+      if(_unread>0){ dot.textContent = _unread>99?'99+':String(_unread); dot.hidden=false; }
+      else { dot.textContent=''; dot.hidden=true; }
+    }
+    // Botón limpio sin mensajes; con animación llamativa cuando hay sin leer
+    if(fab) fab.classList.toggle('has-unread', _unread>0);
   }
 
   // ── Emojis ──
@@ -8426,15 +8440,15 @@ function renderPivotBody() {
       _chan=c.channel('chat_uco')
         .on('postgres_changes',{event:'*',schema:'public',table:CHAT_TABLE},function(payload){
           if(_open){ cargar(); return; }
-          // Chat cerrado: si es un mensaje NUEVO de otra persona → avisar
+          // Chat cerrado: SOLO cuenta como no leído una inserción NUEVA de otra persona.
+          // (borrados/ediciones o el eco de tus propios mensajes NO marcan el punto rojo)
           var esInsert = payload && (payload.eventType==='INSERT' || payload.event==='INSERT');
           var m = payload && payload.new;
-          if(esInsert && m && (m.autor||'')!==nombre()){
+          var mio = m && (m.autor||'').trim().toLowerCase() === (nombre()||'').trim().toLowerCase();
+          if(esInsert && m && !mio){
             setUnread(_unread+1);
             sonarDing();
             notificar(m);
-          } else {
-            var dot=document.getElementById('chatFabDot'); if(dot && _unread===0){ dot.hidden=false; dot.textContent='•'; }
           }
         }).subscribe();
     }catch(e){}
