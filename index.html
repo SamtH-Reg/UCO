@@ -2799,7 +2799,7 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
         <div class="modal-field"><label>Código</label><input type="text" id="m_codigo"></div>
         <div class="modal-field"><label>Nombre</label><input type="text" id="m_nombre"></div>
         <div class="modal-field"><label>Tipo Contrato</label><input type="text" id="m_contrato"></div>
-        <div class="modal-field"><label>Función</label><input type="text" id="m_funcion"></div>
+        <div class="modal-field"><label>Función</label><select id="m_funcion"><option value="">— Sin función —</option></select></div>
         <div class="modal-field"><label>Centro Costo</label><input type="text" id="m_cc"></div>
         <div class="modal-field"><label>Especie</label><input type="text" id="m_especie"></div>
         <div class="modal-field"><label>Producto</label><input type="text" id="m_producto"></div>
@@ -5234,6 +5234,29 @@ function sortTable(col){
 // ══════════════════════════════════════════
 //  EDITAR REGISTRO
 // ══════════════════════════════════════════
+// Llena el desplegable de Función con TODAS las funciones disponibles del catálogo,
+// conservando el valor actual aunque no esté en el catálogo.
+function _fillFuncionEdit(actual){
+  actual = actual || '';
+  var pintar = function(lista){
+    var funcs = (lista || []).slice();
+    if(actual && funcs.indexOf(actual) === -1) funcs.unshift(actual); // no perder el valor actual
+    fillSel('m_funcion', funcs, '— Sin función —');
+    var sel = document.getElementById('m_funcion');
+    if(sel) sel.value = actual;
+  };
+  if(window._listas && window._listas.funciones){
+    pintar(window._listas.funciones);
+  } else {
+    pintar([]); // fallback inmediato con el valor actual
+    // y cargar el catálogo en segundo plano para tener la lista completa
+    if(typeof getListData === 'function'){
+      getListData().then(function(d){
+        if(d && d.funciones){ window._listas = window._listas || d; pintar(d.funciones); }
+      }).catch(function(){});
+    }
+  }
+}
 function abrirEditar(idx, id){
   editIdx=idx;
   editId=id||'';
@@ -5245,7 +5268,7 @@ function abrirEditar(idx, id){
   document.getElementById('m_codigo').value   =r[5]||'';
   document.getElementById('m_nombre').value   =r[6]||'';
   document.getElementById('m_contrato').value =r[7]||'';
-  document.getElementById('m_funcion').value  =r[8]||'';
+  _fillFuncionEdit(r[8]||'');
   document.getElementById('m_cc').value       =r[9]||'';
   document.getElementById('m_especie').value  =r[10]||'';
   document.getElementById('m_producto').value =r[11]||'';
