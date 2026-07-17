@@ -8102,8 +8102,8 @@ function renderPivotBody() {
   // El HTML mismo no se cachea agresivamente para que actualizaciones lleguen.
   if ('serviceWorker' in navigator) {
     var swCode = "" +
-      "const CACHE = 'friosur-v1';" +
-      "const RUNTIME = 'friosur-runtime-v1';" +
+      "const CACHE = 'friosur-v2';" +
+      "const RUNTIME = 'friosur-runtime-v2';" +
       "self.addEventListener('install', e => { self.skipWaiting(); });" +
       "self.addEventListener('activate', e => {" +
       "  e.waitUntil(caches.keys().then(keys => Promise.all(" +
@@ -8122,6 +8122,18 @@ function renderPivotBody() {
       "    url.hostname.indexOf('cdnjs.cloudflare.com') !== -1 ||" +
       "    url.hostname.indexOf('googleapis.com') !== -1;" +
       "  if (!cacheable) return;" +
+      "  // HTML / navegación: NETWORK-FIRST (siempre la última versión; cae a caché si no hay red)" +
+      "  const isDoc = req.mode === 'navigate' || (req.headers.get('accept') || '').indexOf('text/html') !== -1;" +
+      "  if (isDoc) {" +
+      "    event.respondWith(" +
+      "      fetch(req).then(resp => {" +
+      "        if (resp && resp.status === 200) { const clone = resp.clone(); caches.open(RUNTIME).then(c => c.put(req, clone)); }" +
+      "        return resp;" +
+      "      }).catch(() => caches.match(req))" +
+      "    );" +
+      "    return;" +
+      "  }" +
+      "  // Estáticos (JS/CSS/imágenes): stale-while-revalidate" +
       "  event.respondWith(" +
       "    caches.match(req).then(cached => {" +
       "      const fetchPromise = fetch(req).then(resp => {" +
@@ -8220,6 +8232,7 @@ function renderPivotBody() {
   var CHAT_TABLE='chat_mensajes';
   var _tipo='nota', _open=false, _poll=null, _chan=null;
   var _unread=0, _audioCtx=null, _audioOK=false, _emojiFilled=false;
+  var _sentIds={};   // ids de mensajes que YO envié desde esta pestaña (para no auto-avisarme)
   var EMOJIS='😀 😁 😂 🤣 😊 😍 😘 😎 🤔 😴 😉 🙂 😇 🥳 😅 😢 😭 😤 😠 😱 🤯 🤗 🙏 👍 👎 👌 👏 🙌 💪 🤝 👋 🔥 ⭐ ✅ ❌ ⚠️ ❗ ❓ 💯 ❤️ 🎉 🎯 📌 📝 🕐 ☕ 🐟 🧊 📦 🚚 🏭'.split(' ');
 
   // ── Sonido de aviso (Web Audio, sin archivos externos) ──
@@ -8412,8 +8425,10 @@ function renderPivotBody() {
     if(!autor){ chatCambiarNombre(); autor=nombre(); if(!autor) return; }
     var c=db(); if(!c){ if(window.showToast) showToast('Sin conexión a la base','error'); return; }
     var btn=document.getElementById('chatSend'); if(btn) btn.disabled=true;
-    c.from(CHAT_TABLE).insert({autor:autor,tipo:_tipo,mensaje:txt}).then(function(res){
+    c.from(CHAT_TABLE).insert({autor:autor,tipo:_tipo,mensaje:txt}).select('id').then(function(res){
       if(res.error) throw res.error;
+      // recordar el id que YO envié → para no auto-avisarme cuando vuelva por realtime
+      if(res.data && res.data[0] && res.data[0].id) _sentIds[res.data[0].id]=Date.now();
       input.value=''; chatAutosize(input); cargar();
     }).catch(function(e){
       if(window.showToast) showToast('No se pudo enviar: '+(e.message||''),'error');
@@ -8439,12 +8454,12 @@ function renderPivotBody() {
     try{
       _chan=c.channel('chat_uco')
         .on('postgres_changes',{event:'*',schema:'public',table:CHAT_TABLE},function(payload){
-          if(_open){ cargar(); return; }
-          // Chat cerrado: SOLO cuenta como no leído una inserción NUEVA de otra persona.
-          // (borrados/ediciones o el eco de tus propios mensajes NO marcan el punto rojo)
+          if(_open){ cargar(); return; }   // chat abierto: refrescar ante cualquier cambio
           var esInsert = payload && (payload.eventType==='INSERT' || payload.event==='INSERT');
           var m = payload && payload.new;
-          var mio = m && (m.autor||'').trim().toLowerCase() === (nombre()||'').trim().toLowerCase();
+          // "mío" = lo envié yo desde ESTA pestaña (por id). Robusto aunque todos usen el mismo nombre.
+          var mio = m && !!_sentIds[m.id];
+          // Chat cerrado: SOLO una inserción NUEVA de otro → punto rojo + sonido + notificación
           if(esInsert && m && !mio){
             setUnread(_unread+1);
             sonarDing();
