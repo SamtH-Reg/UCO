@@ -740,6 +740,10 @@ body {
         <span class="si-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="2,5 5,2 8,5"/><line x1="5" y1="2" x2="5" y2="10"/><polyline points="8,11 11,14 14,11"/><line x1="11" y1="14" x2="11" y2="6"/></svg></span> Gestión Turnos
         <span class="si-count" id="cnt-dup-turnos" style="background:#e05252;display:none">!</span>
       </button>
+      <button class="sidebar-item" onclick="goPage('inactivos')">
+        <span class="si-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="5" r="3"/><path d="M1.5 14c0-3 2.5-5.5 5.5-5.5 .8 0 1.5.15 2.2.45"/><line x1="10.7" y1="10.7" x2="14.5" y2="14.5"/><line x1="14.5" y1="10.7" x2="10.7" y2="14.5"/></svg></span> Inactivos
+        <span class="si-count" id="cnt-inactivos">—</span>
+      </button>
       <button class="sidebar-item" onclick="goPage('prod-procesos')">
         <span class="si-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="6" width="4" height="4" rx="1"/><rect x="6" y="2" width="4" height="4" rx="1"/><rect x="11" y="6" width="4" height="4" rx="1"/><rect x="6" y="10" width="4" height="4" rx="1"/><line x1="5" y1="8" x2="6" y2="8"/><line x1="10" y1="4" x2="11" y2="7"/><line x1="13" y1="10" x2="10" y2="12"/></svg></span> Procesos
         <span class="si-count" id="cnt-prod-procesos">—</span>
@@ -1426,6 +1430,43 @@ body {
             </thead>
             <tbody id="tbodyNoReg">
               <tr class="loading-row"><td colspan="4"><span class="spinner"></span>Cargando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ INACTIVOS ══ -->
+    <div class="page" id="page-inactivos">
+      <div class="page-header">
+        <div>
+          <h1>⛔ Inactivos</h1>
+          <p>Trabajadores marcados como inactivos — reactívalos en el turno disponible</p>
+        </div>
+        <div class="page-header-actions">
+          <button class="btn btn-secondary" onclick="loadInactivos()">🔄 Recargar</button>
+        </div>
+      </div>
+      <div class="table-area">
+        <div class="toolbar" style="flex-wrap:wrap;gap:8px">
+          <input class="search-input" id="inacSearch" placeholder="🔍 Buscar por código o nombre..." oninput="filtrarInactivos()" style="flex:1;min-width:200px">
+          <select class="search-input" id="inacFiltroTurno" onchange="filtrarInactivos()" style="min-width:170px;cursor:pointer"><option value="">Todos los turnos</option></select>
+          <select class="search-input" id="inacFiltroCC" onchange="filtrarInactivos()" style="min-width:200px;cursor:pointer"><option value="">Todos los centros de costo</option></select>
+          <span class="count-badge" id="inacCountBadge">— inactivos</span>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:250px">Reactivar en turno</th>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Centro de Costo</th>
+                <th>Turno anterior</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyInac">
+              <tr class="loading-row"><td colspan="5"><span class="spinner"></span>Cargando…</td></tr>
             </tbody>
           </table>
         </div>
@@ -2600,6 +2641,7 @@ function goPage(name) {
     'prod-lineas':       () => loadProdPage('lineas'),
     'prod-especiales':   () => loadProdPage('especiales'),
     noregistrar:loadNoRegistrar,
+    inactivos:  loadInactivos,
     auditlog:   loadAuditLog,
     settings:   cargarSettings,
     horarios:   cargarHorarios,
@@ -2935,6 +2977,96 @@ async function loadCounts() {
     const el = document.getElementById('cnt-empleados-' + key);
     if (el) el.textContent = count ?? '—';
   }
+  // Inactivos (activo=false)
+  try {
+    const { count: cInac } = await db.from('empleados')
+      .select('*', { count:'exact', head:true }).eq('activo', 'false');
+    const elI = document.getElementById('cnt-inactivos');
+    if (elI) elI.textContent = cInac ?? '—';
+  } catch(e){}
+}
+
+// ════════════════════════════════════════════════════
+//  INACTIVOS — trabajadores con activo=false
+// ════════════════════════════════════════════════════
+var _inactivosData = [];   // cache de la carga actual
+
+async function loadInactivos(){
+  const db = getClient(); if(!db) return;
+  await _cargarTurnosActivos();
+  // poblar filtro de turnos (conservando selección)
+  var selT = document.getElementById('inacFiltroTurno');
+  if(selT){
+    var actualT = selT.value;
+    selT.innerHTML = '<option value="">Todos los turnos</option>' +
+      _turnosActivos.map(function(t){ return '<option value="'+esc(t.turno)+'">'+t.emoji+' '+esc(t.turno)+'</option>'; }).join('');
+    selT.value = actualT;
+  }
+  var tbody = document.getElementById('tbodyInac');
+  if(tbody) tbody.innerHTML = '<tr class="loading-row"><td colspan="5"><span class="spinner"></span>Cargando…</td></tr>';
+  var { data, error } = await db.from('empleados').select('*')
+    .eq('activo','false').order('nombre',{ascending:true}).limit(2000);
+  if(error){ toast('Error: '+error.message,'error'); return; }
+  _inactivosData = data || [];
+  // poblar filtro de centro de costo (conservando selección)
+  var selCC = document.getElementById('inacFiltroCC');
+  if(selCC){
+    var actualCC = selCC.value;
+    var ccs = [...new Set(_inactivosData.map(function(r){ return (r.centro_costo||'').trim(); }).filter(Boolean))].sort();
+    selCC.innerHTML = '<option value="">Todos los centros de costo</option>' +
+      ccs.map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+'</option>'; }).join('');
+    selCC.value = actualCC;
+  }
+  var cnt = document.getElementById('cnt-inactivos'); if(cnt) cnt.textContent = _inactivosData.length;
+  filtrarInactivos();
+}
+
+function filtrarInactivos(){
+  var q  = ((document.getElementById('inacSearch')||{}).value||'').trim().toLowerCase();
+  var ft = (document.getElementById('inacFiltroTurno')||{}).value||'';
+  var fcc= (document.getElementById('inacFiltroCC')||{}).value||'';
+  var rows = _inactivosData.filter(function(r){
+    if(ft && (r.turno||'')!==ft) return false;
+    if(fcc && (r.centro_costo||'')!==fcc) return false;
+    if(q && ((r.codigo||'')+' '+(r.nombre||'')).toLowerCase().indexOf(q)===-1) return false;
+    return true;
+  });
+  var badge = document.getElementById('inacCountBadge');
+  if(badge) badge.textContent = rows.length+' inactivo'+(rows.length!==1?'s':'');
+  var tbody = document.getElementById('tbodyInac'); if(!tbody) return;
+  if(!rows.length){
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="ei">✅</div><p>Sin inactivos con estos filtros</p></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(function(r){
+    var sel = '<select class="search-input" id="inacTur_'+r.id+'" style="min-width:140px;padding:4px 8px;font-size:12px;cursor:pointer">' +
+      _turnosActivos.map(function(t){ return '<option value="'+esc(t.turno)+'"'+(t.turno===(r.turno||'')?' selected':'')+'>'+t.emoji+' '+esc(t.turno)+'</option>'; }).join('') +
+      '</select>';
+    return '<tr>'
+      +'<td><div class="td-actions" style="gap:6px;align-items:center">'+sel
+        +'<button class="btn btn-primary btn-sm" onclick="reactivarEmpleado(\''+r.id+'\')">✅ Reactivar</button></div></td>'
+      +'<td><strong style="font-family:var(--mono);color:var(--accent2)">'+esc(r.codigo)+'</strong></td>'
+      +'<td>'+esc(r.nombre)+'</td>'
+      +'<td>'+esc(r.centro_costo)+'</td>'
+      +'<td>'+esc(r.turno)+'</td>'
+      +'</tr>';
+  }).join('');
+}
+
+async function reactivarEmpleado(id){
+  const db = getClient(); if(!db) return;
+  var sel = document.getElementById('inacTur_'+id);
+  var turno = sel ? sel.value : '';
+  if(!turno){ toast('Selecciona un turno','error'); return; }
+  var emp = _inactivosData.find(function(r){ return String(r.id)===String(id); });
+  var { error } = await db.from('empleados').update({ activo:true, turno:turno }).eq('id', id);
+  if(error){ toast('Error al reactivar: '+error.message,'error'); return; }
+  toast('✅ '+(emp?emp.nombre:'Empleado')+' reactivado en turno '+turno);
+  _inactivosData = _inactivosData.filter(function(r){ return String(r.id)!==String(id); });
+  var cnt = document.getElementById('cnt-inactivos'); if(cnt) cnt.textContent = _inactivosData.length;
+  filtrarInactivos();
+  _centrosCostoCache = null;
+  if(typeof loadCounts==='function') loadCounts();
 }
 
 // ════════════════════════════════════════════════════
