@@ -940,8 +940,7 @@ body {
           <select class="search-input" id="empFiltroEstadoDia" onchange="_empPage=1;loadEmpleados('Día')" style="min-width:150px;cursor:pointer">
             <option value="">Todos los estados</option>
             <option value="activo">✅ Activo</option>
-            <option value="inactivo">⛔ Inactivo</option>
-            <option value="licencia">🏥 En licencia</option>
+                        <option value="licencia">🏥 En licencia</option>
           </select>
           <select class="search-input" id="empOrdenDia" onchange="_empPage=1;loadEmpleados('Día')" style="min-width:130px;cursor:pointer">
             <option value="nombre">Nombre A→Z</option>
@@ -983,8 +982,7 @@ body {
           <select class="search-input" id="empFiltroEstadoTarde" onchange="_empPage=1;loadEmpleados('Tarde')" style="min-width:150px;cursor:pointer">
             <option value="">Todos los estados</option>
             <option value="activo">✅ Activo</option>
-            <option value="inactivo">⛔ Inactivo</option>
-            <option value="licencia">🏥 En licencia</option>
+                        <option value="licencia">🏥 En licencia</option>
           </select>
           <select class="search-input" id="empOrdenTarde" onchange="_empPage=1;loadEmpleados('Tarde')" style="min-width:130px;cursor:pointer">
             <option value="nombre">Nombre A→Z</option>
@@ -1026,8 +1024,7 @@ body {
           <select class="search-input" id="empFiltroEstadoNoche" onchange="_empPage=1;loadEmpleados('Noche')" style="min-width:150px;cursor:pointer">
             <option value="">Todos los estados</option>
             <option value="activo">✅ Activo</option>
-            <option value="inactivo">⛔ Inactivo</option>
-            <option value="licencia">🏥 En licencia</option>
+                        <option value="licencia">🏥 En licencia</option>
           </select>
           <select class="search-input" id="empOrdenNoche" onchange="_empPage=1;loadEmpleados('Noche')" style="min-width:130px;cursor:pointer">
             <option value="nombre">Nombre A→Z</option>
@@ -2972,7 +2969,7 @@ async function loadCounts() {
   // Empleados por turno
   for (const turno of ['Día','Tarde','Noche']) {
     const { count } = await db.from('empleados')
-      .select('*', { count:'exact', head:true }).eq('turno', turno);
+      .select('*', { count:'exact', head:true }).eq('turno', turno).neq('activo','false');
     const key = turno === 'Día' ? 'dia' : turno === 'Tarde' ? 'tarde' : 'noche';
     const el = document.getElementById('cnt-empleados-' + key);
     if (el) el.textContent = count ?? '—';
@@ -3471,9 +3468,9 @@ async function loadEmpleados(turno) {
   if (search) q = q.or(`codigo.ilike.%${search}%,nombre.ilike.%${search}%,centro_costo.ilike.%${search}%`);
   if (filtroCC) q = q.eq('centro_costo', filtroCC);
 
-  // Estado: activo/inactivo se filtra en BD; licencia se filtra en cliente (depende de fecha)
-  if (filtroEst==='activo')   q = q.neq('activo', 'false');
-  if (filtroEst==='inactivo') q = q.eq('activo', 'false');
+  // Los INACTIVOS ya NO se listan en las vistas de turno (viven en la sección Inactivos).
+  q = q.neq('activo', 'false');
+  // 'activo' ya queda cubierto; 'licencia' se filtra en cliente (depende de fecha)
 
   // Si filtro es licencia o cliente, traer sin paginar para filtrar en JS
   const filtroCliente = (filtroEst==='licencia');
@@ -6504,7 +6501,7 @@ async function _inyectarTurnosDinamicos(){
   if(db){
     for(var i=0;i<nuevos.length;i++){
       var suf2 = _sufTurno(nuevos[i].turno);
-      var { count } = await db.from('empleados').select('*',{count:'exact',head:true}).eq('turno', nuevos[i].turno);
+      var { count } = await db.from('empleados').select('*',{count:'exact',head:true}).eq('turno', nuevos[i].turno).neq('activo','false');
       var el = document.getElementById('cnt-empleados-'+suf2);
       if(el) el.textContent = count ?? '—';
     }
