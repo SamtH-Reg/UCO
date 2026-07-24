@@ -1455,7 +1455,7 @@ body {
           <table class="data-table">
             <thead>
               <tr>
-                <th style="width:250px">Reactivar en turno</th>
+                <th style="width:420px">Reactivar (turno + motivo)</th>
                 <th>Código</th>
                 <th>Nombre</th>
                 <th>Centro de Costo</th>
@@ -1824,6 +1824,20 @@ body {
             </select>
           </div>
           <input class="search-input" id="rk-buscar" placeholder="🔍 Buscar trabajador..." oninput="renderRanking()" style="flex:1;min-width:180px">
+        </div>
+
+        <!-- Inactivación automática por faltas consecutivas -->
+        <div id="rk-inac-panel" style="display:none;flex-wrap:wrap;gap:14px;align-items:flex-end;background:rgba(224,82,82,.06);border:1.5px solid rgba(224,82,82,.35);border-radius:12px;padding:12px 14px;margin:8px 0 4px">
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">⛔ Inactivar con ___ o más faltas seguidas</label>
+            <input type="number" min="1" class="form-input" id="rk-inac-dias" value="6" style="width:110px">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">Centros de costo (vacío = todos)</label>
+            <select multiple class="form-input" id="rk-inac-cc" style="min-width:240px;height:76px"></select>
+          </div>
+          <button class="btn btn-danger" onclick="inactivarAutomatico()">⛔ Dejar inactivos automáticamente</button>
+          <span style="font-size:11px;color:var(--muted);flex:1;min-width:160px">Marca inactivos a los del análisis que cumplan el umbral. Luego se gestionan/reactivan en <b>Inactivos</b>.</span>
         </div>
 
         <!-- KPIs -->
@@ -3036,11 +3050,16 @@ function filtrarInactivos(){
     return;
   }
   tbody.innerHTML = rows.map(function(r){
-    var sel = '<select class="search-input" id="inacTur_'+r.id+'" style="min-width:140px;padding:4px 8px;font-size:12px;cursor:pointer">' +
+    var sel = '<select class="search-input" id="inacTur_'+r.id+'" title="Turno" style="min-width:120px;padding:4px 8px;font-size:12px;cursor:pointer">' +
       _turnosActivos.map(function(t){ return '<option value="'+esc(t.turno)+'"'+(t.turno===(r.turno||'')?' selected':'')+'>'+t.emoji+' '+esc(t.turno)+'</option>'; }).join('') +
       '</select>';
+    var selTipo = '<select class="search-input" id="inacTipo_'+r.id+'" title="Motivo de reactivación" style="min-width:150px;padding:4px 8px;font-size:12px;cursor:pointer">'
+      +'<option value="reingreso">🔄 Reingreso</option>'
+      +'<option value="licencia">🏥 Licencia médica</option>'
+      +'<option value="permiso">📄 Permiso personal</option>'
+      +'</select>';
     return '<tr>'
-      +'<td><div class="td-actions" style="gap:6px;align-items:center">'+sel
+      +'<td><div class="td-actions" style="gap:6px;align-items:center;flex-wrap:wrap">'+sel+selTipo
         +'<button class="btn btn-primary btn-sm" onclick="reactivarEmpleado(\''+r.id+'\')">✅ Reactivar</button></div></td>'
       +'<td><strong style="font-family:var(--mono);color:var(--accent2)">'+esc(r.codigo)+'</strong></td>'
       +'<td>'+esc(r.nombre)+'</td>'
@@ -3055,10 +3074,24 @@ async function reactivarEmpleado(id){
   var sel = document.getElementById('inacTur_'+id);
   var turno = sel ? sel.value : '';
   if(!turno){ toast('Selecciona un turno','error'); return; }
+  var tipoSel = document.getElementById('inacTipo_'+id);
+  var tipo = tipoSel ? tipoSel.value : 'reingreso';
   var emp = _inactivosData.find(function(r){ return String(r.id)===String(id); });
-  var { error } = await db.from('empleados').update({ activo:true, turno:turno }).eq('id', id);
+  var payload = { activo:true, turno:turno, licencia_inicio:null, licencia_fin:null };
+  var etiqueta = '🔄 Reingreso';
+  if(tipo==='licencia'){
+    var hoy = new Date().toISOString().substring(0,10);
+    var fin = prompt('🏥 Licencia médica\n\nFecha de término (YYYY-MM-DD). Deja vacío si es indefinida.\nInicio: '+hoy, '');
+    if(fin===null) return; // canceló
+    payload.licencia_inicio = hoy;
+    payload.licencia_fin = (fin && /^\d{4}-\d{2}-\d{2}$/.test(fin.trim())) ? fin.trim() : null;
+    etiqueta = '🏥 Licencia médica';
+  } else if(tipo==='permiso'){
+    etiqueta = '📄 Permiso personal';
+  }
+  var { error } = await db.from('empleados').update(payload).eq('id', id);
   if(error){ toast('Error al reactivar: '+error.message,'error'); return; }
-  toast('✅ '+(emp?emp.nombre:'Empleado')+' reactivado en turno '+turno);
+  toast('✅ '+(emp?emp.nombre:'Empleado')+' — '+etiqueta+' · turno '+turno);
   _inactivosData = _inactivosData.filter(function(r){ return String(r.id)!==String(id); });
   var cnt = document.getElementById('cnt-inactivos'); if(cnt) cnt.textContent = _inactivosData.length;
   filtrarInactivos();
@@ -5362,8 +5395,50 @@ async function calcularRanking(){
     else badge.style.display = 'none';
   }
 
+  _poblarPanelInactivar();
   renderRanking();
   toast('✅ Análisis completo: '+_rankingData.length+' trabajadores con faltas','success');
+}
+
+// Panel de inactivación automática por faltas consecutivas
+function _poblarPanelInactivar(){
+  var panel = document.getElementById('rk-inac-panel');
+  var selCC = document.getElementById('rk-inac-cc');
+  if(!panel || !selCC) return;
+  var ccs = [...new Set(_rankingData.map(function(r){ return (r.centro_costo||'').trim(); }).filter(Boolean))].sort();
+  var previas = Array.from(selCC.selectedOptions).map(function(o){return o.value;});
+  selCC.innerHTML = ccs.map(function(c){ return '<option value="'+esc(c)+'"'+(previas.indexOf(c)!==-1?' selected':'')+'>'+esc(c)+'</option>'; }).join('');
+  panel.style.display = _rankingData.length ? 'flex' : 'none';
+}
+
+async function inactivarAutomatico(){
+  const db = getClient(); if(!db) return;
+  if(!_rankingData.length){ toast('Primero presiona Analizar','error'); return; }
+  var dias = parseInt((document.getElementById('rk-inac-dias')||{}).value, 10);
+  if(!dias || dias < 1){ toast('Indica un número válido de faltas seguidas','error'); return; }
+  var selCC = document.getElementById('rk-inac-cc');
+  var ccsSel = selCC ? Array.from(selCC.selectedOptions).map(function(o){ return o.value; }) : [];
+  var candidatos = _rankingData.filter(function(r){
+    if(r.maxConsec < dias) return false;
+    if(ccsSel.length && ccsSel.indexOf((r.centro_costo||'').trim()) === -1) return false;
+    return true;
+  });
+  if(!candidatos.length){
+    toast('No hay trabajadores con '+dias+'+ faltas seguidas'+(ccsSel.length?' en los CC seleccionados':''),'info');
+    return;
+  }
+  var codigos = [...new Set(candidatos.map(function(r){ return r.codigo; }).filter(Boolean))];
+  var msg = '¿Dejar INACTIVOS a '+candidatos.length+' trabajador(es) con '+dias+' o más faltas seguidas'
+    + (ccsSel.length ? ' en '+ccsSel.length+' centro(s) de costo' : '') + '?\n\n'
+    + candidatos.slice(0,8).map(function(r){ return '• '+r.codigo+' '+r.nombre+' ('+r.maxConsec+' seguidas)'; }).join('\n')
+    + (candidatos.length>8 ? '\n… y '+(candidatos.length-8)+' más' : '')
+    + '\n\nSe podrán reactivar luego en la sección Inactivos.';
+  if(!confirm(msg)) return;
+  var { error } = await db.from('empleados').update({ activo:false }).in('codigo', codigos);
+  if(error){ toast('Error al inactivar: '+error.message,'error'); return; }
+  toast('⛔ '+codigos.length+' trabajador(es) marcados como inactivos');
+  if(typeof loadCounts==='function') loadCounts();
+  renderRanking();
 }
 
 function rankingSort(col){
