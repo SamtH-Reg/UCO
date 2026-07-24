@@ -1854,6 +1854,7 @@ body {
               <th style="width:60px">#</th>
               <th onclick="rankingSort('codigo')" style="cursor:pointer">Código ↕</th>
               <th onclick="rankingSort('nombre')" style="cursor:pointer">Nombre ↕</th>
+              <th onclick="rankingSort('centro_costo')" style="cursor:pointer">Centro de Costo ↕</th>
               <th onclick="rankingSort('turno')" style="cursor:pointer">Turno ↕</th>
               <th onclick="rankingSort('faltas')" style="cursor:pointer">Faltas ↕</th>
               <th onclick="rankingSort('maxConsec')" style="cursor:pointer">Consecutivas ↕</th>
@@ -5443,7 +5444,7 @@ async function inactivarAutomatico(){
 
 function rankingSort(col){
   if(_rankingSort.col === col) _rankingSort.dir = _rankingSort.dir==='asc'?'desc':'asc';
-  else { _rankingSort.col = col; _rankingSort.dir = (col==='nombre'||col==='codigo'||col==='turno')?'asc':'desc'; }
+  else { _rankingSort.col = col; _rankingSort.dir = (col==='nombre'||col==='codigo'||col==='turno'||col==='centro_costo')?'asc':'desc'; }
   renderRanking();
 }
 
@@ -5505,6 +5506,7 @@ function renderRanking(){
       +'<td style="text-align:center;color:var(--muted);font-weight:700">'+(idx+1)+'</td>'
       +'<td><strong style="font-family:var(--mono)">'+esc(r.codigo)+'</strong></td>'
       +'<td>'+esc(r.nombre)+'</td>'
+      +'<td><span style="font-size:12px">'+esc(r.centro_costo)+'</span></td>'
       +'<td><span style="font-size:12px">'+esc(r.turno)+'</span></td>'
       +'<td style="text-align:center"><span style="font-weight:800;font-size:15px;color:'+faltasColor+'">'+r.faltas+'</span></td>'
       +'<td style="text-align:center">'+consecBadge+'</td>'
