@@ -2251,6 +2251,10 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
       <span class="sidebar-item-icon">📊</span>
       <span class="sidebar-item-label">Registros</span>
     </button>
+    <button class="sidebar-item" id="sidebarCambioProceso" onclick="irA('cambioproceso')">
+      <span class="sidebar-item-icon">🔄</span>
+      <span class="sidebar-item-label">Cambio de Proceso</span>
+    </button>
     <button class="sidebar-item" id="sidebarDashboard" onclick="irA('dashboard')">
       <span class="sidebar-item-icon">📈</span>
       <span class="sidebar-item-label">Dashboard</span>
@@ -2628,9 +2632,6 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
       <div class="reg-btns">
         <button class="btn btn-primary btn-sm" onclick="_registrosCargados=false;cargarRegistros()">↻ Actualizar</button>
 
-        <button class="btn btn-sm" onclick="cpToggle()"
-          style="background:linear-gradient(135deg,#0077aa,#00b3c9);color:#fff;font-weight:700"
-          title="Cambiar el proceso de una línea a cierta hora">🔄 Cambio de Proceso</button>
         <button class="btn btn-sm" onclick="exportarRegistrosExcel()"
           style="background:linear-gradient(135deg,#1a7a3a,#27ae60);color:#fff;font-weight:700"
           title="Exporta en Excel los registros del filtro actual">🟢 Excel</button>
@@ -3025,6 +3026,41 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
 </div>
 </div><!-- /pageDashboard -->
 
+<!-- ══ CAMBIO DE PROCESO (pestaña) ══ -->
+<style>
+#pageCambioProceso .cpt-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;background:var(--t-card,#0f1e2d);border:1px solid var(--t-border,#1e4060);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+#pageCambioProceso .cpt-fld{display:flex;flex-direction:column;gap:4px}
+#pageCambioProceso .cpt-fld label{font-size:10px;color:var(--t-muted,#8ab);font-weight:700;letter-spacing:.3px;text-transform:uppercase}
+#pageCambioProceso .cpt-fld input,#pageCambioProceso .cpt-fld select{background:var(--t-bg,#0b1220);border:1px solid var(--t-border,#1e4060);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--t-text,#e0f0ff)}
+#pageCambioProceso .cpt-load{background:var(--t-grad,linear-gradient(135deg,var(--t-accent,#00c6a2),var(--t-accent2,#0098d4)));color:#fff;border:none;border-radius:10px;padding:10px 20px;font-weight:800;cursor:pointer}
+.cpt-card{background:var(--t-card,#0f1e2d);border:1px solid var(--t-border,#1e4060);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.cpt-card-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.cpt-linea{font-size:15px;font-weight:800;color:var(--t-accent2,#0098d4)}
+.cpt-linea-sub{font-size:11px;color:var(--t-muted,#8ab)}
+.cpt-func-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 2px;border-bottom:1px solid var(--t-border,#1e4060)}
+.cpt-func-row:last-of-type{border-bottom:none}
+.cpt-func-name{font-size:13px;font-weight:700;color:var(--t-text,#e0f0ff);min-width:150px}
+.cpt-func-cnt{font-size:11px;color:var(--t-muted,#8ab)}
+.cpt-func-row .cpt-corte-lbl{margin-left:auto;font-size:10px;color:var(--t-muted,#8ab);font-weight:700}
+.cpt-func-row input[type=time]{background:var(--t-bg,#0b1220);border:1px solid var(--t-border,#1e4060);border-radius:8px;padding:6px 9px;font-size:13px;color:var(--t-text,#e0f0ff)}
+.cpt-newproc{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:12px;padding-top:12px;border-top:1px dashed var(--t-border,#1e4060)}
+.cpt-newproc input{background:var(--t-bg,#0b1220);border:1px solid var(--t-border,#1e4060);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--t-text,#e0f0ff);min-width:180px}
+.cpt-apply{background:var(--t-grad,linear-gradient(135deg,var(--t-accent,#00c6a2),var(--t-accent2,#0098d4)));color:#fff;border:none;border-radius:10px;padding:9px 18px;font-weight:800;cursor:pointer}
+.cpt-apply:hover{filter:brightness(1.1)}
+</style>
+<div class="ios-page" id="pageCambioProceso">
+  <div class="container" style="max-width:100%;padding:20px 16px">
+    <h3 style="margin:0 0 4px">🔄 Cambio de Proceso</h3>
+    <p style="margin:0 0 14px;font-size:12px;color:var(--t-muted,#8ab);line-height:1.5">Elige fecha y turno, selecciona la línea que cambia de proceso y <b>corta la hora del proceso actual por función</b>. El proceso es lineal: cada función termina a distinta hora (ej. el filetero antes que el moldeo).</p>
+    <div class="cpt-controls">
+      <div class="cpt-fld"><label>Fecha</label><input type="date" id="cptFecha"></div>
+      <div class="cpt-fld"><label>Turno</label><select id="cptTurno"><option value="">Todos</option><option value="Día">☀️ Día</option><option value="Tarde">🌅 Tarde</option><option value="Noche">🌙 Noche</option></select></div>
+      <button class="cpt-load" onclick="cptCargar()">🔄 Cargar líneas</button>
+    </div>
+    <div id="cptLineas"><div style="padding:34px;text-align:center;color:var(--t-muted,#8ab)">Elige fecha/turno y presiona <b>Cargar líneas</b>.</div></div>
+  </div>
+</div>
+
 <!-- ══ TAB BAR ══ -->
 <nav class="ios-tabbar">
   <button class="ios-tab active" id="tab-inicio" onclick="irA('inicio')">
@@ -3038,6 +3074,10 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
   <button class="ios-tab" id="tab-registros" onclick="irA('registros')">
     <div class="ios-tab-icon">📊</div>
     <span class="ios-tab-label">Registros</span>
+  </button>
+  <button class="ios-tab" id="tab-cambioproceso" onclick="irA('cambioproceso')">
+    <div class="ios-tab-icon">🔄</div>
+    <span class="ios-tab-label">Proceso</span>
   </button>
   <button class="ios-tab" id="tab-dashboard" onclick="irA('dashboard')">
     <div class="ios-tab-icon">📈</div>
@@ -3274,6 +3314,7 @@ const PAGES={
   inicio:    {el:'pageInicio',    tab:'tab-inicio',    title:'Inicio',      sub:'Registro de Asistencia'},
   formulario:{el:'pageFormulario',tab:'tab-formulario',title:'Formulario',  sub:'Registrar asistencia'},
   registros: {el:'pageRegistros', tab:'tab-registros', title:'Registros',   sub:'Ver y editar datos'},
+  cambioproceso:{el:'pageCambioProceso',tab:'tab-cambioproceso',title:'Cambio de Proceso',sub:'Cortar hora del proceso por línea y función'},
   dashboard: {el:'pageDashboard', tab:'tab-dashboard', title:'Dashboard',   sub:'KPIs y resúmenes'},
 };
 
@@ -3292,7 +3333,7 @@ function irA(pageName){
   document.getElementById('iosNavTitle').textContent=pageName==='inicio'?'':cfg.title;
   // Sidebar desktop: activar item correspondiente
   const sidebarMap={inicio:'sidebarInicio',formulario:'sidebarFormulario',
-    registros:'sidebarRegistros',dashboard:'sidebarDashboard'};
+    registros:'sidebarRegistros',cambioproceso:'sidebarCambioProceso',dashboard:'sidebarDashboard'};
   document.querySelectorAll('.sidebar-item').forEach(s=>s.classList.remove('active'));
   const sEl=document.getElementById(sidebarMap[pageName]);
   if(sEl) sEl.classList.add('active');
@@ -3311,6 +3352,9 @@ function irA(pageName){
   if(pageName==='dashboard'){
     // Solo recargar si no hay datos ya cargados
     cargarDashboard();
+  }
+  if(pageName==='cambioproceso'){
+    if(typeof cptInit==='function') cptInit();
   }
 }
 
@@ -7347,6 +7391,126 @@ function cpAplicar(){
   if(!confirm('¿Crear el registro del proceso "'+proceso+'" a las '+hora+' para '+ids.length+' trabajador(es) de la Línea '+linea+'?')) return;
   window._bemPending={ ids:ids, cambios:cambios };
   bemConfirmar();
+}
+
+// ════════════════════════════════════════════════════
+//  CAMBIO DE PROCESO — pestaña (corte por línea y función)
+//  Cierra el proceso actual (proceso_termino) por función y, opcional,
+//  abre el nuevo proceso (registro nuevo) desde cada corte.
+// ════════════════════════════════════════════════════
+var _cptRegs = [];
+function _cptH(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function _cptSlug(s){ return String(s).replace(/[^A-Za-z0-9]/g,'_'); }
+function _cptEsc(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+function cptInit(){
+  var f=document.getElementById('cptFecha');
+  if(f && !f.value) f.value = localDate(new Date());
+}
+
+async function cptCargar(){
+  var fecha=(document.getElementById('cptFecha')||{}).value||'';
+  var turno=(document.getElementById('cptTurno')||{}).value||'';
+  if(!fecha){ showToast('Elige una fecha','error'); return; }
+  var cont=document.getElementById('cptLineas');
+  cont.innerHTML='<div style="padding:34px;text-align:center;color:var(--t-muted,#8ab)">⏳ Cargando…</div>';
+  try{
+    var q=_sbDb().from('registros').select('*').eq('fecha',fecha);
+    if(turno) q=q.eq('turno',turno);
+    var res=await q.limit(5000);
+    if(res.error) throw res.error;
+    _cptRegs=res.data||[];
+    cptRender();
+  }catch(e){
+    cont.innerHTML='<div style="padding:30px;text-align:center;color:var(--t-danger,#e05252)">Error: '+_cptH(e.message||e)+'</div>';
+  }
+}
+
+function cptRender(){
+  var cont=document.getElementById('cptLineas'); if(!cont) return;
+  if(!_cptRegs.length){ cont.innerHTML='<div style="padding:34px;text-align:center;color:var(--t-muted,#8ab)">No hay registros para esa fecha/turno.</div>'; return; }
+  var lineas={};
+  _cptRegs.forEach(function(r){
+    var l=String(r.linea||'').trim()||'(sin línea)';
+    var fn=(r.funcion||'').trim()||'(sin función)';
+    if(!lineas[l]) lineas[l]={};
+    if(!lineas[l][fn]) lineas[l][fn]=[];
+    lineas[l][fn].push(r);
+  });
+  var keys=Object.keys(lineas).sort(function(a,b){var na=parseFloat(a),nb=parseFloat(b);if(!isNaN(na)&&!isNaN(nb))return na-nb;return a.localeCompare(b,'es');});
+  var procList=(window._listas&&window._listas.procesos)||[];
+  var html=keys.map(function(l){
+    var funcs=lineas[l];
+    var fkeys=Object.keys(funcs).sort();
+    var totalL=fkeys.reduce(function(s,f){return s+funcs[f].length;},0);
+    var lid=_cptSlug(l);
+    var procs={}; _cptRegs.forEach(function(r){ if((String(r.linea||'').trim()||'(sin línea)')===l){var p=(r.proceso||'').trim();if(p)procs[p]=(procs[p]||0)+1;} });
+    var procActual=Object.keys(procs).sort(function(a,b){return procs[b]-procs[a];})[0]||'—';
+    var rows=fkeys.map(function(f,i){
+      return '<div class="cpt-func-row">'
+        +'<span class="cpt-func-name">'+_cptH(f)+'</span>'
+        +'<span class="cpt-func-cnt">'+funcs[f].length+' trab.</span>'
+        +'<span class="cpt-corte-lbl">CORTE ⏱</span>'
+        +'<input type="time" id="cptCorte_'+lid+'_'+i+'" data-func="'+encodeURIComponent(f)+'" title="Hora en que esta función terminó el proceso actual">'
+        +'</div>';
+    }).join('');
+    return '<div class="cpt-card" id="cptCard_'+lid+'">'
+      +'<div class="cpt-card-head"><span class="cpt-linea">🏭 Línea '+_cptH(l)+'</span>'
+        +'<span class="cpt-linea-sub">'+totalL+' trabajadores · proceso actual: <b>'+_cptH(procActual)+'</b></span></div>'
+      +rows
+      +'<div class="cpt-newproc">'
+        +'<div class="cpt-fld" style="display:flex;flex-direction:column;gap:4px"><label style="font-size:10px;color:var(--t-muted,#8ab);font-weight:700;text-transform:uppercase">Nuevo proceso (opcional)</label>'
+          +'<input type="text" id="cptNuevo_'+lid+'" list="cptProcAll" placeholder="Vacío = solo cortar"></div>'
+        +'<button class="cpt-apply" onclick="cptAplicar(\''+_cptEsc(l)+'\')">⚡ Aplicar cambio de proceso</button>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+  html+='<datalist id="cptProcAll">'+procList.map(function(p){return '<option value="'+_cptH(p)+'">';}).join('')+'</datalist>';
+  cont.innerHTML=html;
+}
+
+async function cptAplicar(linea){
+  var lid=_cptSlug(linea);
+  var inputs=document.querySelectorAll('#cptCard_'+lid+' input[type=time]');
+  var cortes=[];
+  inputs.forEach(function(inp){ var h=(inp.value||'').trim(); if(h) cortes.push({func:decodeURIComponent(inp.dataset.func), hora:h}); });
+  if(!cortes.length){ showToast('Indica al menos una hora de corte','error'); return; }
+  var nuevo=((document.getElementById('cptNuevo_'+lid)||{}).value||'').trim();
+  var fecha=(document.getElementById('cptFecha')||{}).value||'';
+  var regsLinea=_cptRegs.filter(function(r){ return (String(r.linea||'').trim()||'(sin línea)')===String(linea); });
+  var totalCortar=0;
+  cortes.forEach(function(c){ totalCortar+=regsLinea.filter(function(r){ return ((r.funcion||'').trim()||'(sin función)')===c.func; }).length; });
+  var msg='Línea '+linea+': cortar el proceso actual en '+cortes.length+' función(es) — '+totalCortar+' trabajador(es)'
+    +(nuevo?('\ny abrir el proceso "'+nuevo+'" desde cada corte'):'')+'.\n\n¿Aplicar?';
+  if(!confirm(msg)) return;
+  showToast('⏳ Aplicando…','info',4000);
+  var ok=0, err=0, nuevos=[];
+  for(var i=0;i<cortes.length;i++){
+    var c=cortes[i];
+    var regsF=regsLinea.filter(function(r){ return ((r.funcion||'').trim()||'(sin función)')===c.func; });
+    var ids=regsF.map(function(r){return r.id;}).filter(Boolean);
+    if(!ids.length) continue;
+    var ter=fecha+'T'+c.hora+':00';
+    try{
+      var u=await _sbDb().from('registros').update({proceso_termino:ter}).in('id',ids);
+      if(u.error) throw u.error; ok+=ids.length;
+    }catch(e){ console.error('[CPT UPDATE]',e); err+=ids.length; }
+    if(nuevo){
+      regsF.forEach(function(r){
+        var n=Object.assign({},r); delete n.id; delete n.created_at; delete n.updated_at;
+        n.proceso=nuevo; n.proceso_inicio=ter; n.proceso_termino=null;
+        nuevos.push(n);
+      });
+    }
+  }
+  if(nuevos.length){
+    try{ var ins=await _sbDb().from('registros').insert(nuevos); if(ins.error) throw ins.error; }
+    catch(e){ console.error('[CPT INSERT]',e); err+=nuevos.length; }
+  }
+  if(err) showToast('⚠️ '+ok+' cortados · '+err+' errores','warning',5000);
+  else showToast('✅ Proceso cortado'+(nuevo?' y nuevo proceso abierto':'')+' · '+ok+' trabajador(es)','success');
+  _registrosCargados=false;
+  cptCargar();
 }
 
 function actualizarSelReg(){
