@@ -3067,6 +3067,9 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
 .cpt-proc-name{flex:1;font-weight:700}
 .cpt-proc-time{min-width:120px;color:var(--t-muted,#8ab);font-family:var(--t-mono,ui-monospace,monospace)}
 .cpt-proc-dur{min-width:64px;text-align:right;font-weight:800;color:var(--t-accent,#00c6a2)}
+.cpt-proc-det{font-size:10px;color:var(--t-muted,#8ab);font-weight:500;margin-top:1px}
+.cpt-proc-brk{display:block;font-size:9px;color:#e67e22;font-weight:600;margin-top:1px}
+.cpt-proc-row{align-items:flex-start}
 .cpt-total{margin-top:6px;padding-top:7px;border-top:1px solid var(--t-border,#1e4060);text-align:right;font-size:13px;color:var(--t-text,#e0f0ff)}
 </style>
 <div class="ios-page" id="pageCambioProceso">
@@ -7468,35 +7471,50 @@ function cptRender(){
     var fkeys=Object.keys(funcs).sort();
     var totalL=fkeys.reduce(function(s,f){return s+funcs[f].length;},0);
     var lid=_cptSlug(l);
-    var procs={},esps={},prods={},byProc={};
+    var procs={},esps={},prods={},byProc={},desInt={},colInt={};
     _cptRegs.forEach(function(r){ if((String(r.linea||'').trim()||'(sin línea)')===l){
       var p=(r.proceso||'').trim(); if(p)procs[p]=(procs[p]||0)+1;
       var e=(r.especie||'').trim(); if(e)esps[e]=(esps[e]||0)+1;
       var pr=(r.producto||'').trim(); if(pr)prods[pr]=(prods[pr]||0)+1;
-      var pk=p||'—'; if(!byProc[pk]) byProc[pk]={ini:null,fin:null};
-      var di=_cptTs(r.proceso_inicio), df=_cptTs(r.proceso_termino);
-      if(di&&(!byProc[pk].ini||di<byProc[pk].ini)) byProc[pk].ini=di;
-      if(df&&(!byProc[pk].fin||df>byProc[pk].fin)) byProc[pk].fin=df;
+      var pk=p||'—'; if(!byProc[pk]) byProc[pk]={ini:null,fin:null,esps:{},prods:{}};
+      var di=_cptMin(r.proceso_inicio), df=_cptMin(r.proceso_termino);
+      if(di!=null&&(byProc[pk].ini==null||di<byProc[pk].ini)) byProc[pk].ini=di;
+      if(df!=null&&(byProc[pk].fin==null||df>byProc[pk].fin)) byProc[pk].fin=df;
+      if(e) byProc[pk].esps[e]=(byProc[pk].esps[e]||0)+1;
+      if(pr) byProc[pk].prods[pr]=(byProc[pk].prods[pr]||0)+1;
+      var ddi=_cptMin(r.descanso_inicio), ddf=_cptMin(r.descanso_termino);
+      if(ddi!=null&&ddf!=null&&ddf>ddi){ desInt[ddi+'-'+ddf]=(desInt[ddi+'-'+ddf]||0)+1; }
+      var cci=_cptMin(r.colacion_inicio), ccf=_cptMin(r.colacion_termino);
+      if(cci!=null&&ccf!=null&&ccf>cci){ colInt[cci+'-'+ccf]=(colInt[cci+'-'+ccf]||0)+1; }
     }});
     var procActual=_top(procs)||'—', espActual=_top(esps), prodActual=_top(prods);
-    // ── Resumen: cada proceso con su rango de horas y duración + total ──
-    var pOrden=Object.keys(byProc).sort(function(a,b){var ia=byProc[a].ini,ib=byProc[b].ini;if(ia&&ib)return ia-ib;if(ia)return -1;if(ib)return 1;return 0;});
+    // Descanso/colación más frecuentes de la línea (para descontar)
+    var _modeInt=function(o){var k=Object.keys(o);if(!k.length)return null;var b=k.sort(function(a,b){return o[b]-o[a];})[0].split('-');return {ini:+b[0],fin:+b[1]};};
+    var brkDes=_modeInt(desInt), brkCol=_modeInt(colInt);
+    var _ov=function(pi,pf,b){ if(!b||pi==null||pf==null)return 0; if(pf<pi)pf+=1440; return Math.max(0,Math.min(pf,b.fin)-Math.max(pi,b.ini)); };
+    // ── Resumen: cada proceso con rango real, especie/producto y horas TRABAJADAS (sin descanso/colación) ──
+    var pOrden=Object.keys(byProc).sort(function(a,b){var ia=byProc[a].ini,ib=byProc[b].ini;if(ia!=null&&ib!=null)return ia-ib;if(ia!=null)return -1;if(ib!=null)return 1;return 0;});
     var totalMin=0;
     var resumenRows=pOrden.map(function(pk){
       var o=byProc[pk];
-      var dm=(o.ini&&o.fin)?Math.round((o.fin-o.ini)/60000):null;
-      if(dm!=null&&dm>=0) totalMin+=dm;
-      return '<div class="cpt-proc-row"><span class="cpt-proc-name">'+_cptH(pk)+'</span>'
-        +'<span class="cpt-proc-time">'+_cptHM(o.ini)+' → '+_cptHM(o.fin)+'</span>'
-        +'<span class="cpt-proc-dur">'+_cptFmtDur(dm)+'</span></div>';
+      var gross=(o.ini!=null&&o.fin!=null)?((o.fin-o.ini)<0?(o.fin-o.ini+1440):(o.fin-o.ini)):null;
+      var brk=(gross!=null)?(_ov(o.ini,o.fin,brkDes)+_ov(o.ini,o.fin,brkCol)):0;
+      var net=(gross!=null)?Math.max(0,gross-brk):null;
+      if(net!=null) totalMin+=net;
+      var eP=_top(o.esps), pP=_top(o.prods);
+      var detalle=(eP||pP)?('<div class="cpt-proc-det">'+_cptH(eP||'—')+(pP?' · '+_cptH(pP):'')+'</div>'):'';
+      var brkTxt=brk>0?('<span class="cpt-proc-brk">−'+_cptFmtDur(brk)+' desc.</span>'):'';
+      return '<div class="cpt-proc-row"><span class="cpt-proc-name">'+_cptH(pk)+detalle+'</span>'
+        +'<span class="cpt-proc-time">'+_cptFmtHM(o.ini)+' → '+_cptFmtHM(o.fin)+'</span>'
+        +'<span class="cpt-proc-dur">'+_cptFmtDur(net)+brkTxt+'</span></div>';
     }).join('');
     var nProc=pOrden.length;
     var badge = nProc>1 ? '<span class="cpt-badge-cambio">🔄 '+nProc+' procesos hoy</span>' : '';
     var resumen='<div class="cpt-resumen">'
-      +'<div class="cpt-resumen-title">📋 Procesos registrados hoy</div>'
-      +'<div class="cpt-proc-row cpt-proc-head"><span class="cpt-proc-name">Proceso</span><span class="cpt-proc-time">Desde → Hasta</span><span class="cpt-proc-dur">Duración</span></div>'
+      +'<div class="cpt-resumen-title">📋 Procesos registrados hoy <span style="font-weight:400;color:var(--t-muted,#8ab)">· horas netas (sin desayuno/colación)</span></div>'
+      +'<div class="cpt-proc-row cpt-proc-head"><span class="cpt-proc-name">Proceso · especie · producto</span><span class="cpt-proc-time">Desde → Hasta</span><span class="cpt-proc-dur">Trabajado</span></div>'
       +resumenRows
-      +'<div class="cpt-total">⏱ Total trabajado: <b>'+_cptFmtDur(totalMin)+'</b></div>'
+      +'<div class="cpt-total">⏱ Total trabajado (neto): <b>'+_cptFmtDur(totalMin)+'</b></div>'
       +'</div>';
     var espOpts=especies.slice().sort().map(function(e){return '<option value="'+_cptH(e)+'"'+(e===espActual?' selected':'')+'>'+_cptH(e)+'</option>';}).join('');
     var prodListA=(mE[espActual]&&mE[espActual].productos)||[];
@@ -7540,9 +7558,9 @@ function cptRender(){
   cont.innerHTML=html;
 }
 
-function _cptTs(ts){ if(!ts)return null; var s=String(ts).trim().replace(' ','T'); if(s.length<=10)s+='T00:00:00'; var d=new Date(s); return isNaN(d.getTime())?null:d; }
-function _cptHM(d){ if(!d)return '—'; return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
-function _cptFmtDur(min){ if(min==null||min<0)return '—'; var h=Math.floor(min/60),m=min%60; return (h>0?h+'h ':'')+m+'m'; }
+function _cptMin(ts){ if(!ts)return null; var m=String(ts).match(/(\d{1,2}):(\d{2})/); return m?(+m[1])*60+(+m[2]):null; }  // HH:MM del string, SIN conversión de zona horaria
+function _cptFmtHM(min){ if(min==null)return '—'; min=((min%1440)+1440)%1440; return ('0'+Math.floor(min/60)).slice(-2)+':'+('0'+(min%60)).slice(-2); }
+function _cptFmtDur(min){ if(min==null||min<0)return '—'; var h=Math.floor(min/60),m=Math.round(min%60); return (h>0?h+'h ':'')+m+'m'; }
 function cptToggleCard(lid){
   var b=document.getElementById('cptBody_'+lid), ch=document.getElementById('cptChev_'+lid);
   if(!b) return;
