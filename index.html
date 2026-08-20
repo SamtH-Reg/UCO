@@ -3071,6 +3071,11 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
 .cpt-proc-brk{display:block;font-size:9px;color:#e67e22;font-weight:600;margin-top:1px}
 .cpt-proc-row{align-items:flex-start}
 .cpt-total{margin-top:6px;padding-top:7px;border-top:1px solid var(--t-border,#1e4060);text-align:right;font-size:13px;color:var(--t-text,#e0f0ff)}
+.cpt-res-hint{margin-top:8px;padding-top:8px;border-top:1px dashed var(--t-border,#1e4060);text-align:center;font-size:11.5px;font-weight:700;color:var(--t-accent2,#0098d4)}
+.cpt-resumen:hover{border-color:var(--t-accent2,#0098d4)}
+.cpt-corte-sec{margin-top:12px}
+.cpt-add-proc{display:block;width:100%;margin:12px 0 4px;background:transparent;border:1.5px dashed var(--t-accent2,#0098d4);color:var(--t-accent2,#0098d4);border-radius:10px;padding:10px;font-size:13px;font-weight:800;cursor:pointer}
+.cpt-add-proc:hover{background:rgba(0,152,212,.08)}
 </style>
 <div class="ios-page" id="pageCambioProceso">
   <div class="container" style="max-width:100%;padding:20px 16px">
@@ -7514,11 +7519,12 @@ function cptRender(){
     }).join('');
     var nProc=pOrden.length;
     var badge = nProc>1 ? '<span class="cpt-badge-cambio">🔄 '+nProc+' procesos hoy</span>' : '';
-    var resumen='<div class="cpt-resumen">'
+    var resumen='<div class="cpt-resumen" onclick="cptToggleCorte(\''+lid+'\')" style="cursor:pointer">'
       +'<div class="cpt-resumen-title">📋 Procesos registrados hoy <span style="font-weight:400;color:var(--t-muted,#8ab)">· horas netas (sin desayuno/colación)</span></div>'
       +'<div class="cpt-proc-row cpt-proc-head"><span class="cpt-proc-name">Proceso · especie · producto</span><span class="cpt-proc-time">Desde → Hasta</span><span class="cpt-proc-dur">Trabajado</span></div>'
       +resumenRows
       +'<div class="cpt-total">⏱ Total trabajado (neto): <b>'+_cptFmtDur(totalMin)+'</b></div>'
+      +'<div class="cpt-res-hint" id="cptResHint_'+lid+'">▸ Toca aquí para registrar el corte de hora por función</div>'
       +'</div>';
     var espLista=especies.slice(); if(espActual && espLista.indexOf(espActual)===-1) espLista.push(espActual);
     var espOpts=espLista.sort().map(function(e){return '<option value="'+_cptH(e)+'"'+(e===espActual?' selected':'')+'>'+_cptH(e)+'</option>';}).join('');
@@ -7545,14 +7551,19 @@ function cptRender(){
       +'</div>'
       +'<div class="cpt-body" id="cptBody_'+lid+'" style="display:none">'
         +resumen
-        +'<div class="cpt-todas-row"><span class="cpt-todas-lbl">MISMO CORTE PARA TODAS</span><input type="time" id="cptTodas_'+lid+'"><button class="cpt-mini" onclick="cptCorteTodas(\''+lid+'\')">↧ a todas</button></div>'
-        +rows
-        +'<div class="cpt-newproc">'
-          +'<div style="display:flex;flex-direction:column;gap:4px"><label style="font-size:10px;color:var(--t-muted,#8ab);font-weight:700;text-transform:uppercase">Nuevo proceso (opcional)</label>'
-            +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
-              +'<select id="cptEsp_'+lid+'" class="cpt-sel" onchange="cptOnEspecie(\''+lid+'\')"><option value="">Especie…</option>'+espOpts+'</select>'
-              +'<select id="cptProd_'+lid+'" class="cpt-sel" onchange="cptOnProducto(\''+lid+'\')">'+prodOptsA+'</select>'
-              +'<select id="cptProc_'+lid+'" class="cpt-sel">'+procOptsA+'</select>'
+        +'<div class="cpt-corte-sec" id="cptCorteSec_'+lid+'" style="display:none">'
+          +'<div class="cpt-todas-row"><span class="cpt-todas-lbl">MISMO CORTE PARA TODAS</span><input type="time" id="cptTodas_'+lid+'"><button class="cpt-mini" onclick="cptCorteTodas(\''+lid+'\')">↧ a todas</button></div>'
+          +rows
+          +'<button class="cpt-add-proc" id="cptAddBtn_'+lid+'" onclick="cptShowNuevo(\''+lid+'\')">➕ Agregar nuevo proceso</button>'
+          +'<div class="cpt-newproc" id="cptNuevoSec_'+lid+'" style="display:none">'
+            +'<div style="display:flex;flex-direction:column;gap:4px"><label style="font-size:10px;color:var(--t-muted,#8ab);font-weight:700;text-transform:uppercase">Hora de inicio (por defecto = corte anterior)</label>'
+              +'<input type="time" id="cptInicio_'+lid+'" class="cpt-sel" style="min-width:120px" title="Hora en que arranca el nuevo proceso"></div>'
+            +'<div style="display:flex;flex-direction:column;gap:4px"><label style="font-size:10px;color:var(--t-muted,#8ab);font-weight:700;text-transform:uppercase">Nuevo proceso</label>'
+              +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+                +'<select id="cptEsp_'+lid+'" class="cpt-sel" onchange="cptOnEspecie(\''+lid+'\')"><option value="">Especie…</option>'+espOpts+'</select>'
+                +'<select id="cptProd_'+lid+'" class="cpt-sel" onchange="cptOnProducto(\''+lid+'\')">'+prodOptsA+'</select>'
+                +'<select id="cptProc_'+lid+'" class="cpt-sel">'+procOptsA+'</select>'
+              +'</div>'
             +'</div>'
           +'</div>'
           +'<button class="cpt-apply" onclick="cptAplicar(\''+_cptEsc(l)+'\')">⚡ Aplicar cambio de proceso</button>'
@@ -7572,6 +7583,26 @@ function cptToggleCard(lid){
   var open=(b.style.display==='none' || !b.style.display);
   b.style.display=open?'block':'none';
   if(ch) ch.textContent=open?'▾':'▸';
+}
+function cptToggleCorte(lid){
+  var s=document.getElementById('cptCorteSec_'+lid), h=document.getElementById('cptResHint_'+lid);
+  if(!s) return;
+  var open=(s.style.display==='none' || !s.style.display);
+  s.style.display=open?'block':'none';
+  if(h) h.textContent=open?'▾ Corte de hora por función (abajo) — toca para ocultar':'▸ Toca aquí para registrar el corte de hora por función';
+}
+function cptShowNuevo(lid){
+  var s=document.getElementById('cptNuevoSec_'+lid); if(!s) return;
+  s.style.display='block';
+  var btn=document.getElementById('cptAddBtn_'+lid); if(btn) btn.style.display='none';
+  // hora de inicio por defecto = MISMO CORTE, o el corte más temprano de las funciones
+  var hi=((document.getElementById('cptTodas_'+lid)||{}).value||'').trim();
+  if(!hi){
+    var cs=[];
+    document.querySelectorAll('#cptCard_'+lid+' input[type=time]').forEach(function(inp){ if(inp.id.indexOf('cptCorte_')===0 && inp.value) cs.push(inp.value); });
+    cs.sort(); hi=cs[0]||'';
+  }
+  var ini=document.getElementById('cptInicio_'+lid); if(ini && hi && !ini.value) ini.value=hi;
 }
 function cptCorteTodas(lid){
   var t=((document.getElementById('cptTodas_'+lid)||{}).value||'').trim();
@@ -7606,17 +7637,18 @@ async function cptAplicar(linea){
   var lid=_cptSlug(linea);
   var inputs=document.querySelectorAll('#cptCard_'+lid+' input[type=time]');
   var cortes=[];
-  inputs.forEach(function(inp){ var h=(inp.value||'').trim(); if(h) cortes.push({func:decodeURIComponent(inp.dataset.func), hora:h}); });
-  if(!cortes.length){ showToast('Indica al menos una hora de corte','error'); return; }
+  inputs.forEach(function(inp){ if(inp.id.indexOf('cptCorte_')!==0) return; var h=(inp.value||'').trim(); if(h) cortes.push({func:decodeURIComponent(inp.dataset.func||''), hora:h}); });
+  if(!cortes.length){ showToast('Indica al menos una hora de corte por función','error'); return; }
   var nuevo=((document.getElementById('cptProc_'+lid)||{}).value||'').trim();
   var nEsp=((document.getElementById('cptEsp_'+lid)||{}).value||'').trim();
   var nProd=((document.getElementById('cptProd_'+lid)||{}).value||'').trim();
   var fecha=(document.getElementById('cptFecha')||{}).value||'';
+  var horaIni=((document.getElementById('cptInicio_'+lid)||{}).value||'').trim();
   var regsLinea=_cptRegs.filter(function(r){ return (String(r.linea||'').trim()||'(sin línea)')===String(linea); });
   var totalCortar=0;
   cortes.forEach(function(c){ totalCortar+=regsLinea.filter(function(r){ return ((r.funcion||'').trim()||'(sin función)')===c.func; }).length; });
   var msg='Línea '+linea+': cortar el proceso actual en '+cortes.length+' función(es) — '+totalCortar+' trabajador(es)'
-    +(nuevo?('\ny abrir el proceso "'+nuevo+'" desde cada corte'):'')+'.\n\n¿Aplicar?';
+    +(nuevo?('\ny abrir el proceso "'+nuevo+'"'+(horaIni?(' desde las '+horaIni):' desde cada corte')):'')+'.\n\n¿Aplicar?';
   if(!confirm(msg)) return;
   showToast('⏳ Aplicando…','info',4000);
   var ok=0, err=0, nuevos=[];
@@ -7633,7 +7665,7 @@ async function cptAplicar(linea){
     if(nuevo){
       regsF.forEach(function(r){
         var n=Object.assign({},r); delete n.id; delete n.created_at; delete n.updated_at;
-        n.proceso=nuevo; if(nEsp)n.especie=nEsp; if(nProd)n.producto=nProd; n.proceso_inicio=ter; n.proceso_termino=null;
+        n.proceso=nuevo; if(nEsp)n.especie=nEsp; if(nProd)n.producto=nProd; n.proceso_inicio=(horaIni?(fecha+'T'+horaIni+':00'):ter); n.proceso_termino=null;
         nuevos.push(n);
       });
     }
