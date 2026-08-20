@@ -3047,6 +3047,12 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
 .cpt-newproc input{background:var(--t-bg,#0b1220);border:1px solid var(--t-border,#1e4060);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--t-text,#e0f0ff);min-width:180px}
 .cpt-apply{background:var(--t-grad,linear-gradient(135deg,var(--t-accent,#00c6a2),var(--t-accent2,#0098d4)));color:#fff;border:none;border-radius:10px;padding:9px 18px;font-weight:800;cursor:pointer}
 .cpt-apply:hover{filter:brightness(1.1)}
+.cpt-todas{margin-left:auto;display:flex;align-items:center;gap:6px}
+.cpt-todas span{font-size:9.5px;color:var(--t-muted,#8ab);font-weight:700;letter-spacing:.3px}
+.cpt-todas input[type=time]{background:var(--t-bg,#0b1220);border:1px solid var(--t-border,#1e4060);border-radius:8px;padding:5px 8px;font-size:12px;color:var(--t-text,#e0f0ff)}
+.cpt-mini{background:transparent;border:1px solid var(--t-accent2,#0098d4);color:var(--t-accent2,#0098d4);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.cpt-mini:hover{background:var(--t-accent2,#0098d4);color:#fff}
+.cpt-sel{background:var(--t-bg,#0b1220);border:1px solid var(--t-border,#1e4060);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--t-text,#e0f0ff);min-width:150px;cursor:pointer}
 </style>
 <div class="ios-page" id="pageCambioProceso">
   <div class="container" style="max-width:100%;padding:20px 16px">
@@ -7438,7 +7444,8 @@ function cptRender(){
     lineas[l][fn].push(r);
   });
   var keys=Object.keys(lineas).sort(function(a,b){var na=parseFloat(a),nb=parseFloat(b);if(!isNaN(na)&&!isNaN(nb))return na-nb;return a.localeCompare(b,'es');});
-  var procList=(window._listas&&window._listas.procesos)||[];
+  var especies=(window._listas&&window._listas.especies)||[];
+  var especieOpts=especies.slice().sort().map(function(e){return '<option value="'+_cptH(e)+'">'+_cptH(e)+'</option>';}).join('');
   var html=keys.map(function(l){
     var funcs=lineas[l];
     var fkeys=Object.keys(funcs).sort();
@@ -7456,17 +7463,52 @@ function cptRender(){
     }).join('');
     return '<div class="cpt-card" id="cptCard_'+lid+'">'
       +'<div class="cpt-card-head"><span class="cpt-linea">🏭 Línea '+_cptH(l)+'</span>'
-        +'<span class="cpt-linea-sub">'+totalL+' trabajadores · proceso actual: <b>'+_cptH(procActual)+'</b></span></div>'
+        +'<span class="cpt-linea-sub">'+totalL+' trabajadores · proceso actual: <b>'+_cptH(procActual)+'</b></span>'
+        +'<div class="cpt-todas"><span>MISMO CORTE</span><input type="time" id="cptTodas_'+lid+'"><button class="cpt-mini" onclick="cptCorteTodas(\''+lid+'\')">↧ a todas</button></div>'
+      +'</div>'
       +rows
       +'<div class="cpt-newproc">'
-        +'<div class="cpt-fld" style="display:flex;flex-direction:column;gap:4px"><label style="font-size:10px;color:var(--t-muted,#8ab);font-weight:700;text-transform:uppercase">Nuevo proceso (opcional)</label>'
-          +'<input type="text" id="cptNuevo_'+lid+'" list="cptProcAll" placeholder="Vacío = solo cortar"></div>'
+        +'<div style="display:flex;flex-direction:column;gap:4px"><label style="font-size:10px;color:var(--t-muted,#8ab);font-weight:700;text-transform:uppercase">Nuevo proceso (opcional)</label>'
+          +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+            +'<select id="cptEsp_'+lid+'" class="cpt-sel" onchange="cptOnEspecie(\''+lid+'\')"><option value="">Especie…</option>'+especieOpts+'</select>'
+            +'<select id="cptProd_'+lid+'" class="cpt-sel" onchange="cptOnProducto(\''+lid+'\')"><option value="">Producto…</option></select>'
+            +'<select id="cptProc_'+lid+'" class="cpt-sel"><option value="">Proceso… (vacío = solo cortar)</option></select>'
+          +'</div>'
+        +'</div>'
         +'<button class="cpt-apply" onclick="cptAplicar(\''+_cptEsc(l)+'\')">⚡ Aplicar cambio de proceso</button>'
       +'</div>'
       +'</div>';
   }).join('');
-  html+='<datalist id="cptProcAll">'+procList.map(function(p){return '<option value="'+_cptH(p)+'">';}).join('')+'</datalist>';
   cont.innerHTML=html;
+}
+
+function cptCorteTodas(lid){
+  var t=((document.getElementById('cptTodas_'+lid)||{}).value||'').trim();
+  if(!t){ showToast('Indica una hora para aplicar a todas','error'); return; }
+  document.querySelectorAll('#cptCard_'+lid+' input[type=time]').forEach(function(inp){
+    if(inp.id.indexOf('cptCorte_')===0) inp.value=t;
+  });
+}
+function cptOnEspecie(lid){
+  var esp=(document.getElementById('cptEsp_'+lid)||{}).value||'';
+  var sp=document.getElementById('cptProd_'+lid);
+  var pr=document.getElementById('cptProc_'+lid);
+  if(sp) sp.innerHTML='<option value="">Producto…</option>';
+  if(pr) pr.innerHTML='<option value="">Proceso… (vacío = solo cortar)</option>';
+  if(!esp||!window._listas||!sp) return;
+  var prods=((window._listas.mapaEspecie||{})[esp]||{}).productos||[];
+  prods.slice().sort().forEach(function(p){var o=document.createElement('option');o.value=p;o.textContent=p;sp.appendChild(o);});
+  if(prods.length===1){ sp.value=prods[0]; cptOnProducto(lid); }
+}
+function cptOnProducto(lid){
+  var esp=(document.getElementById('cptEsp_'+lid)||{}).value||'';
+  var pro=(document.getElementById('cptProd_'+lid)||{}).value||'';
+  var pr=document.getElementById('cptProc_'+lid);
+  if(pr) pr.innerHTML='<option value="">Proceso… (vacío = solo cortar)</option>';
+  if(!esp||!pro||!window._listas||!pr) return;
+  var procs=((window._listas.mapaProducto||{})[esp+'||'+pro]||{}).procesos||[];
+  procs.slice().sort().forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;pr.appendChild(o);});
+  if(procs.length===1) pr.value=procs[0];
 }
 
 async function cptAplicar(linea){
@@ -7475,7 +7517,9 @@ async function cptAplicar(linea){
   var cortes=[];
   inputs.forEach(function(inp){ var h=(inp.value||'').trim(); if(h) cortes.push({func:decodeURIComponent(inp.dataset.func), hora:h}); });
   if(!cortes.length){ showToast('Indica al menos una hora de corte','error'); return; }
-  var nuevo=((document.getElementById('cptNuevo_'+lid)||{}).value||'').trim();
+  var nuevo=((document.getElementById('cptProc_'+lid)||{}).value||'').trim();
+  var nEsp=((document.getElementById('cptEsp_'+lid)||{}).value||'').trim();
+  var nProd=((document.getElementById('cptProd_'+lid)||{}).value||'').trim();
   var fecha=(document.getElementById('cptFecha')||{}).value||'';
   var regsLinea=_cptRegs.filter(function(r){ return (String(r.linea||'').trim()||'(sin línea)')===String(linea); });
   var totalCortar=0;
@@ -7498,7 +7542,7 @@ async function cptAplicar(linea){
     if(nuevo){
       regsF.forEach(function(r){
         var n=Object.assign({},r); delete n.id; delete n.created_at; delete n.updated_at;
-        n.proceso=nuevo; n.proceso_inicio=ter; n.proceso_termino=null;
+        n.proceso=nuevo; if(nEsp)n.especie=nEsp; if(nProd)n.producto=nProd; n.proceso_inicio=ter; n.proceso_termino=null;
         nuevos.push(n);
       });
     }
