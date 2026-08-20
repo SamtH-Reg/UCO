@@ -3053,6 +3053,12 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
 .cpt-mini{background:transparent;border:1px solid var(--t-accent2,#0098d4);color:var(--t-accent2,#0098d4);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
 .cpt-mini:hover{background:var(--t-accent2,#0098d4);color:#fff}
 .cpt-sel{background:var(--t-bg,#0b1220);border:1px solid var(--t-border,#1e4060);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--t-text,#e0f0ff);min-width:150px;cursor:pointer}
+.cpt-card-head{cursor:pointer;user-select:none}
+.cpt-chevron{font-size:12px;color:var(--t-accent2,#0098d4);flex-shrink:0}
+.cpt-card-head:hover .cpt-linea{filter:brightness(1.2)}
+.cpt-body{margin-top:8px}
+.cpt-todas-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 0 10px;margin-bottom:6px;border-bottom:1px solid var(--t-border,#1e4060)}
+.cpt-todas-lbl{font-size:10px;color:var(--t-muted,#8ab);font-weight:700;letter-spacing:.3px}
 </style>
 <div class="ios-page" id="pageCambioProceso">
   <div class="container" style="max-width:100%;padding:20px 16px">
@@ -7445,14 +7451,26 @@ function cptRender(){
   });
   var keys=Object.keys(lineas).sort(function(a,b){var na=parseFloat(a),nb=parseFloat(b);if(!isNaN(na)&&!isNaN(nb))return na-nb;return a.localeCompare(b,'es');});
   var especies=(window._listas&&window._listas.especies)||[];
-  var especieOpts=especies.slice().sort().map(function(e){return '<option value="'+_cptH(e)+'">'+_cptH(e)+'</option>';}).join('');
+  var mE=(window._listas&&window._listas.mapaEspecie)||{};
+  var mP=(window._listas&&window._listas.mapaProducto)||{};
+  var _top=function(o){var k=Object.keys(o);return k.length?k.sort(function(a,b){return o[b]-o[a];})[0]:'';};
   var html=keys.map(function(l){
     var funcs=lineas[l];
     var fkeys=Object.keys(funcs).sort();
     var totalL=fkeys.reduce(function(s,f){return s+funcs[f].length;},0);
     var lid=_cptSlug(l);
-    var procs={}; _cptRegs.forEach(function(r){ if((String(r.linea||'').trim()||'(sin línea)')===l){var p=(r.proceso||'').trim();if(p)procs[p]=(procs[p]||0)+1;} });
-    var procActual=Object.keys(procs).sort(function(a,b){return procs[b]-procs[a];})[0]||'—';
+    var procs={},esps={},prods={};
+    _cptRegs.forEach(function(r){ if((String(r.linea||'').trim()||'(sin línea)')===l){
+      var p=(r.proceso||'').trim(); if(p)procs[p]=(procs[p]||0)+1;
+      var e=(r.especie||'').trim(); if(e)esps[e]=(esps[e]||0)+1;
+      var pr=(r.producto||'').trim(); if(pr)prods[pr]=(prods[pr]||0)+1;
+    }});
+    var procActual=_top(procs)||'—', espActual=_top(esps), prodActual=_top(prods);
+    var espOpts=especies.slice().sort().map(function(e){return '<option value="'+_cptH(e)+'"'+(e===espActual?' selected':'')+'>'+_cptH(e)+'</option>';}).join('');
+    var prodListA=(mE[espActual]&&mE[espActual].productos)||[];
+    var prodOptsA='<option value="">Producto…</option>'+prodListA.slice().sort().map(function(p){return '<option value="'+_cptH(p)+'"'+(p===prodActual?' selected':'')+'>'+_cptH(p)+'</option>';}).join('');
+    var procListA=((mP[espActual+'||'+prodActual]||{}).procesos)||[];
+    var procOptsA='<option value="">Proceso… (vacío = solo cortar)</option>'+procListA.slice().sort().map(function(v){return '<option value="'+_cptH(v)+'">'+_cptH(v)+'</option>';}).join('');
     var rows=fkeys.map(function(f,i){
       return '<div class="cpt-func-row">'
         +'<span class="cpt-func-name">'+_cptH(f)+'</span>'
@@ -7461,27 +7479,41 @@ function cptRender(){
         +'<input type="time" id="cptCorte_'+lid+'_'+i+'" data-func="'+encodeURIComponent(f)+'" title="Hora en que esta función terminó el proceso actual">'
         +'</div>';
     }).join('');
+    var sub='<b>'+totalL+' trab.</b> · proceso: <b>'+_cptH(procActual)+'</b>'
+      +(espActual?' · especie: <b>'+_cptH(espActual)+'</b>':'')
+      +(prodActual?' · producto: <b>'+_cptH(prodActual)+'</b>':'');
     return '<div class="cpt-card" id="cptCard_'+lid+'">'
-      +'<div class="cpt-card-head"><span class="cpt-linea">🏭 Línea '+_cptH(l)+'</span>'
-        +'<span class="cpt-linea-sub">'+totalL+' trabajadores · proceso actual: <b>'+_cptH(procActual)+'</b></span>'
-        +'<div class="cpt-todas"><span>MISMO CORTE</span><input type="time" id="cptTodas_'+lid+'"><button class="cpt-mini" onclick="cptCorteTodas(\''+lid+'\')">↧ a todas</button></div>'
+      +'<div class="cpt-card-head" onclick="cptToggleCard(\''+lid+'\')">'
+        +'<span class="cpt-chevron" id="cptChev_'+lid+'">▸</span>'
+        +'<span class="cpt-linea">🏭 Línea '+_cptH(l)+'</span>'
+        +'<span class="cpt-linea-sub">'+sub+'</span>'
       +'</div>'
-      +rows
-      +'<div class="cpt-newproc">'
-        +'<div style="display:flex;flex-direction:column;gap:4px"><label style="font-size:10px;color:var(--t-muted,#8ab);font-weight:700;text-transform:uppercase">Nuevo proceso (opcional)</label>'
-          +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
-            +'<select id="cptEsp_'+lid+'" class="cpt-sel" onchange="cptOnEspecie(\''+lid+'\')"><option value="">Especie…</option>'+especieOpts+'</select>'
-            +'<select id="cptProd_'+lid+'" class="cpt-sel" onchange="cptOnProducto(\''+lid+'\')"><option value="">Producto…</option></select>'
-            +'<select id="cptProc_'+lid+'" class="cpt-sel"><option value="">Proceso… (vacío = solo cortar)</option></select>'
+      +'<div class="cpt-body" id="cptBody_'+lid+'" style="display:none">'
+        +'<div class="cpt-todas-row"><span class="cpt-todas-lbl">MISMO CORTE PARA TODAS</span><input type="time" id="cptTodas_'+lid+'"><button class="cpt-mini" onclick="cptCorteTodas(\''+lid+'\')">↧ a todas</button></div>'
+        +rows
+        +'<div class="cpt-newproc">'
+          +'<div style="display:flex;flex-direction:column;gap:4px"><label style="font-size:10px;color:var(--t-muted,#8ab);font-weight:700;text-transform:uppercase">Nuevo proceso (opcional)</label>'
+            +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+              +'<select id="cptEsp_'+lid+'" class="cpt-sel" onchange="cptOnEspecie(\''+lid+'\')"><option value="">Especie…</option>'+espOpts+'</select>'
+              +'<select id="cptProd_'+lid+'" class="cpt-sel" onchange="cptOnProducto(\''+lid+'\')">'+prodOptsA+'</select>'
+              +'<select id="cptProc_'+lid+'" class="cpt-sel">'+procOptsA+'</select>'
+            +'</div>'
           +'</div>'
+          +'<button class="cpt-apply" onclick="cptAplicar(\''+_cptEsc(l)+'\')">⚡ Aplicar cambio de proceso</button>'
         +'</div>'
-        +'<button class="cpt-apply" onclick="cptAplicar(\''+_cptEsc(l)+'\')">⚡ Aplicar cambio de proceso</button>'
       +'</div>'
       +'</div>';
   }).join('');
   cont.innerHTML=html;
 }
 
+function cptToggleCard(lid){
+  var b=document.getElementById('cptBody_'+lid), ch=document.getElementById('cptChev_'+lid);
+  if(!b) return;
+  var open=(b.style.display==='none' || !b.style.display);
+  b.style.display=open?'block':'none';
+  if(ch) ch.textContent=open?'▾':'▸';
+}
 function cptCorteTodas(lid){
   var t=((document.getElementById('cptTodas_'+lid)||{}).value||'').trim();
   if(!t){ showToast('Indica una hora para aplicar a todas','error'); return; }
