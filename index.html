@@ -7439,6 +7439,10 @@ async function cptCargar(){
   var cont=document.getElementById('cptLineas');
   cont.innerHTML='<div style="padding:34px;text-align:center;color:var(--t-muted,#8ab)">⏳ Cargando…</div>';
   try{
+    // Asegurar catálogo cargado (para la cascada de Nuevo proceso)
+    if(!(window._listas && window._listas.especies && window._listas.especies.length) && typeof getListData==='function'){
+      try{ window._listas = await getListData(); }catch(_){}
+    }
     var q=_sbDb().from('registros').select('*').eq('fecha',fecha);
     if(turno) q=q.eq('turno',turno);
     var res=await q.limit(5000);
@@ -7516,9 +7520,10 @@ function cptRender(){
       +resumenRows
       +'<div class="cpt-total">⏱ Total trabajado (neto): <b>'+_cptFmtDur(totalMin)+'</b></div>'
       +'</div>';
-    var espOpts=especies.slice().sort().map(function(e){return '<option value="'+_cptH(e)+'"'+(e===espActual?' selected':'')+'>'+_cptH(e)+'</option>';}).join('');
-    var prodListA=(mE[espActual]&&mE[espActual].productos)||[];
-    var prodOptsA='<option value="">Producto…</option>'+prodListA.slice().sort().map(function(p){return '<option value="'+_cptH(p)+'"'+(p===prodActual?' selected':'')+'>'+_cptH(p)+'</option>';}).join('');
+    var espLista=especies.slice(); if(espActual && espLista.indexOf(espActual)===-1) espLista.push(espActual);
+    var espOpts=espLista.sort().map(function(e){return '<option value="'+_cptH(e)+'"'+(e===espActual?' selected':'')+'>'+_cptH(e)+'</option>';}).join('');
+    var prodListA=((mE[espActual]&&mE[espActual].productos)||[]).slice(); if(prodActual && prodListA.indexOf(prodActual)===-1) prodListA.push(prodActual);
+    var prodOptsA='<option value="">Producto…</option>'+prodListA.sort().map(function(p){return '<option value="'+_cptH(p)+'"'+(p===prodActual?' selected':'')+'>'+_cptH(p)+'</option>';}).join('');
     var procListA=((mP[espActual+'||'+prodActual]||{}).procesos)||[];
     var procOptsA='<option value="">Proceso… (vacío = solo cortar)</option>'+procListA.slice().sort().map(function(v){return '<option value="'+_cptH(v)+'">'+_cptH(v)+'</option>';}).join('');
     var rows=fkeys.map(function(f,i){
