@@ -7518,6 +7518,8 @@ function cptRender(){
       var _cur=byProc[pOrden[_qi]], _nx=byProc[pOrden[_qi+1]];
       if(_nx.ini!=null && (_cur.fin==null || _cur.fin>_nx.ini)) _cur.fin=_nx.ini;
     }
+    // "Proceso actual" = el más reciente de la línea de tiempo (para el header y el prellenado del nuevo proceso)
+    if(pOrden.length){ var _uP=byProc[pOrden[pOrden.length-1]]; procActual=pOrden[pOrden.length-1]; if(_top(_uP.esps))espActual=_top(_uP.esps); if(_top(_uP.prods))prodActual=_top(_uP.prods); }
     var procesos = pOrden.map(function(pk){var o=byProc[pk]; return {name:pk, ini:o.ini, fin:o.fin, esp:_top(o.esps), prod:_top(o.prods)};});
     window._cptLineData = window._cptLineData||{};
     window._cptLineData[lid] = { procesos:procesos, brkDes:brkDes, brkCol:brkCol };
@@ -7689,8 +7691,14 @@ async function cptAplicar(linea){
   var fecha=(document.getElementById('cptFecha')||{}).value||'';
   var horaIni=((document.getElementById('cptInicio_'+lid)||{}).value||'').trim();
   var regsLinea=_cptRegs.filter(function(r){ return (String(r.linea||'').trim()||'(sin línea)')===String(linea); });
+  // Solo el proceso ACTUAL (el de mayor proceso_inicio) de cada función — no los procesos ya cerrados
+  var _regsActuales=function(func){
+    var all=regsLinea.filter(function(r){ return ((r.funcion||'').trim()||'(sin función)')===func; });
+    var maxI=null; all.forEach(function(r){ var m=_cptMin(r.proceso_inicio); if(m!=null&&(maxI==null||m>maxI))maxI=m; });
+    return all.filter(function(r){ return _cptMin(r.proceso_inicio)===maxI; });
+  };
   var totalCortar=0;
-  cortes.forEach(function(c){ totalCortar+=regsLinea.filter(function(r){ return ((r.funcion||'').trim()||'(sin función)')===c.func; }).length; });
+  cortes.forEach(function(c){ totalCortar+=_regsActuales(c.func).length; });
   var msg='Línea '+linea+': cortar el proceso actual en '+cortes.length+' función(es) — '+totalCortar+' trabajador(es)'
     +(nuevo?('\ny abrir el proceso "'+nuevo+'"'+(horaIni?(' desde las '+horaIni):' desde cada corte')):'')+'.\n\n¿Aplicar?';
   if(!confirm(msg)) return;
@@ -7698,7 +7706,7 @@ async function cptAplicar(linea){
   var ok=0, err=0, nuevos=[];
   for(var i=0;i<cortes.length;i++){
     var c=cortes[i];
-    var regsF=regsLinea.filter(function(r){ return ((r.funcion||'').trim()||'(sin función)')===c.func; });
+    var regsF=_regsActuales(c.func);
     var ids=regsF.map(function(r){return r.id;}).filter(Boolean);
     if(!ids.length) continue;
     var ter=fecha+'T'+c.hora+':00';
