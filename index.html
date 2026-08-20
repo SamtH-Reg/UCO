@@ -3037,12 +3037,22 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
 .cpt-card-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 .cpt-linea{font-size:15px;font-weight:800;color:var(--t-accent2,#0098d4)}
 .cpt-linea-sub{font-size:11px;color:var(--t-muted,#8ab)}
-.cpt-func-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 2px;border-bottom:1px solid var(--t-border,#1e4060)}
-.cpt-func-row:last-of-type{border-bottom:none}
-.cpt-func-name{font-size:13px;font-weight:700;color:var(--t-text,#e0f0ff);min-width:150px}
-.cpt-func-cnt{font-size:11px;color:var(--t-muted,#8ab)}
-.cpt-func-row .cpt-corte-lbl{margin-left:auto;font-size:10px;color:var(--t-muted,#8ab);font-weight:700}
-.cpt-func-row input[type=time]{background:var(--t-bg,#0b1220);border:1px solid var(--t-border,#1e4060);border-radius:8px;padding:6px 9px;font-size:13px;color:var(--t-text,#e0f0ff)}
+.cpt-func-row{display:flex;flex-direction:column;gap:9px;padding:11px 12px;margin-bottom:10px;background:var(--t-card,#0f1e2d);border:1.5px solid var(--t-border,#1e4060);border-left:5px solid var(--t-accent2,#0098d4);border-radius:12px;box-shadow:0 1px 6px var(--t-shadow,rgba(0,0,0,.10))}
+.cpt-func-row.done{border-left-color:#2e9e68;background:rgba(61,186,126,.12)}
+.cpt-func-top{display:flex;align-items:center;gap:10px}
+.cpt-func-name{font-size:15px;font-weight:800;color:var(--t-accent2,#0098d4);flex:1;letter-spacing:.2px}
+.cpt-func-row.done .cpt-func-name{color:#2e9e68}
+.cpt-func-cnt{font-size:11.5px;font-weight:800;color:#fff;background:var(--t-accent2,#0098d4);border-radius:12px;padding:3px 11px;white-space:nowrap}
+.cpt-func-row.done .cpt-func-cnt{background:#3dba7e}
+.cpt-func-move{display:flex;flex-direction:column;gap:3px;flex-shrink:0}
+.cpt-mv{width:34px;height:24px;border:1.5px solid var(--t-accent2,#0098d4);background:var(--t-bg,#0b1220);color:var(--t-accent2,#0098d4);border-radius:7px;font-size:11px;font-weight:800;cursor:pointer;line-height:1;padding:0}
+.cpt-mv:hover{background:var(--t-accent2,#0098d4);color:#fff}
+.cpt-mv:active{transform:scale(.9)}
+.cpt-corte-wrap{display:flex;align-items:center;gap:10px}
+.cpt-corte-lbl{font-size:11px;color:var(--t-muted,#8ab);font-weight:800;letter-spacing:.4px;white-space:nowrap}
+.cpt-corte-input{flex:1;background:var(--t-bg,#0b1220);border:2px solid var(--t-accent2,#0098d4);border-radius:10px;padding:11px 12px;font-size:18px;font-weight:800;color:var(--t-text,#e0f0ff);text-align:center;letter-spacing:1px}
+.cpt-corte-input:focus{outline:none;box-shadow:0 0 0 3px rgba(0,152,212,.25)}
+.cpt-func-row.done .cpt-corte-input{border-color:#3dba7e;background:rgba(61,186,126,.12);color:#2e9e68}
 .cpt-newproc{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:12px;padding-top:12px;border-top:1px dashed var(--t-border,#1e4060)}
 .cpt-newproc input{background:var(--t-bg,#0b1220);border:1px solid var(--t-border,#1e4060);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--t-text,#e0f0ff);min-width:180px}
 .cpt-apply{background:var(--t-grad,linear-gradient(135deg,var(--t-accent,#00c6a2),var(--t-accent2,#0098d4)));color:#fff;border:none;border-radius:10px;padding:9px 18px;font-weight:800;cursor:pointer}
@@ -7527,10 +7537,13 @@ function cptRender(){
     var procOptsA='<option value="">Proceso… (vacío = solo cortar)</option>'+procListA.slice().sort().map(function(v){return '<option value="'+_cptH(v)+'">'+_cptH(v)+'</option>';}).join('');
     var rows=fkeys.map(function(f,i){
       return '<div class="cpt-func-row">'
-        +'<span class="cpt-func-name">'+_cptH(f)+'</span>'
-        +'<span class="cpt-func-cnt">'+funcs[f].length+' trab.</span>'
-        +'<span class="cpt-corte-lbl">CORTE ⏱</span>'
-        +'<input type="time" id="cptCorte_'+lid+'_'+i+'" data-func="'+encodeURIComponent(f)+'" oninput="cptPreview(\''+lid+'\')" title="Hora en que esta función terminó el proceso actual">'
+        +'<div class="cpt-func-top">'
+          +'<div class="cpt-func-move"><button type="button" class="cpt-mv" onclick="cptMoveRow(this,-1)" title="Subir">▲</button><button type="button" class="cpt-mv" onclick="cptMoveRow(this,1)" title="Bajar">▼</button></div>'
+          +'<span class="cpt-func-name">'+_cptH(f)+'</span>'
+          +'<span class="cpt-func-cnt">'+funcs[f].length+' trab.</span>'
+        +'</div>'
+        +'<div class="cpt-corte-wrap"><span class="cpt-corte-lbl">CORTE ⏱</span>'
+          +'<input type="time" class="cpt-corte-input" id="cptCorte_'+lid+'_'+i+'" data-func="'+encodeURIComponent(f)+'" oninput="cptCorteChg(this,\''+lid+'\')" title="Hora en que esta función terminó el proceso actual"></div>'
         +'</div>';
     }).join('');
     var sub='<b>'+totalL+' trab.</b> · proceso: <b>'+_cptH(procActual)+'</b>'
@@ -7625,11 +7638,20 @@ function cptShowNuevo(lid){
   }
   var ini=document.getElementById('cptInicio_'+lid); if(ini && hi && !ini.value) ini.value=hi;
 }
+function cptMoveRow(btn, dir){
+  var row=btn.closest('.cpt-func-row'); if(!row||!row.parentNode) return;
+  if(dir<0){ var prev=row.previousElementSibling; if(prev&&prev.classList.contains('cpt-func-row')) row.parentNode.insertBefore(row, prev); }
+  else { var next=row.nextElementSibling; if(next&&next.classList.contains('cpt-func-row')) row.parentNode.insertBefore(next, row); }
+}
+function cptCorteChg(inp, lid){
+  var row=inp.closest('.cpt-func-row'); if(row) row.classList.toggle('done', !!inp.value);
+  cptPreview(lid);
+}
 function cptCorteTodas(lid){
   var t=((document.getElementById('cptTodas_'+lid)||{}).value||'').trim();
   if(!t){ showToast('Indica una hora para aplicar a todas','error'); return; }
   document.querySelectorAll('#cptCard_'+lid+' input[type=time]').forEach(function(inp){
-    if(inp.id.indexOf('cptCorte_')===0) inp.value=t;
+    if(inp.id.indexOf('cptCorte_')===0){ inp.value=t; var row=inp.closest('.cpt-func-row'); if(row) row.classList.toggle('done', !!t); }
   });
   cptPreview(lid);
 }
