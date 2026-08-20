@@ -7508,27 +7508,15 @@ function cptRender(){
       var _cur=byProc[pOrden[_qi]], _nx=byProc[pOrden[_qi+1]];
       if(_nx.ini!=null && (_cur.fin==null || _cur.fin>_nx.ini)) _cur.fin=_nx.ini;
     }
-    var totalMin=0;
-    var resumenRows=pOrden.map(function(pk){
-      var o=byProc[pk];
-      var gross=(o.ini!=null&&o.fin!=null)?((o.fin-o.ini)<0?(o.fin-o.ini+1440):(o.fin-o.ini)):null;
-      var brk=(gross!=null)?(_ov(o.ini,o.fin,brkDes)+_ov(o.ini,o.fin,brkCol)):0;
-      var net=(gross!=null)?Math.max(0,gross-brk):null;
-      if(net!=null) totalMin+=net;
-      var eP=_top(o.esps), pP=_top(o.prods);
-      var detalle=(eP||pP)?('<div class="cpt-proc-det">'+_cptH(eP||'—')+(pP?' · '+_cptH(pP):'')+'</div>'):'';
-      var brkTxt=brk>0?('<span class="cpt-proc-brk">−'+_cptFmtDur(brk)+' desc.</span>'):'';
-      return '<div class="cpt-proc-row"><span class="cpt-proc-name">'+_cptH(pk)+detalle+'</span>'
-        +'<span class="cpt-proc-time">'+_cptFmtHM(o.ini)+' → '+_cptFmtHM(o.fin)+'</span>'
-        +'<span class="cpt-proc-dur">'+_cptFmtDur(net)+brkTxt+'</span></div>';
-    }).join('');
-    var nProc=pOrden.length;
+    var procesos = pOrden.map(function(pk){var o=byProc[pk]; return {name:pk, ini:o.ini, fin:o.fin, esp:_top(o.esps), prod:_top(o.prods)};});
+    window._cptLineData = window._cptLineData||{};
+    window._cptLineData[lid] = { procesos:procesos, brkDes:brkDes, brkCol:brkCol };
+    var nProc=procesos.length;
     var badge = nProc>1 ? '<span class="cpt-badge-cambio">🔄 '+nProc+' procesos hoy</span>' : '';
     var resumen='<div class="cpt-resumen" onclick="cptToggleCorte(\''+lid+'\')" style="cursor:pointer">'
       +'<div class="cpt-resumen-title">📋 Procesos registrados hoy <span style="font-weight:400;color:var(--t-muted,#8ab)">· horas netas (sin desayuno/colación)</span></div>'
       +'<div class="cpt-proc-row cpt-proc-head"><span class="cpt-proc-name">Proceso · especie · producto</span><span class="cpt-proc-time">Desde → Hasta</span><span class="cpt-proc-dur">Trabajado</span></div>'
-      +resumenRows
-      +'<div class="cpt-total">⏱ Total trabajado (neto): <b>'+_cptFmtDur(totalMin)+'</b></div>'
+      +'<div id="cptResBody_'+lid+'">'+_cptResBody(procesos, brkDes, brkCol)+'</div>'
       +'<div class="cpt-res-hint" id="cptResHint_'+lid+'">▸ Toca aquí para registrar el corte de hora por función</div>'
       +'</div>';
     var espLista=especies.slice(); if(espActual && espLista.indexOf(espActual)===-1) espLista.push(espActual);
@@ -7542,7 +7530,7 @@ function cptRender(){
         +'<span class="cpt-func-name">'+_cptH(f)+'</span>'
         +'<span class="cpt-func-cnt">'+funcs[f].length+' trab.</span>'
         +'<span class="cpt-corte-lbl">CORTE ⏱</span>'
-        +'<input type="time" id="cptCorte_'+lid+'_'+i+'" data-func="'+encodeURIComponent(f)+'" title="Hora en que esta función terminó el proceso actual">'
+        +'<input type="time" id="cptCorte_'+lid+'_'+i+'" data-func="'+encodeURIComponent(f)+'" oninput="cptPreview(\''+lid+'\')" title="Hora en que esta función terminó el proceso actual">'
         +'</div>';
     }).join('');
     var sub='<b>'+totalL+' trab.</b> · proceso: <b>'+_cptH(procActual)+'</b>'
@@ -7582,6 +7570,34 @@ function cptRender(){
 function _cptMin(ts){ if(!ts)return null; var m=String(ts).match(/(\d{1,2}):(\d{2})/); return m?(+m[1])*60+(+m[2]):null; }  // HH:MM del string, SIN conversión de zona horaria
 function _cptFmtHM(min){ if(min==null)return '—'; min=((min%1440)+1440)%1440; return ('0'+Math.floor(min/60)).slice(-2)+':'+('0'+(min%60)).slice(-2); }
 function _cptFmtDur(min){ if(min==null||min<0)return '—'; var h=Math.floor(min/60),m=Math.round(min%60); return (h>0?h+'h ':'')+m+'m'; }
+function _cptOv(pi,pf,b){ if(!b||pi==null||pf==null)return 0; if(pf<pi)pf+=1440; return Math.max(0,Math.min(pf,b.fin)-Math.max(pi,b.ini)); }
+// Construye las filas del resumen + total (reutilizado por render y preview en vivo)
+function _cptResBody(procesos, brkDes, brkCol){
+  var totalMin=0;
+  var rows=procesos.map(function(o){
+    var gross=(o.ini!=null&&o.fin!=null)?((o.fin-o.ini)<0?(o.fin-o.ini+1440):(o.fin-o.ini)):null;
+    var brk=(gross!=null)?(_cptOv(o.ini,o.fin,brkDes)+_cptOv(o.ini,o.fin,brkCol)):0;
+    var net=(gross!=null)?Math.max(0,gross-brk):null;
+    if(net!=null) totalMin+=net;
+    var detalle=(o.esp||o.prod)?('<div class="cpt-proc-det">'+_cptH(o.esp||'—')+(o.prod?' · '+_cptH(o.prod):'')+'</div>'):'';
+    var brkTxt=brk>0?('<span class="cpt-proc-brk">−'+_cptFmtDur(brk)+' desc.</span>'):'';
+    return '<div class="cpt-proc-row"><span class="cpt-proc-name">'+_cptH(o.name)+detalle+'</span>'
+      +'<span class="cpt-proc-time">'+_cptFmtHM(o.ini)+' → '+_cptFmtHM(o.fin)+'</span>'
+      +'<span class="cpt-proc-dur">'+_cptFmtDur(net)+brkTxt+'</span></div>';
+  }).join('');
+  return rows+'<div class="cpt-total">⏱ Total trabajado (neto): <b>'+_cptFmtDur(totalMin)+'</b></div>';
+}
+// Preview en vivo: al escribir el corte, el proceso ACTUAL (último) termina en ese corte
+function cptPreview(lid){
+  var d=(window._cptLineData||{})[lid]; if(!d) return;
+  var cs=[]; document.querySelectorAll('#cptCard_'+lid+' input[type=time]').forEach(function(inp){ if(inp.id.indexOf('cptCorte_')===0 && inp.value){ var m=_cptMin(inp.value); if(m!=null) cs.push(m); } });
+  cs.sort(function(a,b){return a-b;});
+  var corte = cs.length ? cs[cs.length-1] : null;  // el más tardío = cuando la última función terminó el proceso
+  var procesos = d.procesos.map(function(p){ return {name:p.name,ini:p.ini,fin:p.fin,esp:p.esp,prod:p.prod}; });
+  if(corte!=null && procesos.length) procesos[procesos.length-1].fin = corte;
+  var body=document.getElementById('cptResBody_'+lid);
+  if(body) body.innerHTML=_cptResBody(procesos, d.brkDes, d.brkCol);
+}
 function cptToggleCard(lid){
   var b=document.getElementById('cptBody_'+lid), ch=document.getElementById('cptChev_'+lid);
   if(!b) return;
@@ -7615,6 +7631,7 @@ function cptCorteTodas(lid){
   document.querySelectorAll('#cptCard_'+lid+' input[type=time]').forEach(function(inp){
     if(inp.id.indexOf('cptCorte_')===0) inp.value=t;
   });
+  cptPreview(lid);
 }
 function cptOnEspecie(lid){
   var esp=(document.getElementById('cptEsp_'+lid)||{}).value||'';
