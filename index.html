@@ -2628,6 +2628,9 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
       <div class="reg-btns">
         <button class="btn btn-primary btn-sm" onclick="_registrosCargados=false;cargarRegistros()">↻ Actualizar</button>
 
+        <button class="btn btn-sm" onclick="cpToggle()"
+          style="background:linear-gradient(135deg,#0077aa,#00b3c9);color:#fff;font-weight:700"
+          title="Cambiar el proceso de una línea a cierta hora">🔄 Cambio de Proceso</button>
         <button class="btn btn-sm" onclick="exportarRegistrosExcel()"
           style="background:linear-gradient(135deg,#1a7a3a,#27ae60);color:#fff;font-weight:700"
           title="Exporta en Excel los registros del filtro actual">🟢 Excel</button>
@@ -2674,6 +2677,40 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
           placeholder="Nombre, código, especie..." oninput="aplicarFiltros()">
       </div>
       <button class="btn-clear-filtros" onclick="limpiarFiltros()">✕ Limpiar</button>
+    </div>
+  </div>
+
+  <!-- ── Panel Cambio de Proceso (rápido, por línea) ── -->
+  <style>
+  #barCambioProceso{background:var(--t-card,#0f1e2d);border:1.5px solid var(--t-accent2,#0098d4);border-radius:12px;padding:12px 16px;margin:0 0 12px;box-shadow:0 2px 10px var(--t-shadow,rgba(0,0,0,.10))}
+  #barCambioProceso .cp-title{color:var(--t-accent2,#0098d4);font-size:12px;font-weight:800;letter-spacing:.5px;margin-bottom:9px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  #barCambioProceso .cp-title .cp-hint{margin-left:auto;font-size:10px;color:var(--t-muted,#8ab);font-weight:400}
+  #barCambioProceso .cp-row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+  #barCambioProceso .cp-field{display:flex;flex-direction:column;gap:3px}
+  #barCambioProceso .cp-field label{font-size:10px;color:var(--t-muted,#8ab);font-weight:700;letter-spacing:.3px}
+  #barCambioProceso .cp-field select,#barCambioProceso .cp-field input{background:var(--t-bg,#0b1220);border:1px solid var(--t-border,#1e4060);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--t-text,#e0f0ff);min-width:130px}
+  #barCambioProceso .cp-field select:focus,#barCambioProceso .cp-field input:focus{outline:none;border-color:var(--t-accent2,#0098d4)}
+  #barCambioProceso .cp-apply{background:var(--t-grad,linear-gradient(135deg,var(--t-accent,#00c6a2),var(--t-accent2,#0098d4)));color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:800;cursor:pointer;transition:transform .12s}
+  #barCambioProceso .cp-apply:hover{transform:translateY(-1px)}
+  #barCambioProceso .cp-cnt{background:var(--t-accent2,#0098d4);color:#fff;border-radius:10px;padding:2px 9px;font-size:11px;font-weight:800;white-space:nowrap}
+  </style>
+  <div id="barCambioProceso" style="display:none">
+    <div class="cp-title">🔄 CAMBIO DE PROCESO POR LÍNEA
+      <span class="cp-hint">Crea el registro del nuevo proceso (con su hora) para todos los trabajadores de la línea</span>
+    </div>
+    <div class="cp-row">
+      <div class="cp-field"><label>LÍNEA</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select id="cpLinea" onchange="cpOnLinea()"><option value="">— Selecciona línea —</option></select>
+          <span class="cp-cnt" id="cpLineaCnt" style="display:none">0</span>
+        </div>
+      </div>
+      <div class="cp-field"><label>ESPECIE</label><select id="cpEspecie" onchange="cpOnEspecie()"><option value="">—</option></select></div>
+      <div class="cp-field"><label>PRODUCTO</label><select id="cpProducto" onchange="cpOnProducto()"><option value="">—</option></select></div>
+      <div class="cp-field"><label>PROCESO NUEVO</label><input type="text" id="cpProceso" list="cpProcesoList" placeholder="Nuevo proceso"><datalist id="cpProcesoList"></datalist></div>
+      <div class="cp-field"><label>OPERACIÓN</label><input type="text" id="cpOperacion" list="cpOperList" placeholder="Operación"><datalist id="cpOperList"></datalist></div>
+      <div class="cp-field"><label>HORA DEL CAMBIO</label><input type="time" id="cpHora" style="min-width:100px"></div>
+      <div class="cp-field"><label style="visibility:hidden">-</label><button class="cp-apply" onclick="cpAplicar()">⚡ Aplicar cambio</button></div>
     </div>
   </div>
 
@@ -7161,8 +7198,9 @@ async function bemConfirmar(){
     function _bemDt(fecha, val){
       if(!val) return null;
       var s = String(val).trim();
-      // Solo HH:MM o HH:MM:SS → combinar con fecha
-      if(/^\d{1,2}:\d{2}(:\d{2})?$/.test(s)) return fecha+'T'+s.padStart(8,'0')+':00'.slice(s.length>5?0:3);
+      // Solo HH:MM o HH:MM:SS → combinar con la fecha del registro
+      var m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if(m) return fecha+'T'+m[1].padStart(2,'0')+':'+m[2]+':'+(m[3]||'00');
       return _toISO(s);
     }
 
@@ -7225,6 +7263,90 @@ function bemCancelar(){
   var modal=document.getElementById('bemModal');
   if(modal) modal.style.display='none';
   window._bemPending=null;
+}
+
+// ════════════════════════════════════════════════════
+//  CAMBIO DE PROCESO POR LÍNEA (panel rápido)
+//  Reutiliza bemConfirmar() → crea registros NUEVOS del proceso.
+// ════════════════════════════════════════════════════
+function cpToggle(){
+  var bar=document.getElementById('barCambioProceso'); if(!bar) return;
+  var abrir = (bar.style.display==='none' || !bar.style.display);
+  bar.style.display = abrir ? 'block' : 'none';
+  if(abrir){ cpPoblarLineas(); cpPoblarEspecies(); }
+}
+function cpPoblarLineas(){
+  var sel=document.getElementById('cpLinea'); if(!sel) return;
+  var prev=sel.value, lineas=[];
+  if(typeof todosRegistros!=='undefined'){
+    lineas=[...new Set(todosRegistros.map(function(r){return String(r[4]||'').trim();}).filter(Boolean))]
+      .sort(function(a,b){var na=parseFloat(a),nb=parseFloat(b); if(!isNaN(na)&&!isNaN(nb))return na-nb; return a.localeCompare(b,'es');});
+  }
+  sel.innerHTML='';
+  var o0=document.createElement('option'); o0.value=''; o0.textContent='— Selecciona línea —'; sel.appendChild(o0);
+  lineas.forEach(function(l){ var o=document.createElement('option'); o.value=l; o.textContent='Línea '+l; sel.appendChild(o); });
+  if(prev) sel.value=prev;
+  cpOnLinea();
+}
+function cpOnLinea(){
+  var l=(document.getElementById('cpLinea')||{}).value||'';
+  var cnt=document.getElementById('cpLineaCnt'); if(!cnt) return;
+  if(!l){ cnt.style.display='none'; return; }
+  var n=0;
+  if(typeof todosRegistros!=='undefined') n=todosRegistros.filter(function(r){return String(r[4]||'').trim()===l;}).length;
+  cnt.textContent=n+' reg.'; cnt.style.display='';
+}
+function cpPoblarEspecies(){
+  var sel=document.getElementById('cpEspecie'); if(!sel) return;
+  var prev=sel.value, esps=(window._listas&&window._listas.especies)||[];
+  sel.innerHTML=''; var o0=document.createElement('option'); o0.value=''; o0.textContent='—'; sel.appendChild(o0);
+  esps.forEach(function(e){var o=document.createElement('option');o.value=e;o.textContent=e;sel.appendChild(o);});
+  if(prev) sel.value=prev;
+}
+function cpOnEspecie(){
+  var esp=(document.getElementById('cpEspecie')||{}).value||'';
+  var sp=document.getElementById('cpProducto');
+  var dlPr=document.getElementById('cpProcesoList'), dlOp=document.getElementById('cpOperList');
+  if(sp){ sp.innerHTML=''; var o0=document.createElement('option'); o0.value=''; o0.textContent='—'; sp.appendChild(o0); }
+  if(dlPr) dlPr.innerHTML=''; if(dlOp) dlOp.innerHTML='';
+  if(!esp||!window._listas||!sp) return;
+  var prods=((window._listas.mapaEspecie||{})[esp]||{}).productos||[];
+  prods.slice().sort().forEach(function(p){var o=document.createElement('option');o.value=p;o.textContent=p;sp.appendChild(o);});
+  if(prods.length===1){ sp.value=prods[0]; cpOnProducto(); }
+}
+function cpOnProducto(){
+  var esp=(document.getElementById('cpEspecie')||{}).value||'';
+  var pro=(document.getElementById('cpProducto')||{}).value||'';
+  var dlPr=document.getElementById('cpProcesoList'), dlOp=document.getElementById('cpOperList');
+  if(!esp||!pro||!window._listas) return;
+  var datos=(window._listas.mapaProducto||{})[esp+'||'+pro]||{};
+  if(dlPr){ dlPr.innerHTML=''; (datos.procesos||[]).slice().sort().forEach(function(v){var o=document.createElement('option');o.value=v;dlPr.appendChild(o);});
+    var inp=document.getElementById('cpProceso'); if(inp&&datos.procesos&&datos.procesos.length===1) inp.value=datos.procesos[0]; }
+  if(dlOp){ dlOp.innerHTML=''; (datos.operaciones||[]).slice().sort().forEach(function(v){var o=document.createElement('option');o.value=v;dlOp.appendChild(o);});
+    var inp2=document.getElementById('cpOperacion'); if(inp2&&datos.operaciones&&datos.operaciones.length===1) inp2.value=datos.operaciones[0]; }
+}
+function cpAplicar(){
+  var linea=(document.getElementById('cpLinea')||{}).value||'';
+  if(!linea){ showToast('Selecciona una línea','error'); return; }
+  var proceso=((document.getElementById('cpProceso')||{}).value||'').trim();
+  var hora=((document.getElementById('cpHora')||{}).value||'').trim();
+  if(!proceso){ showToast('Indica el proceso nuevo','error'); return; }
+  if(!hora){ showToast('Indica la hora del cambio','error'); return; }
+  var ids=[];
+  if(typeof todosRegistros!=='undefined'){
+    todosRegistros.forEach(function(r){ if(String(r[4]||'').trim()===linea && r[24]) ids.push(String(r[24])); });
+  }
+  if(!ids.length){ showToast('No hay trabajadores cargados en la Línea '+linea,'error'); return; }
+  var cambios={ proceso:proceso, proceso_inicio:hora };
+  var esp=(document.getElementById('cpEspecie')||{}).value||'';
+  var pro=(document.getElementById('cpProducto')||{}).value||'';
+  var op=((document.getElementById('cpOperacion')||{}).value||'').trim();
+  if(esp) cambios.especie=esp;
+  if(pro) cambios.producto=pro;
+  if(op)  cambios.operacion=op;
+  if(!confirm('¿Crear el registro del proceso "'+proceso+'" a las '+hora+' para '+ids.length+' trabajador(es) de la Línea '+linea+'?')) return;
+  window._bemPending={ ids:ids, cambios:cambios };
+  bemConfirmar();
 }
 
 function actualizarSelReg(){
