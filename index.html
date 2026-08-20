@@ -7503,6 +7503,11 @@ function cptRender(){
     var _ov=function(pi,pf,b){ if(!b||pi==null||pf==null)return 0; if(pf<pi)pf+=1440; return Math.max(0,Math.min(pf,b.fin)-Math.max(pi,b.ini)); };
     // ── Resumen: cada proceso con rango real, especie/producto y horas TRABAJADAS (sin descanso/colación) ──
     var pOrden=Object.keys(byProc).sort(function(a,b){var ia=byProc[a].ini,ib=byProc[b].ini;if(ia!=null&&ib!=null)return ia-ib;if(ia!=null)return -1;if(ib!=null)return 1;return 0;});
+    // Proceso lineal: cada proceso TERMINA donde empieza el siguiente (sin solapes)
+    for(var _qi=0;_qi<pOrden.length-1;_qi++){
+      var _cur=byProc[pOrden[_qi]], _nx=byProc[pOrden[_qi+1]];
+      if(_nx.ini!=null && (_cur.fin==null || _cur.fin>_nx.ini)) _cur.fin=_nx.ini;
+    }
     var totalMin=0;
     var resumenRows=pOrden.map(function(pk){
       var o=byProc[pk];
