@@ -7495,10 +7495,12 @@ function cptRender(){
       var p=(r.proceso||'').trim(); if(p)procs[p]=(procs[p]||0)+1;
       var e=(r.especie||'').trim(); if(e)esps[e]=(esps[e]||0)+1;
       var pr=(r.producto||'').trim(); if(pr)prods[pr]=(prods[pr]||0)+1;
-      var pk=p||'—'; if(!byProc[pk]) byProc[pk]={ini:null,fin:null,esps:{},prods:{}};
       var di=_cptMin(r.proceso_inicio), df=_cptMin(r.proceso_termino);
+      var pk=(di!=null?('t'+di):('p'+(p||'—')));  // agrupar por SEGMENTO (hora de inicio) → permite procesos repetidos sin fusionarlos
+      if(!byProc[pk]) byProc[pk]={proc:(p||'—'),ini:di,fin:null,esps:{},prods:{}};
       if(di!=null&&(byProc[pk].ini==null||di<byProc[pk].ini)) byProc[pk].ini=di;
       if(df!=null&&(byProc[pk].fin==null||df>byProc[pk].fin)) byProc[pk].fin=df;
+      if(p) byProc[pk].proc=p;
       if(e) byProc[pk].esps[e]=(byProc[pk].esps[e]||0)+1;
       if(pr) byProc[pk].prods[pr]=(byProc[pk].prods[pr]||0)+1;
       var ddi=_cptMin(r.descanso_inicio), ddf=_cptMin(r.descanso_termino);
@@ -7519,8 +7521,8 @@ function cptRender(){
       if(_nx.ini!=null && (_cur.fin==null || _cur.fin>_nx.ini)) _cur.fin=_nx.ini;
     }
     // "Proceso actual" = el más reciente de la línea de tiempo (para el header y el prellenado del nuevo proceso)
-    if(pOrden.length){ var _uP=byProc[pOrden[pOrden.length-1]]; procActual=pOrden[pOrden.length-1]; if(_top(_uP.esps))espActual=_top(_uP.esps); if(_top(_uP.prods))prodActual=_top(_uP.prods); }
-    var procesos = pOrden.map(function(pk){var o=byProc[pk]; return {name:pk, ini:o.ini, fin:o.fin, esp:_top(o.esps), prod:_top(o.prods)};});
+    if(pOrden.length){ var _uP=byProc[pOrden[pOrden.length-1]]; procActual=_uP.proc||procActual; if(_top(_uP.esps))espActual=_top(_uP.esps); if(_top(_uP.prods))prodActual=_top(_uP.prods); }
+    var procesos = pOrden.map(function(pk){var o=byProc[pk]; return {name:o.proc, ini:o.ini, fin:o.fin, esp:_top(o.esps), prod:_top(o.prods)};});
     window._cptLineData = window._cptLineData||{};
     window._cptLineData[lid] = { procesos:procesos, brkDes:brkDes, brkCol:brkCol };
     var nProc=procesos.length;
