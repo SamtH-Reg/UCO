@@ -5274,6 +5274,8 @@ function renderTabla(rows){
       ausPill  = '<span class="ausencia-pill pill-pjud">⚖️ Perm. Judicial</span>';
     }
     const tipoFila = _getTipoFila(r);
+    // Solo el registro original (no cambio ni duplicado) muestra desayuno/colación
+    const showBrk = !(tipoFila && (tipoFila==='duplicado' || String(tipoFila).indexOf('cambio_')===0));
     let trClass = '', dupCell = '';
 
     if(tipoFila === 'duplicado'){
@@ -5319,12 +5321,13 @@ function renderTabla(rows){
       '<td>'+fmtDt(r[14])+'</td>'+
       '<td>'+fmtDt(r[15])+'</td>'+
       '<td>'+(r[16]||'—')+'</td>'+
-      '<td>'+fmtDt(r[17])+'</td>'+
-      '<td>'+fmtDt(r[18])+'</td>'+
-      '<td>'+fmtBool(r[19])+'</td>'+
-      '<td>'+fmtDt(r[20])+'</td>'+
-      '<td>'+fmtDt(r[21])+'</td>'+
-      '<td>'+fmtBool(r[22])+'</td>'+
+      // Desayuno/colación se muestran SOLO en el registro original; en los cambios/duplicados van en blanco (el descanso es uno por turno)
+      '<td>'+(showBrk?fmtDt(r[17]):'—')+'</td>'+
+      '<td>'+(showBrk?fmtDt(r[18]):'—')+'</td>'+
+      '<td>'+(showBrk?fmtBool(r[19]):'—')+'</td>'+
+      '<td>'+(showBrk?fmtDt(r[20]):'—')+'</td>'+
+      '<td>'+(showBrk?fmtDt(r[21]):'—')+'</td>'+
+      '<td>'+(showBrk?fmtBool(r[22]):'—')+'</td>'+
       '<td style="font-size:11px;color:var(--t-muted,#8a9bb0);white-space:nowrap">'+fmtHoraEnvio(r[23])+'</td>'+
       '</tr>';
   }).join('');
@@ -8210,11 +8213,14 @@ async function exportarRegistrosExcel(){
     return s;
   }
 
+  // El desayuno/colación es UNO por turno: solo va en el registro original, en blanco en cambios/duplicados
+  var _colsDescanso = ['descanso_inicio','descanso_termino','desayuno_programado','colacion_inicio','colacion_termino','colacion_programado'];
   var header = COLS_EXPORT.map(function(c){ return c.label||c.k; });
   var filas  = dataOrdenada.map(function(r){
     var tipo = _getTipo(r);
     return COLS_EXPORT.map(function(c){
       if(c.k==='_estado') return _labelEstado[tipo]||tipo;
+      if(tipo!=='normal' && _colsDescanso.indexOf(c.k)!==-1) return '';
       if(c.k==='linea') return parseLinea(r[c.k]);
       return parsearFecha(c.k, r[c.k]);
     });
