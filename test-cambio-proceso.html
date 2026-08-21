@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test · Cambio de Proceso (UCO)</title>
+<style>
+  :root{--ok:#1a9f5a;--okbg:#e7f7ee;--bad:#d63a3a;--badbg:#fdecec;--ink:#12283d;--mut:#68809a;--line:#e2e8f0}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--ink);background:#f5f8fb}
+  header{padding:20px 24px;background:linear-gradient(90deg,#0f2a44,#1e4a70);color:#fff}
+  header h1{margin:0;font-size:19px}
+  header p{margin:4px 0 0;font-size:12.5px;opacity:.8}
+  #summary{margin:18px 24px;padding:14px 18px;border-radius:12px;font-weight:700;font-size:15px}
+  #summary.pass{background:var(--okbg);color:var(--ok);border:1px solid #b9e6cd}
+  #summary.fail{background:var(--badbg);color:var(--bad);border:1px solid #f3c4c4}
+  table{width:calc(100% - 48px);margin:0 24px 30px;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top}
+  th{background:#f0f4f8;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--mut)}
+  tr:last-child td{border-bottom:0}
+  .st{font-weight:800;white-space:nowrap}
+  .st.ok{color:var(--ok)} .st.bad{color:var(--bad)}
+  td.detail{color:var(--mut);font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .grp{background:#eef3f8;font-weight:800;color:#2a4a6a;font-size:12px;text-transform:uppercase;letter-spacing:.3px}
+  iframe{position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧪 Test · Cambio de Proceso — UCO</h1>
+  <p>Carga index.html en un iframe y verifica la lógica nueva (línea de tiempo) y que no se rompió lo existente.</p>
+</header>
+<div id="summary">⏳ Cargando index.html y ejecutando pruebas…</div>
+<table><thead><tr><th style="width:60px">Estado</th><th>Prueba</th><th>Detalle</th></tr></thead>
+<tbody id="rows"></tbody></table>
+
+<!-- El código del test se ejecuta DENTRO del scope de index.html (acceso a funciones y variables let) -->
+<script type="text/plain" id="testsrc">
+(function(){
+  var R=[];
+  function ok(name, cond, detail){ R.push({name:name, pass:!!cond, detail:detail||''}); }
+  function eq(name, got, exp){ R.push({name:name, pass:(got===exp), detail:'esperado '+JSON.stringify(exp)+' · obtenido '+JSON.stringify(got)}); }
+  function grp(t){ R.push({group:t}); }
+  function sumNet(tl){ return tl.rows.reduce(function(s,r){return s+(r.net||0);},0); }
+
+  try{
+  // ───────────────────────── LÍNEA DE TIEMPO ─────────────────────────
+  grp('Línea de tiempo (lógica nueva)');
+
+  // A) Procesos contiguos, sin huecos
+  var A=_cptTimeline([{name:'A',ini:480,fin:720},{name:'B',ini:720,fin:960}], null, null, {});
+  eq('A · net proceso 1 (08:00→12:00)', A.rows[0].net, 240);
+  eq('A · net proceso 2 (12:00→16:00)', A.rows[1].net, 240);
+  eq('A · total = suma bloques', A.total, sumNet(A));
+  eq('A · total esperado', A.total, 480);
+  eq('A · sin hueco entre procesos', A.rows[0].gap, 0);
+
+  // B) Hueco por cambio de proceso se descuenta (no suma)
+  var B=_cptTimeline([{name:'A',ini:480,fin:840},{name:'B',ini:850,fin:945}], null, null, {});
+  eq('B · hueco 14:00→14:10 = 10m', B.rows[0].gap, 10);
+  eq('B · total NO incluye el hueco', B.total, 455);
+  eq('B · total = suma bloques', B.total, sumNet(B));
+
+  // C) Arrastre en cascada: extender P0 arrastra el inicio de P1
+  var C=_cptTimeline([{name:'A',ini:480,fin:840},{name:'B',ini:850,fin:945}], null, null, {0:860});
+  eq('C · P0 término arrastrado a 14:20', C.rows[0].fin, 860);
+  eq('C · P1 inicio arrastrado a 14:20', C.rows[1].ini, 860);
+  eq('C · P0 sin hueco tras arrastre', C.rows[0].gap, 0);
+  eq('C · total = suma bloques (real)', C.total, sumNet(C));
+
+  // D) No hay solape: override enorme colapsa los siguientes, sin negativos
+  var D=_cptTimeline([{name:'A',ini:480,fin:840},{name:'B',ini:850,fin:945}], null, null, {0:1020});
+  eq('D · P1 no puede solaparse (net 0)', D.rows[1].net, 0);
+  ok('D · ningún net negativo', D.rows.every(function(r){return r.net===null||r.net>=0;}));
+  eq('D · total = solo P0', D.total, 540);
+
+  // E) Descuento de desayuno/colación
+  var E=_cptTimeline([{name:'X',ini:480,fin:960}], {ini:600,fin:615}, {ini:780,fin:810}, {});
+  eq('E · descuenta desayuno(15)+colación(30)', E.rows[0].net, 435);
+  eq('E · brk mostrado = 45m', E.rows[0].brk, 45);
+
+  // F) Datos inconsistentes → inválido, no suma
+  var f1=_cptRowNet(900, 880, null, null);
+  ok('F · término antes del inicio → inválido', f1.invalid===true && f1.net===null);
+  var f2=_cptRowNet(900, null, null, null);
+  ok('F · sin término → inválido (pide ajuste)', f2.invalid===true && f2.net===null);
+  var f3=_cptRowNet(480, 720, null, null);
+  ok('F · rango normal → válido', f3.invalid===false && f3.net===240);
+
+  // G) Invariante: total SIEMPRE = suma de los netos de los bloques
+  [A,B,C,D,E].forEach(function(tl,i){ eq('G · invariante total=suma ('+('ABCDE'[i])+')', tl.total, sumNet(tl)); });
+
+  // ───────────────────────── REGRESIÓN (lo ya existente) ─────────────────────────
+  grp('Regresión · utilidades existentes');
+
+  eq('_row → 25 columnas', _row({}).length, 25);
+  var rr=_row({atraso_inicio:12}); eq('_row · atraso en índice 16', rr[16], 12);
+  eq('_cptMin tz-safe (+00:00 no desplaza)', _cptMin('2026-08-20T13:24:00+00:00'), 13*60+24);
+  eq('_cptMin de HH:MM simple', _cptMin('08:05'), 485);
+  eq('_cptFmtHM(804)', _cptFmtHM(804), '13:24');
+  eq('_cptFmtDur(90)', _cptFmtDur(90), '1h 30m');
+  eq('_cptFmtDur(45)', _cptFmtDur(45), '45m');
+  eq('_cptFmtDur(null) → —', _cptFmtDur(null), '—');
+  // _cptOv: solape de un descanso [10:00-10:15] dentro de un proceso [08:00-12:00] = 15
+  eq('_cptOv descanso dentro del proceso', _cptOv(480,720,{ini:600,fin:615}), 15);
+  eq('_cptOv descanso fuera del proceso', _cptOv(480,540,{ini:600,fin:615}), 0);
+
+  // ───────────────────────── REGRESIÓN · tabla + blanqueo de descanso ─────────────────────────
+  grp('Regresión · Registros: descanso una vez por turno');
+  var base=function(id,proc,pi,pt,esp,created){return ['Agosto','2026-08-20','Yosseth','Día','1','M2769','CAYUN','Temp','LIMPIEZA','1110',
+    esp,'ENTERO',proc,'MANUAL','2026-08-20 '+pi,'2026-08-20 '+pt,'0',
+    '2026-08-20 10:00','2026-08-20 10:15','Sí','2026-08-20 12:00','2026-08-20 12:30','Sí', created, id];};
+  var regs=[
+    base('id-orig','CONGELADO','08:00','13:23','COJINOBA','2026-08-20 09:00'),
+    base('id-c1','CONGELADO','13:24','15:23','BACALAO','2026-08-20 13:16'),
+    base('id-c2','CONGELADO','15:24','15:45','CONGRIO','2026-08-20 15:19')
+  ];
+  todosRegistros = regs;
+  if(typeof _ausenciasMapHoy==='undefined' || !_ausenciasMapHoy) _ausenciasMapHoy = {};
+  renderTabla(regs);
+  var trs=document.querySelectorAll('#tbodyReg tr');
+  var cel=function(tr,i){var t=tr.querySelectorAll('td');return t[i]?t[i].innerText.trim():'';};
+  eq('Tabla · se pintan 3 filas', trs.length, 3);
+  // fila 0 = original (sin badge), muestra desayuno/colación
+  ok('Original · Desayuno visible (10:00)', cel(trs[0],20).indexOf('10:00')>-1, cel(trs[0],20));
+  ok('Original · Colación visible (12:00)', cel(trs[0],23).indexOf('12:00')>-1, cel(trs[0],23));
+  // fila 1 y 2 = cambios, desayuno/colación EN BLANCO
+  eq('Cambio 1 · badge correcto', cel(trs[1],2), 'Cambio proceso 1');
+  eq('Cambio 1 · Desayuno en blanco', cel(trs[1],20), '—');
+  eq('Cambio 1 · Colación en blanco', cel(trs[1],23), '—');
+  eq('Cambio 2 · badge correcto', cel(trs[2],2), 'Cambio proceso 2');
+  eq('Cambio 2 · Desayuno en blanco', cel(trs[2],20), '—');
+
+  }catch(e){ R.push({name:'Excepción no controlada', pass:false, detail:(e && e.message)+' @ '+(e && e.stack||'').split('\n')[1]}); }
+
+  return R;
+})();
+</script>
+
+<script>
+(function(){
+  var iframe=document.createElement('iframe');
+  iframe.src='index.html';
+  document.body.appendChild(iframe);
+  iframe.onload=function(){
+    var out;
+    try{
+      var src=document.getElementById('testsrc').textContent;
+      out=iframe.contentWindow.eval(src);
+    }catch(e){
+      out=[{name:'No se pudo ejecutar el test dentro de index.html', pass:false, detail:e.message}];
+    }
+    render(out||[]);
+  };
+  function render(list){
+    var tb=document.getElementById('rows'), pass=0, fail=0, html='';
+    list.forEach(function(r){
+      if(r.group){ html+='<tr><td class="grp" colspan="3">'+esc(r.group)+'</td></tr>'; return; }
+      if(r.pass) pass++; else fail++;
+      html+='<tr><td class="st '+(r.pass?'ok':'bad')+'">'+(r.pass?'✓ OK':'✗ FALLA')+'</td>'
+          +'<td>'+esc(r.name)+'</td><td class="detail">'+esc(r.detail||'')+'</td></tr>';
+    });
+    tb.innerHTML=html;
+    var s=document.getElementById('summary');
+    s.className=fail===0?'pass':'fail';
+    s.textContent=(fail===0?'✅ TODO OK — ':'❌ HAY FALLAS — ')+pass+' pasaron, '+fail+' fallaron ('+(pass+fail)+' pruebas).';
+  }
+  function esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+})();
+</script>
+</body>
+</html>
