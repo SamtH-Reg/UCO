@@ -7549,7 +7549,7 @@ function cptRender(){
     _cptRegs.forEach(function(r){ if((String(r.linea||'').trim()||'(sin línea)')===l){ var a=parseInt(r.atraso_inicio||0,10)||0; if(a>0) atrCount[a]=(atrCount[a]||0)+1; } });
     var atrasoLinea=0; var _ak=Object.keys(atrCount); if(_ak.length){ atrasoLinea=parseInt(_ak.sort(function(a,b){return atrCount[b]-atrCount[a];})[0],10)||0; }
     window._cptLineData = window._cptLineData||{};
-    window._cptLineData[lid] = { procesos:procesos, brkDes:brkDes, brkCol:brkCol, atraso:atrasoLinea };
+    window._cptLineData[lid] = { procesos:procesos, brkDes:brkDes, brkCol:brkCol, atraso:atrasoLinea, termOv:{} };
     var nProc=procesos.length;
     var badge = nProc>1 ? '<span class="cpt-badge-cambio">🔄 '+nProc+' procesos hoy</span>' : '';
     var termOpts=procesos.map(function(p,idx){return '<option value="'+idx+'">'+_cptH(p.name)+' ('+_cptFmtHM(p.ini)+' → '+_cptFmtHM(p.fin)+')</option>';}).join('');
@@ -7562,7 +7562,7 @@ function cptRender(){
     var resumen='<div class="cpt-resumen" onclick="cptToggleCorte(\''+lid+'\')" style="cursor:pointer">'
       +'<div class="cpt-resumen-title">📋 Procesos registrados hoy <span style="font-weight:400;color:var(--t-muted,#8ab)">· horas netas (sin desayuno/colación)</span></div>'
       +'<div class="cpt-proc-row cpt-proc-head"><span class="cpt-proc-name">Proceso · especie · producto</span><span class="cpt-proc-time">Desde → Hasta</span><span class="cpt-proc-dur">Trabajado</span></div>'
-      +'<div id="cptResBody_'+lid+'">'+_cptResBody(procesos, brkDes, brkCol, atrasoLinea, lid)+'</div>'
+      +'<div id="cptResBody_'+lid+'">'+_cptResBody(procesos, brkDes, brkCol, atrasoLinea, lid, {})+'</div>'
       +termHTML
       +'<div class="cpt-res-hint" id="cptResHint_'+lid+'">▸ Toca aquí para registrar el corte de hora por función</div>'
       +'</div>';
@@ -7639,9 +7639,9 @@ function _cptFmtDur(min){ if(min==null||min<0)return '—'; var h=Math.floor(min
 function _cptOv(pi,pf,b){ if(!b||pi==null||pf==null)return 0; if(pf<pi)pf+=1440; return Math.max(0,Math.min(pf,b.fin)-Math.max(pi,b.ini)); }
 // Construye las filas del resumen + total (reutilizado por render y preview en vivo)
 function _cptRowNet(ini, fin, brkDes, brkCol){
-  if(ini==null||fin==null) return {net:null, brk:0, invalid:false};
-  var gross=(fin-ini)<0?(fin-ini+1440):(fin-ini);
-  if(gross>1200) return {net:null, brk:0, invalid:true};  // >20h: dato inconsistente (término antes del inicio) → requiere término manual, NO suma
+  if(ini==null||fin==null) return {net:null, brk:0, invalid:true};  // falta el término → hay que ajustarlo
+  var gross=(fin-ini);
+  if(gross<0) return {net:null, brk:0, invalid:true};  // término antes del inicio → dato inconsistente, requiere término manual
   var brk=_cptOv(ini,fin,brkDes)+_cptOv(ini,fin,brkCol);
   return {net:Math.max(0,gross-brk), brk:brk, invalid:false};
 }
@@ -7649,18 +7649,35 @@ function _cptDurHtml(r){
   if(r.invalid) return '<span class="cpt-dur-adj">— ajustar</span>';
   return _cptFmtDur(r.net)+(r.brk>0?'<span class="cpt-proc-brk">−'+_cptFmtDur(r.brk)+' desc.</span>':'');
 }
-function _cptResBody(procesos, brkDes, brkCol, atraso, lid){
-  var totalMin=0;
-  var rows=procesos.map(function(o,idx){
-    var r=_cptRowNet(o.ini,o.fin,brkDes,brkCol);
-    if(r.net!=null) totalMin+=r.net;
+// UNA sola línea de tiempo: los límites son los inicios ordenados + el término del turno.
+// Cada proceso termina donde empieza el siguiente (corte compartido); solo el término del turno es libre.
+// termOv[idx] redefine el término del proceso idx (= inicio del siguiente). Clamp no-decreciente = sin solapes.
+function _cptTimeline(procesos, brkDes, brkCol, termOv){
+  termOv=termOv||{};
+  var n=procesos.length;
+  var S=[]; for(var i=0;i<n;i++) S[i]=procesos[i].ini;
+  S[n]=(n>0 && procesos[n-1].fin!=null)?procesos[n-1].fin:null;  // término del turno (base = fin del último dato)
+  for(var k in termOv){ var idx=parseInt(k,10); if(!isNaN(idx)&&idx>=0&&idx<n&&termOv[idx]!=null) S[idx+1]=termOv[idx]; }
+  for(var j=1;j<=n;j++){ if(S[j]!=null && S[j-1]!=null && S[j]<S[j-1]) S[j]=S[j-1]; }  // sin retrocesos ni solapes
+  var rows=[], total=0;
+  for(var i=0;i<n;i++){
+    var r=_cptRowNet(S[i], S[i+1], brkDes, brkCol);
+    if(r.net!=null) total+=r.net;
+    rows.push({o:procesos[i], ini:S[i], fin:S[i+1], net:r.net, brk:r.brk, invalid:r.invalid});
+  }
+  return {rows:rows, total:total};
+}
+function _cptResBody(procesos, brkDes, brkCol, atraso, lid, termOv){
+  var tl=_cptTimeline(procesos, brkDes, brkCol, termOv);
+  var rows=tl.rows.map(function(row,idx){
+    var o=row.o;
     var detalle=(o.esp||o.prod)?('<div class="cpt-proc-det">'+_cptH(o.esp||'—')+(o.prod?' · '+_cptH(o.prod):'')+'</div>'):'';
     return '<div class="cpt-proc-row"><span class="cpt-proc-name">'+_cptH(o.name)+detalle+'</span>'
-      +'<span class="cpt-proc-time">'+_cptFmtHM(o.ini)+' → <span id="cptHasta_'+(lid||'x')+'_'+idx+'">'+_cptFmtHM(o.fin)+'</span></span>'
-      +'<span class="cpt-proc-dur" id="cptDur_'+(lid||'x')+'_'+idx+'">'+_cptDurHtml(r)+'</span></div>';
+      +'<span class="cpt-proc-time">'+_cptFmtHM(row.ini)+' → <span id="cptHasta_'+(lid||'x')+'_'+idx+'">'+_cptFmtHM(row.fin)+'</span></span>'
+      +'<span class="cpt-proc-dur" id="cptDur_'+(lid||'x')+'_'+idx+'">'+_cptDurHtml(row)+'</span></div>';
   }).join('');
   var atr=(atraso&&atraso>0)?atraso:0;
-  var neto=Math.max(0, totalMin-atr);
+  var neto=Math.max(0, tl.total-atr);
   var atrLine='<div class="cpt-atraso" id="cptAtrLine_'+(lid||'x')+'"'+(atr>0?'':' style="display:none"')+'>⏰ − Atraso de inicio: '+_cptFmtDur(atr)+'</div>';
   return rows+atrLine+'<div class="cpt-total">⏱ Total trabajado (neto): <b id="cptTot_'+(lid||'x')+'">'+_cptFmtDur(neto)+'</b></div>';
 }
@@ -7671,34 +7688,32 @@ function _cptIntFromInputs(idI, idF){
   if(mi==null||mf==null||mf<=mi) return null;
   return {ini:mi, fin:mf};
 }
-// Recalcula duraciones y total EN SITIO usando el término manual (d.termOv) si existe
+// Recalcula duraciones y total EN SITIO respetando la línea de tiempo
 function cptRecalc(lid){
   var d=(window._cptLineData||{})[lid]; if(!d) return;
   d.termOv=d.termOv||{};
   var bd=_cptIntFromInputs('cptDesIni_'+lid,'cptDesFin_'+lid); if(bd===null) bd=d.brkDes;
   var bc=_cptIntFromInputs('cptColIni_'+lid,'cptColFin_'+lid); if(bc===null) bc=d.brkCol;
   var atEl=document.getElementById('cptAtr_'+lid); var at=atEl?parseInt(atEl.value,10):NaN; if(isNaN(at)||at<0) at=d.atraso||0;
-  var total=0;
-  d.procesos.forEach(function(o,idx){
-    var fin=(d.termOv[idx]!=null)?d.termOv[idx]:o.fin;
-    var r=_cptRowNet(o.ini,fin,bd,bc);
-    if(r.net!=null) total+=r.net;
-    var hEl=document.getElementById('cptHasta_'+lid+'_'+idx); if(hEl) hEl.textContent=_cptFmtHM(fin);
-    var durEl=document.getElementById('cptDur_'+lid+'_'+idx); if(durEl) durEl.innerHTML=_cptDurHtml(r);
+  var tl=_cptTimeline(d.procesos, bd, bc, d.termOv);
+  tl.rows.forEach(function(row,idx){
+    var hEl=document.getElementById('cptHasta_'+lid+'_'+idx); if(hEl) hEl.textContent=_cptFmtHM(row.fin);
+    var durEl=document.getElementById('cptDur_'+lid+'_'+idx); if(durEl) durEl.innerHTML=_cptDurHtml(row);
   });
-  var neto=Math.max(0, total-(at>0?at:0));
+  var neto=Math.max(0, tl.total-(at>0?at:0));
   var atrEl=document.getElementById('cptAtrLine_'+lid);
   if(atrEl){ if(at>0){ atrEl.style.display=''; atrEl.textContent='⏰ − Atraso de inicio: '+_cptFmtDur(at); } else atrEl.style.display='none'; }
   var totEl=document.getElementById('cptTot_'+lid);
   if(totEl) totEl.textContent=_cptFmtDur(neto);
 }
-// Aplicar término manual al proceso seleccionado (para descontar sin sumar horas de más)
+// Aplicar término manual: mueve el corte del proceso elegido (= inicio del siguiente). El clamp evita solapes.
 function cptSetTerm(lid){
   var d=(window._cptLineData||{})[lid]; if(!d) return;
   var sel=document.getElementById('cptTermSel_'+lid), val=document.getElementById('cptTermVal_'+lid);
   if(!sel||!val||val.value===''){ showToast('Elige el proceso y la hora de término','error'); return; }
   var idx=parseInt(sel.value,10), m=_cptMin(val.value);
   if(isNaN(idx)||m==null||!d.procesos[idx]){ showToast('Datos inválidos','error'); return; }
+  if(m < d.procesos[idx].ini){ showToast('El término no puede ser antes del inicio del proceso ('+_cptFmtHM(d.procesos[idx].ini)+')','error',4500); return; }
   d.termOv=d.termOv||{}; d.termOv[idx]=m;
   cptRecalc(lid);
   showToast('✅ Término de "'+(d.procesos[idx].name||'proceso')+'" → '+val.value,'success');
@@ -7706,7 +7721,7 @@ function cptSetTerm(lid){
 function cptPreview(lid){
   var d=(window._cptLineData||{})[lid]; if(!d) return;
   d.termOv=d.termOv||{};
-  // El corte por función (última hora escrita) fija el término del proceso ACTUAL (último)
+  // El corte por función (última hora escrita) fija el término del proceso ACTUAL (último = término del turno)
   var cs=[]; document.querySelectorAll('#cptCard_'+lid+' input.cpt-corte-input').forEach(function(inp){ if(inp.value){ var m=_cptMin(inp.value); if(m!=null) cs.push(m); } });
   cs.sort(function(a,b){return a-b;});
   if(cs.length && d.procesos.length){ d.termOv[d.procesos.length-1]=cs[cs.length-1]; }
