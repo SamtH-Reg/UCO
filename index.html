@@ -3099,6 +3099,7 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
 .cpt-proc-dur{min-width:64px;text-align:right;font-weight:800;color:var(--t-accent,#00c6a2)}
 .cpt-proc-det{font-size:10px;color:var(--t-muted,#8ab);font-weight:500;margin-top:1px}
 .cpt-proc-brk{display:block;font-size:9px;color:#e67e22;font-weight:600;margin-top:1px}
+.cpt-proc-gap{display:block;font-size:9px;color:#9b59b6;font-weight:700;margin-top:1px}
 .cpt-proc-row{align-items:flex-start}
 .cpt-total{margin-top:6px;padding-top:7px;border-top:1px solid var(--t-border,#1e4060);text-align:right;font-size:13px;color:var(--t-text,#e0f0ff)}
 .cpt-atraso{text-align:right;font-size:11.5px;font-weight:700;color:#e67e22;margin-top:4px}
@@ -7647,23 +7648,30 @@ function _cptRowNet(ini, fin, brkDes, brkCol){
 }
 function _cptDurHtml(r){
   if(r.invalid) return '<span class="cpt-dur-adj">— ajustar</span>';
-  return _cptFmtDur(r.net)+(r.brk>0?'<span class="cpt-proc-brk">−'+_cptFmtDur(r.brk)+' desc.</span>':'');
+  var extra='';
+  if(r.brk>0) extra+='<span class="cpt-proc-brk">−'+_cptFmtDur(r.brk)+' desc.</span>';
+  if(r.gap>0) extra+='<span class="cpt-proc-gap">−'+_cptFmtDur(r.gap)+' cambio</span>';
+  return _cptFmtDur(r.net)+extra;
 }
-// UNA sola línea de tiempo: los límites son los inicios ordenados + el término del turno.
-// Cada proceso termina donde empieza el siguiente (corte compartido); solo el término del turno es libre.
-// termOv[idx] redefine el término del proceso idx (= inicio del siguiente). Clamp no-decreciente = sin solapes.
+// UNA sola línea de tiempo. Cada proceso usa su término REAL (dato o manual).
+// - No puede solaparse con el siguiente: se topa en el inicio del siguiente.
+// - Si termina antes de que empiece el siguiente, ese hueco es tiempo muerto por cambio de
+//   proceso y se DESCUENTA automáticamente (no se suma). Solo el término del turno (último) es libre.
 function _cptTimeline(procesos, brkDes, brkCol, termOv){
   termOv=termOv||{};
   var n=procesos.length;
-  var S=[]; for(var i=0;i<n;i++) S[i]=procesos[i].ini;
-  S[n]=(n>0 && procesos[n-1].fin!=null)?procesos[n-1].fin:null;  // término del turno (base = fin del último dato)
-  for(var k in termOv){ var idx=parseInt(k,10); if(!isNaN(idx)&&idx>=0&&idx<n&&termOv[idx]!=null) S[idx+1]=termOv[idx]; }
-  for(var j=1;j<=n;j++){ if(S[j]!=null && S[j-1]!=null && S[j]<S[j-1]) S[j]=S[j-1]; }  // sin retrocesos ni solapes
   var rows=[], total=0;
   for(var i=0;i<n;i++){
-    var r=_cptRowNet(S[i], S[i+1], brkDes, brkCol);
+    var ini=procesos[i].ini;
+    var ownTerm=(termOv[i]!=null)?termOv[i]:procesos[i].fin;
+    var nextIni=(i<n-1)?procesos[i+1].ini:null;
+    var fin;
+    if(nextIni!=null){ fin=(ownTerm!=null)?Math.min(ownTerm, nextIni):nextIni; }  // tope anti-solape
+    else { fin=ownTerm; }  // último = término del turno
+    var r=_cptRowNet(ini, fin, brkDes, brkCol);
+    r.gap=(nextIni!=null && fin!=null && nextIni>fin)?(nextIni-fin):0;  // hueco por cambio de proceso (descontado)
     if(r.net!=null) total+=r.net;
-    rows.push({o:procesos[i], ini:S[i], fin:S[i+1], net:r.net, brk:r.brk, invalid:r.invalid});
+    rows.push({o:procesos[i], ini:ini, fin:fin, net:r.net, brk:r.brk, invalid:r.invalid, gap:r.gap});
   }
   return {rows:rows, total:total};
 }
