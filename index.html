@@ -3067,6 +3067,13 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
 .cpt-chevron{font-size:12px;color:var(--t-accent2,#0098d4);flex-shrink:0}
 .cpt-card-head:hover .cpt-linea{filter:brightness(1.2)}
 .cpt-body{margin-top:8px}
+.cpt-horarios{background:var(--t-panel2,#0e2740);border:1px solid var(--t-border,#1e4060);border-radius:12px;padding:10px 12px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
+.cpt-hor-title{font-size:11px;font-weight:800;letter-spacing:.3px;color:var(--t-accent2,#0098d4)}
+.cpt-hor-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cpt-hor-lbl{min-width:74px;font-size:12px;font-weight:700;color:var(--t-text,#dfeaf5)}
+.cpt-hor-row input[type=time]{background:var(--t-panel,#0a1e33);border:1px solid var(--t-border,#1e4060);color:var(--t-text,#dfeaf5);border-radius:8px;padding:6px 8px;font-size:14px;font-weight:700}
+.cpt-hor-row span{color:var(--t-muted,#8ab);font-weight:700}
+.cpt-horarios .cpt-mini{align-self:flex-start}
 .cpt-todas-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 0 10px;margin-bottom:6px;border-bottom:1px solid var(--t-border,#1e4060)}
 .cpt-todas-lbl{font-size:10px;color:var(--t-muted,#8ab);font-weight:700;letter-spacing:.3px}
 .cpt-badge-cambio{background:rgba(230,126,34,.16);color:#e67e22;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;margin-left:2px;white-space:nowrap;flex-shrink:0}
@@ -3081,6 +3088,7 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
 .cpt-proc-brk{display:block;font-size:9px;color:#e67e22;font-weight:600;margin-top:1px}
 .cpt-proc-row{align-items:flex-start}
 .cpt-total{margin-top:6px;padding-top:7px;border-top:1px solid var(--t-border,#1e4060);text-align:right;font-size:13px;color:var(--t-text,#e0f0ff)}
+.cpt-atraso{text-align:right;font-size:11.5px;font-weight:700;color:#e67e22;margin-top:4px}
 .cpt-res-hint{margin-top:8px;padding-top:8px;border-top:1px dashed var(--t-border,#1e4060);text-align:center;font-size:11.5px;font-weight:700;color:var(--t-accent2,#0098d4)}
 .cpt-resumen:hover{border-color:var(--t-accent2,#0098d4)}
 .cpt-corte-sec{margin-top:12px}
@@ -7523,14 +7531,18 @@ function cptRender(){
     // "Proceso actual" = el más reciente de la línea de tiempo (para el header y el prellenado del nuevo proceso)
     if(pOrden.length){ var _uP=byProc[pOrden[pOrden.length-1]]; procActual=_uP.proc||procActual; if(_top(_uP.esps))espActual=_top(_uP.esps); if(_top(_uP.prods))prodActual=_top(_uP.prods); }
     var procesos = pOrden.map(function(pk){var o=byProc[pk]; return {name:o.proc, ini:o.ini, fin:o.fin, esp:_top(o.esps), prod:_top(o.prods)};});
+    // Atraso de inicio de la línea (min) — se descuenta una vez del total. Valor más frecuente.
+    var atrCount={};
+    _cptRegs.forEach(function(r){ if((String(r.linea||'').trim()||'(sin línea)')===l){ var a=parseInt(r.atraso_inicio||0,10)||0; if(a>0) atrCount[a]=(atrCount[a]||0)+1; } });
+    var atrasoLinea=0; var _ak=Object.keys(atrCount); if(_ak.length){ atrasoLinea=parseInt(_ak.sort(function(a,b){return atrCount[b]-atrCount[a];})[0],10)||0; }
     window._cptLineData = window._cptLineData||{};
-    window._cptLineData[lid] = { procesos:procesos, brkDes:brkDes, brkCol:brkCol };
+    window._cptLineData[lid] = { procesos:procesos, brkDes:brkDes, brkCol:brkCol, atraso:atrasoLinea };
     var nProc=procesos.length;
     var badge = nProc>1 ? '<span class="cpt-badge-cambio">🔄 '+nProc+' procesos hoy</span>' : '';
     var resumen='<div class="cpt-resumen" onclick="cptToggleCorte(\''+lid+'\')" style="cursor:pointer">'
       +'<div class="cpt-resumen-title">📋 Procesos registrados hoy <span style="font-weight:400;color:var(--t-muted,#8ab)">· horas netas (sin desayuno/colación)</span></div>'
       +'<div class="cpt-proc-row cpt-proc-head"><span class="cpt-proc-name">Proceso · especie · producto</span><span class="cpt-proc-time">Desde → Hasta</span><span class="cpt-proc-dur">Trabajado</span></div>'
-      +'<div id="cptResBody_'+lid+'">'+_cptResBody(procesos, brkDes, brkCol)+'</div>'
+      +'<div id="cptResBody_'+lid+'">'+_cptResBody(procesos, brkDes, brkCol, atrasoLinea)+'</div>'
       +'<div class="cpt-res-hint" id="cptResHint_'+lid+'">▸ Toca aquí para registrar el corte de hora por función</div>'
       +'</div>';
     var espLista=especies.slice(); if(espActual && espLista.indexOf(espActual)===-1) espLista.push(espActual);
@@ -7539,6 +7551,17 @@ function cptRender(){
     var prodOptsA='<option value="">Producto…</option>'+prodListA.sort().map(function(p){return '<option value="'+_cptH(p)+'"'+(p===prodActual?' selected':'')+'>'+_cptH(p)+'</option>';}).join('');
     var procListA=((mP[espActual+'||'+prodActual]||{}).procesos)||[];
     var procOptsA='<option value="">Proceso nuevo…</option>'+procListA.slice().sort().map(function(v){return '<option value="'+_cptH(v)+'">'+_cptH(v)+'</option>';}).join('');
+    // Horarios editables de desayuno/colación (prellenados con los actuales de la línea)
+    var horariosHTML='<div class="cpt-horarios">'
+      +'<div class="cpt-hor-title">🍽 Horarios que se descuentan</div>'
+      +'<div class="cpt-hor-row"><span class="cpt-hor-lbl">Desayuno</span>'
+        +'<input type="time" id="cptDesIni_'+lid+'" value="'+(brkDes?_cptFmtHM(brkDes.ini):'')+'" oninput="cptPreview(\''+lid+'\')"><span>→</span>'
+        +'<input type="time" id="cptDesFin_'+lid+'" value="'+(brkDes?_cptFmtHM(brkDes.fin):'')+'" oninput="cptPreview(\''+lid+'\')"></div>'
+      +'<div class="cpt-hor-row"><span class="cpt-hor-lbl">Colación</span>'
+        +'<input type="time" id="cptColIni_'+lid+'" value="'+(brkCol?_cptFmtHM(brkCol.ini):'')+'" oninput="cptPreview(\''+lid+'\')"><span>→</span>'
+        +'<input type="time" id="cptColFin_'+lid+'" value="'+(brkCol?_cptFmtHM(brkCol.fin):'')+'" oninput="cptPreview(\''+lid+'\')"></div>'
+      +'<button class="cpt-mini" onclick="cptGuardarHorarios(\''+_cptEsc(l)+'\')">💾 Guardar horarios</button>'
+      +'</div>';
     var rows=fkeys.map(function(f,i){
       return '<div class="cpt-func-row">'
         +'<div class="cpt-func-top">'
@@ -7562,6 +7585,7 @@ function cptRender(){
       +'<div class="cpt-body" id="cptBody_'+lid+'" style="display:none">'
         +resumen
         +'<div class="cpt-corte-sec" id="cptCorteSec_'+lid+'" style="display:none">'
+          +horariosHTML
           +'<div class="cpt-todas-row"><span class="cpt-todas-lbl">MISMO CORTE PARA TODAS</span><input type="time" id="cptTodas_'+lid+'"><button class="cpt-mini" onclick="cptCorteTodas(\''+lid+'\')">↧ a todas</button></div>'
           +rows
           +'<button class="cpt-add-proc" id="cptAddBtn_'+lid+'" onclick="cptShowNuevo(\''+lid+'\')">➕ Agregar nuevo proceso</button>'
@@ -7589,7 +7613,7 @@ function _cptFmtHM(min){ if(min==null)return '—'; min=((min%1440)+1440)%1440; 
 function _cptFmtDur(min){ if(min==null||min<0)return '—'; var h=Math.floor(min/60),m=Math.round(min%60); return (h>0?h+'h ':'')+m+'m'; }
 function _cptOv(pi,pf,b){ if(!b||pi==null||pf==null)return 0; if(pf<pi)pf+=1440; return Math.max(0,Math.min(pf,b.fin)-Math.max(pi,b.ini)); }
 // Construye las filas del resumen + total (reutilizado por render y preview en vivo)
-function _cptResBody(procesos, brkDes, brkCol){
+function _cptResBody(procesos, brkDes, brkCol, atraso){
   var totalMin=0;
   var rows=procesos.map(function(o){
     var gross=(o.ini!=null&&o.fin!=null)?((o.fin-o.ini)<0?(o.fin-o.ini+1440):(o.fin-o.ini)):null;
@@ -7602,18 +7626,48 @@ function _cptResBody(procesos, brkDes, brkCol){
       +'<span class="cpt-proc-time">'+_cptFmtHM(o.ini)+' → '+_cptFmtHM(o.fin)+'</span>'
       +'<span class="cpt-proc-dur">'+_cptFmtDur(net)+brkTxt+'</span></div>';
   }).join('');
-  return rows+'<div class="cpt-total">⏱ Total trabajado (neto): <b>'+_cptFmtDur(totalMin)+'</b></div>';
+  var atr=(atraso&&atraso>0)?atraso:0;
+  var neto=Math.max(0, totalMin-atr);
+  var atrLine=atr>0?('<div class="cpt-atraso">⏰ − Atraso de inicio: '+_cptFmtDur(atr)+'</div>'):'';
+  return rows+atrLine+'<div class="cpt-total">⏱ Total trabajado (neto): <b>'+_cptFmtDur(neto)+'</b></div>';
 }
 // Preview en vivo: al escribir el corte, el proceso ACTUAL (último) termina en ese corte
+function _cptIntFromInputs(idI, idF){
+  var i=document.getElementById(idI), f=document.getElementById(idF);
+  if(!i||!f||!i.value||!f.value) return null;
+  var mi=_cptMin(i.value), mf=_cptMin(f.value);
+  if(mi==null||mf==null||mf<=mi) return null;
+  return {ini:mi, fin:mf};
+}
 function cptPreview(lid){
   var d=(window._cptLineData||{})[lid]; if(!d) return;
   var cs=[]; document.querySelectorAll('#cptCard_'+lid+' input[type=time]').forEach(function(inp){ if(inp.id.indexOf('cptCorte_')===0 && inp.value){ var m=_cptMin(inp.value); if(m!=null) cs.push(m); } });
   cs.sort(function(a,b){return a-b;});
-  var corte = cs.length ? cs[cs.length-1] : null;  // el más tardío = cuando la última función terminó el proceso
+  var corte = cs.length ? cs[cs.length-1] : null;
   var procesos = d.procesos.map(function(p){ return {name:p.name,ini:p.ini,fin:p.fin,esp:p.esp,prod:p.prod}; });
   if(corte!=null && procesos.length) procesos[procesos.length-1].fin = corte;
+  // Horarios editados en vivo (si el usuario los cambió)
+  var bd=_cptIntFromInputs('cptDesIni_'+lid,'cptDesFin_'+lid); if(bd===null) bd=d.brkDes;
+  var bc=_cptIntFromInputs('cptColIni_'+lid,'cptColFin_'+lid); if(bc===null) bc=d.brkCol;
   var body=document.getElementById('cptResBody_'+lid);
-  if(body) body.innerHTML=_cptResBody(procesos, d.brkDes, d.brkCol);
+  if(body) body.innerHTML=_cptResBody(procesos, bd, bc, d.atraso);
+}
+async function cptGuardarHorarios(linea){
+  var lid=_cptSlug(linea);
+  var fecha=(document.getElementById('cptFecha')||{}).value||'';
+  var payload={};
+  var di=document.getElementById('cptDesIni_'+lid), df=document.getElementById('cptDesFin_'+lid);
+  var ci=document.getElementById('cptColIni_'+lid), cf=document.getElementById('cptColFin_'+lid);
+  if(di&&df&&di.value&&df.value){ payload.descanso_inicio=fecha+'T'+di.value+':00'; payload.descanso_termino=fecha+'T'+df.value+':00'; }
+  if(ci&&cf&&ci.value&&cf.value){ payload.colacion_inicio=fecha+'T'+ci.value+':00'; payload.colacion_termino=fecha+'T'+cf.value+':00'; }
+  if(!Object.keys(payload).length){ showToast('Indica los horarios de desayuno/colación','error'); return; }
+  var regsLinea=_cptRegs.filter(function(r){ return (String(r.linea||'').trim()||'(sin línea)')===String(linea); });
+  var ids=regsLinea.map(function(r){return r.id;}).filter(Boolean);
+  if(!ids.length){ showToast('No hay registros en la línea','error'); return; }
+  if(!confirm('¿Actualizar los horarios de desayuno/colación de '+ids.length+' registro(s) de la Línea '+linea+'?')) return;
+  try{ var u=await _sbDb().from('registros').update(payload).in('id',ids); if(u.error) throw u.error;
+    showToast('✅ Horarios actualizados · '+ids.length+' registro(s)','success'); _registrosCargados=false; cptCargar();
+  }catch(e){ console.error('[CPT HOR]',e); showToast('Error al guardar horarios: '+(e.message||e),'error',5000); }
 }
 function cptToggleCard(lid){
   var b=document.getElementById('cptBody_'+lid), ch=document.getElementById('cptChev_'+lid);
@@ -7699,40 +7753,51 @@ async function cptAplicar(linea){
     var maxI=null; all.forEach(function(r){ var m=_cptMin(r.proceso_inicio); if(m!=null&&(maxI==null||m>maxI))maxI=m; });
     return all.filter(function(r){ return _cptMin(r.proceso_inicio)===maxI; });
   };
-  if(!nuevo){ showToast('Selecciona el proceso nuevo','error'); return; }
+  // El proceso nuevo es OPCIONAL: sin proceso = solo cortar (cerrar) el proceso actual.
   var totalReg=0;
   cortes.forEach(function(c){ totalReg+=_regsActuales(c.func).length; });
-  var msg='Línea '+linea+': registrar el proceso "'+nuevo+'"'+(horaIni?(' desde las '+horaIni):' desde cada corte')
-    +' — '+totalReg+' trabajador(es).\n\n(No se borra ni modifica lo ya registrado.)\n\n¿Aplicar?';
+  var accion = nuevo ? ('registrar el proceso "'+nuevo+'"'+(horaIni?(' desde las '+horaIni):' desde cada corte')) : 'cortar (cerrar) el proceso actual';
+  var msg='Línea '+linea+': '+accion+' — '+totalReg+' trabajador(es).\n\n¿Aplicar?';
   if(!confirm(msg)) return;
   showToast('⏳ Aplicando…','info',4000);
-  var nuevos=[], mismaHora=0;
+  var nuevos=[], cierres=[], mismaHora=0;
   for(var i=0;i<cortes.length;i++){
     var c=cortes[i];
     var regsF=_regsActuales(c.func);
     if(!regsF.length) continue;
-    var iniHM  = horaIni!=='' ? horaIni : c.hora;
+    var iniHM  = (nuevo && horaIni!=='') ? horaIni : c.hora;
     var iniMin = _cptMin(iniHM);
     var iniTs  = fecha+'T'+iniHM+':00';
-    // Se PERMITE repetir el proceso. ERROR solo si la hora coincide con la de un proceso YA registrado de esa función.
-    var yaExiste = regsLinea.some(function(r){ return ((r.funcion||'').trim()||'(sin función)')===c.func && _cptMin(r.proceso_inicio)===iniMin; });
-    if(yaExiste){ mismaHora++; continue; }
-    // Solo se CREA el proceso nuevo (INSERT); NO se borra ni sobrescribe lo existente.
-    regsF.forEach(function(r){
-      var n=Object.assign({},r); delete n.id; delete n.created_at; delete n.updated_at;
-      n.proceso=nuevo; if(nEsp)n.especie=nEsp; if(nProd)n.producto=nProd; n.proceso_inicio=iniTs;
-      nuevos.push(n);
-    });
+    var ter    = fecha+'T'+c.hora+':00';
+    if(nuevo){
+      // Nuevo proceso: se PERMITE repetir; error solo si la hora coincide con un proceso ya registrado.
+      var yaExiste = regsLinea.some(function(r){ return ((r.funcion||'').trim()||'(sin función)')===c.func && _cptMin(r.proceso_inicio)===iniMin; });
+      if(yaExiste){ mismaHora++; continue; }
+      regsF.forEach(function(r){
+        var n=Object.assign({},r); delete n.id; delete n.created_at; delete n.updated_at;
+        n.proceso=nuevo; if(nEsp)n.especie=nEsp; if(nProd)n.producto=nProd; n.proceso_inicio=iniTs;
+        nuevos.push(n);
+      });
+    } else {
+      // Solo cortar: cierra el proceso ACTUAL de la función (ajusta su hora de término)
+      regsF.forEach(function(r){ if(r.id) cierres.push({id:r.id, ter:ter}); });
+    }
   }
-  if(!nuevos.length){
+  if(!nuevos.length && !cierres.length){
     showToast(mismaHora ? '⚠️ La hora del cambio no puede ser la misma de un proceso ya registrado' : 'No hay funciones para aplicar','error',5000);
     return;
   }
   var ok=0, err=0;
-  try{ var ins=await _sbDb().from('registros').insert(nuevos); if(ins.error) throw ins.error; ok=nuevos.length; }
-  catch(e){ console.error('[CPT INSERT]',e); err=nuevos.length; }
-  if(err){ showToast('⚠️ No se pudo registrar el proceso (revisa la consola)','warning',5000); return; }
-  showToast('✅ Proceso "'+nuevo+'" registrado · '+ok+' trabajador(es)'+(mismaHora?(' · '+mismaHora+' omitida(s) por misma hora'):''),'success');
+  for(var k=0;k<cierres.length;k++){
+    try{ var u=await _sbDb().from('registros').update({proceso_termino:cierres[k].ter}).eq('id',cierres[k].id); if(u.error) throw u.error; ok++; }
+    catch(e){ console.error('[CPT CIERRE]',e); err++; }
+  }
+  if(nuevos.length){
+    try{ var ins=await _sbDb().from('registros').insert(nuevos); if(ins.error) throw ins.error; ok+=nuevos.length; }
+    catch(e){ console.error('[CPT INSERT]',e); err+=nuevos.length; }
+  }
+  if(err){ showToast('⚠️ Hubo '+err+' error(es); revisa la consola','warning',5000); }
+  else showToast('✅ '+(nuevo?('Proceso "'+nuevo+'" registrado'):'Proceso cortado')+' · '+ok+' registro(s)'+(mismaHora?(' · '+mismaHora+' omitida(s)'):''),'success');
   _registrosCargados=false;
   cptCargar();
 }
