@@ -3070,10 +3070,14 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
 .cpt-horarios{background:var(--t-panel2,#0e2740);border:1px solid var(--t-border,#1e4060);border-radius:12px;padding:10px 12px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
 .cpt-hor-title{font-size:11px;font-weight:800;letter-spacing:.3px;color:var(--t-accent2,#0098d4)}
 .cpt-hor-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.cpt-hor-lbl{min-width:74px;font-size:12px;font-weight:700;color:var(--t-text,#dfeaf5)}
-.cpt-hor-row input[type=time]{background:var(--t-panel,#0a1e33);border:1px solid var(--t-border,#1e4060);color:var(--t-text,#dfeaf5);border-radius:8px;padding:6px 8px;font-size:14px;font-weight:700}
-.cpt-hor-row span{color:var(--t-muted,#8ab);font-weight:700}
-.cpt-horarios .cpt-mini{align-self:flex-start}
+.cpt-hor-lbl{min-width:96px;font-size:13px;font-weight:800;color:#eaf4ff}
+.cpt-hor-row input[type=time],.cpt-hor-row input[type=number]{background:#12365a;border:1px solid #2f5c86;color:#fff !important;border-radius:8px;padding:9px 11px;font-size:16px;font-weight:800;-webkit-text-fill-color:#fff}
+.cpt-hor-row input[type=number]{max-width:130px}
+.cpt-hor-row input::-webkit-calendar-picker-indicator{filter:invert(1) brightness(1.6);opacity:.9;cursor:pointer}
+.cpt-hor-row input:focus{outline:none;border-color:var(--t-accent2,#0098d4);box-shadow:0 0 0 3px rgba(0,152,212,.25)}
+.cpt-hor-arrow{color:#cfe2f5;font-weight:800;font-size:16px}
+.cpt-hor-unit{color:#9fb6cc;font-weight:700;font-size:13px}
+.cpt-horarios .cpt-mini{align-self:flex-start;border-color:#2f5c86;color:#eaf4ff}
 .cpt-todas-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 0 10px;margin-bottom:6px;border-bottom:1px solid var(--t-border,#1e4060)}
 .cpt-todas-lbl{font-size:10px;color:var(--t-muted,#8ab);font-weight:700;letter-spacing:.3px}
 .cpt-badge-cambio{background:rgba(230,126,34,.16);color:#e67e22;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;margin-left:2px;white-space:nowrap;flex-shrink:0}
@@ -7555,11 +7559,13 @@ function cptRender(){
     var horariosHTML='<div class="cpt-horarios">'
       +'<div class="cpt-hor-title">🍽 Horarios que se descuentan</div>'
       +'<div class="cpt-hor-row"><span class="cpt-hor-lbl">Desayuno</span>'
-        +'<input type="time" id="cptDesIni_'+lid+'" value="'+(brkDes?_cptFmtHM(brkDes.ini):'')+'" oninput="cptPreview(\''+lid+'\')"><span>→</span>'
+        +'<input type="time" id="cptDesIni_'+lid+'" value="'+(brkDes?_cptFmtHM(brkDes.ini):'')+'" oninput="cptPreview(\''+lid+'\')"><span class="cpt-hor-arrow">→</span>'
         +'<input type="time" id="cptDesFin_'+lid+'" value="'+(brkDes?_cptFmtHM(brkDes.fin):'')+'" oninput="cptPreview(\''+lid+'\')"></div>'
       +'<div class="cpt-hor-row"><span class="cpt-hor-lbl">Colación</span>'
-        +'<input type="time" id="cptColIni_'+lid+'" value="'+(brkCol?_cptFmtHM(brkCol.ini):'')+'" oninput="cptPreview(\''+lid+'\')"><span>→</span>'
+        +'<input type="time" id="cptColIni_'+lid+'" value="'+(brkCol?_cptFmtHM(brkCol.ini):'')+'" oninput="cptPreview(\''+lid+'\')"><span class="cpt-hor-arrow">→</span>'
         +'<input type="time" id="cptColFin_'+lid+'" value="'+(brkCol?_cptFmtHM(brkCol.fin):'')+'" oninput="cptPreview(\''+lid+'\')"></div>'
+      +'<div class="cpt-hor-row"><span class="cpt-hor-lbl">Atraso Inicio</span>'
+        +'<input type="number" min="0" step="1" id="cptAtr_'+lid+'" value="'+(atrasoLinea||0)+'" oninput="cptPreview(\''+lid+'\')"><span class="cpt-hor-unit">min</span></div>'
       +'<button class="cpt-mini" onclick="cptGuardarHorarios(\''+_cptEsc(l)+'\')">💾 Guardar horarios</button>'
       +'</div>';
     var rows=fkeys.map(function(f,i){
@@ -7649,8 +7655,9 @@ function cptPreview(lid){
   // Horarios editados en vivo (si el usuario los cambió)
   var bd=_cptIntFromInputs('cptDesIni_'+lid,'cptDesFin_'+lid); if(bd===null) bd=d.brkDes;
   var bc=_cptIntFromInputs('cptColIni_'+lid,'cptColFin_'+lid); if(bc===null) bc=d.brkCol;
+  var atEl=document.getElementById('cptAtr_'+lid); var at=atEl?parseInt(atEl.value,10):NaN; if(isNaN(at)||at<0) at=d.atraso;
   var body=document.getElementById('cptResBody_'+lid);
-  if(body) body.innerHTML=_cptResBody(procesos, bd, bc, d.atraso);
+  if(body) body.innerHTML=_cptResBody(procesos, bd, bc, at);
 }
 async function cptGuardarHorarios(linea){
   var lid=_cptSlug(linea);
@@ -7660,7 +7667,9 @@ async function cptGuardarHorarios(linea){
   var ci=document.getElementById('cptColIni_'+lid), cf=document.getElementById('cptColFin_'+lid);
   if(di&&df&&di.value&&df.value){ payload.descanso_inicio=fecha+'T'+di.value+':00'; payload.descanso_termino=fecha+'T'+df.value+':00'; }
   if(ci&&cf&&ci.value&&cf.value){ payload.colacion_inicio=fecha+'T'+ci.value+':00'; payload.colacion_termino=fecha+'T'+cf.value+':00'; }
-  if(!Object.keys(payload).length){ showToast('Indica los horarios de desayuno/colación','error'); return; }
+  var at=document.getElementById('cptAtr_'+lid);
+  if(at && at.value!==''){ var av=parseInt(at.value,10); if(!isNaN(av)&&av>=0) payload.atraso_inicio=av; }
+  if(!Object.keys(payload).length){ showToast('Indica los horarios de desayuno/colación o el atraso','error'); return; }
   var regsLinea=_cptRegs.filter(function(r){ return (String(r.linea||'').trim()||'(sin línea)')===String(linea); });
   var ids=regsLinea.map(function(r){return r.id;}).filter(Boolean);
   if(!ids.length){ showToast('No hay registros en la línea','error'); return; }
