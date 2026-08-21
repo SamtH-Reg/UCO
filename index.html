@@ -3067,17 +3067,20 @@ body.noche-mode .modal-field input,body.noche-mode .modal-field select{color-sch
 .cpt-chevron{font-size:12px;color:var(--t-accent2,#0098d4);flex-shrink:0}
 .cpt-card-head:hover .cpt-linea{filter:brightness(1.2)}
 .cpt-body{margin-top:8px}
-.cpt-horarios{background:var(--t-panel2,#0e2740);border:1px solid var(--t-border,#1e4060);border-radius:12px;padding:10px 12px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
+.cpt-horarios{background:var(--t-bg,#0b1220);border:1px solid var(--t-border,#1e4060);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.cpt-hor-head{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;user-select:none}
+.cpt-hor-chev{color:var(--t-accent2,#0098d4);font-size:12px;font-weight:800;transition:transform .15s ease}
 .cpt-hor-title{font-size:11px;font-weight:800;letter-spacing:.3px;color:var(--t-accent2,#0098d4)}
+.cpt-hor-body{display:flex;flex-direction:column;gap:8px;padding:0 12px 12px}
 .cpt-hor-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.cpt-hor-lbl{min-width:96px;font-size:13px;font-weight:800;color:#eaf4ff}
-.cpt-hor-row input[type=time],.cpt-hor-row input[type=number]{background:#12365a;border:1px solid #2f5c86;color:#fff !important;border-radius:8px;padding:9px 11px;font-size:16px;font-weight:800;-webkit-text-fill-color:#fff}
-.cpt-hor-row input[type=number]{max-width:130px}
-.cpt-hor-row input::-webkit-calendar-picker-indicator{filter:invert(1) brightness(1.6);opacity:.9;cursor:pointer}
+.cpt-hor-lbl{min-width:96px;font-size:12px;font-weight:800;color:var(--t-text,#e0f0ff)}
+.cpt-hor-row input[type=time],.cpt-hor-row input[type=number]{background:var(--t-bg,#0b1220);border:1.5px solid var(--t-border,#1e4060);color:var(--t-text,#e0f0ff) !important;-webkit-text-fill-color:var(--t-text,#e0f0ff);border-radius:8px;padding:8px 10px;font-size:15px;font-weight:800}
+.cpt-hor-row input[type=number]{max-width:110px}
+.cpt-hor-row input::-webkit-calendar-picker-indicator{opacity:.7;cursor:pointer}
 .cpt-hor-row input:focus{outline:none;border-color:var(--t-accent2,#0098d4);box-shadow:0 0 0 3px rgba(0,152,212,.25)}
-.cpt-hor-arrow{color:#cfe2f5;font-weight:800;font-size:16px}
-.cpt-hor-unit{color:#9fb6cc;font-weight:700;font-size:13px}
-.cpt-horarios .cpt-mini{align-self:flex-start;border-color:#2f5c86;color:#eaf4ff}
+.cpt-hor-arrow{color:var(--t-muted,#8ab);font-weight:800}
+.cpt-hor-unit{color:var(--t-muted,#8ab);font-weight:700;font-size:12px}
+.cpt-horarios .cpt-mini{align-self:flex-start;margin-top:2px}
 .cpt-todas-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 0 10px;margin-bottom:6px;border-bottom:1px solid var(--t-border,#1e4060)}
 .cpt-todas-lbl{font-size:10px;color:var(--t-muted,#8ab);font-weight:700;letter-spacing:.3px}
 .cpt-badge-cambio{background:rgba(230,126,34,.16);color:#e67e22;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;margin-left:2px;white-space:nowrap;flex-shrink:0}
@@ -7557,7 +7560,8 @@ function cptRender(){
     var procOptsA='<option value="">Proceso nuevo…</option>'+procListA.slice().sort().map(function(v){return '<option value="'+_cptH(v)+'">'+_cptH(v)+'</option>';}).join('');
     // Horarios editables de desayuno/colación (prellenados con los actuales de la línea)
     var horariosHTML='<div class="cpt-horarios">'
-      +'<div class="cpt-hor-title">🍽 Horarios que se descuentan</div>'
+      +'<div class="cpt-hor-head" onclick="cptToggleHor(\''+lid+'\')"><span class="cpt-hor-chev" id="cptHorChev_'+lid+'">▸</span><span class="cpt-hor-title">🍽 Horarios y atraso que se descuentan</span></div>'
+      +'<div class="cpt-hor-body" id="cptHorBody_'+lid+'" style="display:none">'
       +'<div class="cpt-hor-row"><span class="cpt-hor-lbl">Desayuno</span>'
         +'<input type="time" id="cptDesIni_'+lid+'" value="'+(brkDes?_cptFmtHM(brkDes.ini):'')+'" oninput="cptPreview(\''+lid+'\')"><span class="cpt-hor-arrow">→</span>'
         +'<input type="time" id="cptDesFin_'+lid+'" value="'+(brkDes?_cptFmtHM(brkDes.fin):'')+'" oninput="cptPreview(\''+lid+'\')"></div>'
@@ -7567,6 +7571,7 @@ function cptRender(){
       +'<div class="cpt-hor-row"><span class="cpt-hor-lbl">Atraso Inicio</span>'
         +'<input type="number" min="0" step="1" id="cptAtr_'+lid+'" value="'+(atrasoLinea||0)+'" oninput="cptPreview(\''+lid+'\')"><span class="cpt-hor-unit">min</span></div>'
       +'<button class="cpt-mini" onclick="cptGuardarHorarios(\''+_cptEsc(l)+'\')">💾 Guardar horarios</button>'
+      +'</div>'
       +'</div>';
     var rows=fkeys.map(function(f,i){
       return '<div class="cpt-func-row">'
@@ -7684,6 +7689,13 @@ function cptToggleCard(lid){
   var open=(b.style.display==='none' || !b.style.display);
   b.style.display=open?'block':'none';
   if(ch) ch.textContent=open?'▾':'▸';
+}
+function cptToggleHor(lid){
+  var b=document.getElementById('cptHorBody_'+lid), c=document.getElementById('cptHorChev_'+lid);
+  if(!b) return;
+  var open=(b.style.display==='none' || !b.style.display);
+  b.style.display=open?'flex':'none';
+  if(c) c.textContent=open?'▾':'▸';
 }
 function cptToggleCorte(lid){
   var s=document.getElementById('cptCorteSec_'+lid), h=document.getElementById('cptResHint_'+lid);
