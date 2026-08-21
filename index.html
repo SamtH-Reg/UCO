@@ -7536,7 +7536,7 @@ function cptRender(){
     var prodListA=((mE[espActual]&&mE[espActual].productos)||[]).slice(); if(prodActual && prodListA.indexOf(prodActual)===-1) prodListA.push(prodActual);
     var prodOptsA='<option value="">Producto…</option>'+prodListA.sort().map(function(p){return '<option value="'+_cptH(p)+'"'+(p===prodActual?' selected':'')+'>'+_cptH(p)+'</option>';}).join('');
     var procListA=((mP[espActual+'||'+prodActual]||{}).procesos)||[];
-    var procOptsA='<option value="">Proceso… (vacío = solo cortar)</option>'+procListA.slice().sort().map(function(v){return '<option value="'+_cptH(v)+'">'+_cptH(v)+'</option>';}).join('');
+    var procOptsA='<option value="">Proceso nuevo…</option>'+procListA.slice().sort().map(function(v){return '<option value="'+_cptH(v)+'">'+_cptH(v)+'</option>';}).join('');
     var rows=fkeys.map(function(f,i){
       return '<div class="cpt-func-row">'
         +'<div class="cpt-func-top">'
@@ -7662,7 +7662,7 @@ function cptOnEspecie(lid){
   var sp=document.getElementById('cptProd_'+lid);
   var pr=document.getElementById('cptProc_'+lid);
   if(sp) sp.innerHTML='<option value="">Producto…</option>';
-  if(pr) pr.innerHTML='<option value="">Proceso… (vacío = solo cortar)</option>';
+  if(pr) pr.innerHTML='<option value="">Proceso nuevo…</option>';
   if(!esp||!window._listas||!sp) return;
   var prods=((window._listas.mapaEspecie||{})[esp]||{}).productos||[];
   prods.slice().sort().forEach(function(p){var o=document.createElement('option');o.value=p;o.textContent=p;sp.appendChild(o);});
@@ -7672,7 +7672,7 @@ function cptOnProducto(lid){
   var esp=(document.getElementById('cptEsp_'+lid)||{}).value||'';
   var pro=(document.getElementById('cptProd_'+lid)||{}).value||'';
   var pr=document.getElementById('cptProc_'+lid);
-  if(pr) pr.innerHTML='<option value="">Proceso… (vacío = solo cortar)</option>';
+  if(pr) pr.innerHTML='<option value="">Proceso nuevo…</option>';
   if(!esp||!pro||!window._listas||!pr) return;
   var procs=((window._listas.mapaProducto||{})[esp+'||'+pro]||{}).procesos||[];
   procs.slice().sort().forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;pr.appendChild(o);});
@@ -7697,37 +7697,40 @@ async function cptAplicar(linea){
     var maxI=null; all.forEach(function(r){ var m=_cptMin(r.proceso_inicio); if(m!=null&&(maxI==null||m>maxI))maxI=m; });
     return all.filter(function(r){ return _cptMin(r.proceso_inicio)===maxI; });
   };
-  var totalCortar=0;
-  cortes.forEach(function(c){ totalCortar+=_regsActuales(c.func).length; });
-  var msg='Línea '+linea+': cortar el proceso actual en '+cortes.length+' función(es) — '+totalCortar+' trabajador(es)'
-    +(nuevo?('\ny abrir el proceso "'+nuevo+'"'+(horaIni?(' desde las '+horaIni):' desde cada corte')):'')+'.\n\n¿Aplicar?';
+  if(!nuevo){ showToast('Selecciona el proceso nuevo','error'); return; }
+  var totalReg=0;
+  cortes.forEach(function(c){ totalReg+=_regsActuales(c.func).length; });
+  var msg='Línea '+linea+': registrar el proceso "'+nuevo+'"'+(horaIni?(' desde las '+horaIni):' desde cada corte')
+    +' — '+totalReg+' trabajador(es).\n\n(No se borra ni modifica lo ya registrado.)\n\n¿Aplicar?';
   if(!confirm(msg)) return;
   showToast('⏳ Aplicando…','info',4000);
-  var ok=0, err=0, nuevos=[];
+  var nuevos=[], mismaHora=0;
   for(var i=0;i<cortes.length;i++){
     var c=cortes[i];
     var regsF=_regsActuales(c.func);
-    var ids=regsF.map(function(r){return r.id;}).filter(Boolean);
-    if(!ids.length) continue;
-    var ter=fecha+'T'+c.hora+':00';
-    try{
-      var u=await _sbDb().from('registros').update({proceso_termino:ter}).in('id',ids);
-      if(u.error) throw u.error; ok+=ids.length;
-    }catch(e){ console.error('[CPT UPDATE]',e); err+=ids.length; }
-    if(nuevo){
-      regsF.forEach(function(r){
-        var n=Object.assign({},r); delete n.id; delete n.created_at; delete n.updated_at;
-        n.proceso=nuevo; if(nEsp)n.especie=nEsp; if(nProd)n.producto=nProd; n.proceso_inicio=(horaIni?(fecha+'T'+horaIni+':00'):ter); n.proceso_termino=null;
-        nuevos.push(n);
-      });
-    }
+    if(!regsF.length) continue;
+    var iniHM  = horaIni!=='' ? horaIni : c.hora;
+    var iniMin = _cptMin(iniHM);
+    var iniTs  = fecha+'T'+iniHM+':00';
+    // Se PERMITE repetir el proceso. ERROR solo si la hora coincide con la de un proceso YA registrado de esa función.
+    var yaExiste = regsLinea.some(function(r){ return ((r.funcion||'').trim()||'(sin función)')===c.func && _cptMin(r.proceso_inicio)===iniMin; });
+    if(yaExiste){ mismaHora++; continue; }
+    // Solo se CREA el proceso nuevo (INSERT); NO se borra ni sobrescribe lo existente.
+    regsF.forEach(function(r){
+      var n=Object.assign({},r); delete n.id; delete n.created_at; delete n.updated_at;
+      n.proceso=nuevo; if(nEsp)n.especie=nEsp; if(nProd)n.producto=nProd; n.proceso_inicio=iniTs;
+      nuevos.push(n);
+    });
   }
-  if(nuevos.length){
-    try{ var ins=await _sbDb().from('registros').insert(nuevos); if(ins.error) throw ins.error; }
-    catch(e){ console.error('[CPT INSERT]',e); err+=nuevos.length; }
+  if(!nuevos.length){
+    showToast(mismaHora ? '⚠️ La hora del cambio no puede ser la misma de un proceso ya registrado' : 'No hay funciones para aplicar','error',5000);
+    return;
   }
-  if(err) showToast('⚠️ '+ok+' cortados · '+err+' errores','warning',5000);
-  else showToast('✅ Proceso cortado'+(nuevo?' y nuevo proceso abierto':'')+' · '+ok+' trabajador(es)','success');
+  var ok=0, err=0;
+  try{ var ins=await _sbDb().from('registros').insert(nuevos); if(ins.error) throw ins.error; ok=nuevos.length; }
+  catch(e){ console.error('[CPT INSERT]',e); err=nuevos.length; }
+  if(err){ showToast('⚠️ No se pudo registrar el proceso (revisa la consola)','warning',5000); return; }
+  showToast('✅ Proceso "'+nuevo+'" registrado · '+ok+' trabajador(es)'+(mismaHora?(' · '+mismaHora+' omitida(s) por misma hora'):''),'success');
   _registrosCargados=false;
   cptCargar();
 }
