@@ -7078,6 +7078,29 @@ window.addEventListener('online', ()=>{
   setTimeout(offlineSync, 1000); // pequeña pausa para que la conexión estabilice
 });
 
+// ── Aviso al recargar / cerrar en la tablet ────────────────
+// Muestra el diálogo nativo del navegador para evitar perder el trabajo en curso.
+// Siempre alerta (tablet kiosk): basta un gesto accidental para descartar un
+// formulario lleno o registros offline sin sincronizar.
+//
+// Escape intencional: llamar a recargarPagina() en lugar de location.reload()
+// cuando la recarga es deliberada (p. ej. logout). El diálogo NO bloquea el
+// uso normal de la app (guardas, navegación, tema, etc.).
+let _skipUnloadConfirm = false;
+
+// Hace un reload sin que el diálogo de recarga lo intercepte.
+function recargarPagina(){
+  _skipUnloadConfirm = true;
+  location.reload();
+}
+
+window.addEventListener('beforeunload', function(e){
+  if (_skipUnloadConfirm) return;
+  e.preventDefault();
+  e.returnValue = 'Hay información sin guardar. ¿Seguro que quieres recargar la página?';
+  return e.returnValue;
+});
+
 // ══════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════
@@ -8329,7 +8352,7 @@ function logoutIndex() {
   localStorage.removeItem('friosur_sesion_idx');
   _sesionIndex = null;
   _getAuthClientIndex().auth.signOut();
-  location.reload();
+  recargarPagina(); // recarga intencional — sin diálogo de recarga
 }
 
 function verificarSesionIndex() {
