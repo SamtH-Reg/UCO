@@ -772,6 +772,10 @@ body {
         <span class="si-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><line x1="4.5" y1="4.5" x2="11.5" y2="11.5"/></svg></span> No registrar
         <span class="si-count" id="cnt-noregistrar">—</span>
       </button>
+      <button class="sidebar-item" onclick="goPage('unidades-excluidas')">
+        <span class="si-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1.5"/><line x1="5.5" y1="6" x2="10.5" y2="6"/><line x1="5.5" y1="8.5" x2="10.5" y2="8.5"/><line x1="5.5" y1="11" x2="8" y2="11"/></svg></span> Unidades Excluidas
+        <span class="si-count" id="cnt-unidades-excluidas">—</span>
+      </button>
       <button class="sidebar-item" onclick="goPage('revision')">
         <span class="si-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1.5"/><polyline points="5,8.5 7,10.5 11,6.5"/></svg></span> Revisión Asistencia
       </button>
@@ -1433,6 +1437,47 @@ body {
       </div>
     </div>
 
+    <!-- ══ PÁGINA: UNIDADES EXCLUIDAS ══ -->
+    <div class="page" id="page-unidades-excluidas">
+      <div class="page-header">
+        <div>
+          <h1>Unidades Excluidas</h1>
+          <p>Empleados de centros de costo excluidos — no entran a la lista maestra ni al control de ausencias</p>
+        </div>
+        <div class="page-header-actions">
+          <button class="btn btn-primary" onclick="migrarUnidadesExcluidasExistentes()">📦 Mover existentes</button>
+          <button class="btn btn-secondary" onclick="loadUnidadesExcluidas()">🔄 Recargar</button>
+          <button class="btn btn-danger" onclick="vaciarUnidadesExcluidas()">🗑 Vaciar</button>
+        </div>
+      </div>
+      <div class="table-area">
+        <div class="toolbar" style="flex-wrap:wrap;gap:8px">
+          <input class="search-input" id="ueSearch" placeholder="🔍 Buscar por código, nombre o centro..." oninput="filtrarUnidadesExcluidas()" style="flex:1;min-width:200px">
+          <select class="search-input" id="ueFiltroCC" onchange="filtrarUnidadesExcluidas()" style="min-width:220px;cursor:pointer">
+            <option value="">Todos los centros</option>
+          </select>
+          <span class="count-badge" id="ueCountBadge">- registros</span>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:70px">Acciones</th>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Centro Costo</th>
+                <th>Contrato</th>
+                <th>Turno</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyUe">
+              <tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- ══ INACTIVOS ══ -->
     <div class="page" id="page-inactivos">
       <div class="page-header">
@@ -1543,6 +1588,10 @@ body {
                   <option value="Noche">🌙 Turno Noche</option>
                 </select>
               </div>
+            </div>
+            <div style="margin-bottom:14px;background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.35);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text)">
+              <strong>🚫 Centros de costo excluidos</strong> — sus empleados no entran a la lista maestra; se guardan en la pestaña <strong>Unidades Excluidas</strong>:<br>
+              <span style="color:var(--muted);font-family:var(--mono);font-size:11px">1109 - GERENCIA PLANTA(FS) · 1115 - MANTENCIÓN PLANTA(FS) · 1116 - FRIGORÍFICO(FS) · 1114 - SUPERVISORES(FS) · 1113 - CONTROL DE CALI(FS) · 1117 - FABRICA DE HIELO(FS) · 1112 - CONTROL PROD(FS)</span>
             </div>
             <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" onchange="handleFileSelect(event)" style="display:none">
             <div class="import-zone" id="importZone"
@@ -2653,6 +2702,7 @@ function goPage(name) {
     'prod-lineas':       () => loadProdPage('lineas'),
     'prod-especiales':   () => loadProdPage('especiales'),
     noregistrar:loadNoRegistrar,
+    'unidades-excluidas': loadUnidadesExcluidas,
     inactivos:  loadInactivos,
     auditlog:   loadAuditLog,
     settings:   cargarSettings,
@@ -2995,6 +3045,13 @@ async function loadCounts() {
       .select('*', { count:'exact', head:true }).eq('activo', 'false');
     const elI = document.getElementById('cnt-inactivos');
     if (elI) elI.textContent = cInac ?? '—';
+  } catch(e){}
+  // Unidades excluidas
+  try {
+    const { count: cUe } = await db.from('unidades_excluidas')
+      .select('*', { count:'exact', head:true });
+    const elUe = document.getElementById('cnt-unidades-excluidas');
+    if (elUe) elUe.textContent = cUe ?? '—';
   } catch(e){}
 }
 
@@ -4018,6 +4075,124 @@ async function guardarNoReg() {
 }
 
 // ════════════════════════════════════════════════════
+//  ═══ UNIDADES EXCLUIDAS ═══
+// ════════════════════════════════════════════════════
+var _ueData = [];
+
+async function loadUnidadesExcluidas() {
+  const db = getClient(); if (!db) return;
+  const tbody = document.getElementById('tbodyUe');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span>Cargando…</td></tr>';
+
+  const { data, error } = await db.from('unidades_excluidas').select('*')
+    .order('centro_costo', { ascending: true }).order('nombre', { ascending: true });
+  if (error) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="ei">⚠️</div><p>Error: ' + esc(error.message) + '</p><p style="font-size:12px">¿Ejecutaste unidades_excluidas_setup.sql?</p></div></td></tr>';
+    return;
+  }
+  _ueData = data || [];
+  _poblarFiltroUe();
+  filtrarUnidadesExcluidas();
+  loadCounts();
+}
+
+function _poblarFiltroUe() {
+  var sel = document.getElementById('ueFiltroCC');
+  if (!sel) return;
+  var actual = sel.value;
+  var ccs = [...new Set(_ueData.map(function(r){ return (r.centro_costo||'').trim(); }).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Todos los centros</option>' +
+    ccs.map(function(c){ return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('');
+  sel.value = actual;
+}
+
+function filtrarUnidadesExcluidas() {
+  var tbody = document.getElementById('tbodyUe'); if (!tbody) return;
+  var q  = ((document.getElementById('ueSearch')||{}).value || '').trim().toLowerCase();
+  var cc = (document.getElementById('ueFiltroCC')||{}).value || '';
+
+  var rows = _ueData.filter(function(r) {
+    if (cc && (r.centro_costo||'').trim() !== cc) return false;
+    if (!q) return true;
+    return (r.codigo||'').toLowerCase().indexOf(q) !== -1
+        || (r.nombre||'').toLowerCase().indexOf(q) !== -1
+        || (r.centro_costo||'').toLowerCase().indexOf(q) !== -1;
+  });
+
+  var badge = document.getElementById('ueCountBadge');
+  if (badge) badge.textContent = rows.length + ' registro' + (rows.length === 1 ? '' : 's');
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="ei">🚫</div><p>Sin unidades excluidas</p></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(function(r) {
+    return '<tr>'
+      + '<td><button class="btn btn-danger btn-sm" onclick="confirmarEliminar(\'' + r.id + '_ue\',\'' + esc(r.nombre||r.codigo).replace(/'/g,"\\'") + '\')">🗑</button></td>'
+      + '<td><strong style="font-family:var(--mono)">' + esc(r.codigo) + '</strong></td>'
+      + '<td>' + esc(r.nombre) + '</td>'
+      + '<td>' + esc(r.centro_costo) + '</td>'
+      + '<td>' + esc(r.contrato) + '</td>'
+      + '<td>' + esc(r.turno) + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+async function vaciarUnidadesExcluidas() {
+  const db = getClient(); if (!db) return;
+  if (!_ueData.length) { toast('La lista ya está vacía', 'warn'); return; }
+  if (!confirm('¿Vaciar la lista de Unidades Excluidas? (' + _ueData.length + ' registros)')) return;
+  const { error } = await db.from('unidades_excluidas').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  toast('🗑 Lista vaciada');
+  loadUnidadesExcluidas();
+}
+
+async function migrarUnidadesExcluidasExistentes() {
+  const db = getClient(); if (!db) return;
+  if (!confirm('¿Mover a Unidades Excluidas todos los empleados ya cargados en esos centros de costo y quitarlos de la lista maestra?')) return;
+
+  var encontrados = [];
+  for (var i = 0; i < CC_EXCLUIDOS.length; i++) {
+    var cod = CC_EXCLUIDOS[i];
+    var { data, error } = await db.from('empleados').select('*').ilike('centro_costo', '%' + cod + '%');
+    if (error) { toast('Error consultando empleados: ' + error.message, 'error'); return; }
+    (data || []).forEach(function(e) {
+      if (_ccExcluido(e.centro_costo) && !encontrados.some(function(x){ return x.id === e.id; })) encontrados.push(e);
+    });
+  }
+  if (!encontrados.length) { toast('No hay empleados existentes en centros excluidos', 'info'); return; }
+
+  var { data: yaUe } = await db.from('unidades_excluidas').select('codigo');
+  var yaSet = new Set((yaUe || []).map(function(r){ return String(r.codigo||'').trim().toLowerCase(); }));
+
+  var payload = encontrados
+    .filter(function(e){ return !yaSet.has(String(e.codigo||'').trim().toLowerCase()); })
+    .map(function(e){ return { codigo: e.codigo||'', nombre: e.nombre||'', centro_costo: e.centro_costo||'', contrato: e.contrato||'', turno: e.turno||'' }; });
+
+  var insOk = 0;
+  for (var j = 0; j < payload.length; j += 50) {
+    var ch = payload.slice(j, j+50);
+    var res = await db.from('unidades_excluidas').insert(ch);
+    if (res.error) { toast('Error al mover: ' + res.error.message, 'error'); return; }
+    insOk += ch.length;
+  }
+
+  var ids = encontrados.map(function(e){ return e.id; });
+  for (var k = 0; k < ids.length; k += 50) {
+    var chIds = ids.slice(k, k+50);
+    var del = await db.from('empleados').delete().in('id', chIds);
+    if (del.error) { toast('Error al quitar de empleados: ' + del.error.message, 'error'); return; }
+  }
+
+  toast('✅ ' + encontrados.length + ' movidos a Unidades Excluidas (' + insOk + ' nuevos en la lista)', 'success', 7000);
+  loadUnidadesExcluidas();
+  loadEmpleados();
+  loadCounts();
+}
+
+// ════════════════════════════════════════════════════
 //  ═══ AUDIT LOG ═══
 // ════════════════════════════════════════════════════
 let _auditPage = 1;
@@ -4127,6 +4302,7 @@ async function ejecutarEliminar() {
   if (_deleteId.endsWith('_emp'))   { table = 'empleados';   realId = _deleteId.replace('_emp',''); }
   if (_deleteId.endsWith('_prod'))  { table = 'produccion';  realId = _deleteId.replace('_prod',''); }
   if (_deleteId.endsWith('_noreg')) { table = 'noregistrar'; realId = _deleteId.replace('_noreg',''); }
+  if (_deleteId.endsWith('_ue'))    { table = 'unidades_excluidas'; realId = _deleteId.replace('_ue',''); }
 
   const { error } = await db.from(table).delete().eq('id', realId);
   if (error) { toast('Error: '+error.message,'error'); return; }
@@ -4138,7 +4314,7 @@ async function ejecutarEliminar() {
     loadProdPage(_deletingSeccion);
     _deletingSeccion = 'procesos';
   } else {
-    const refreshers = { registros: loadRegistros, empleados: loadEmpleados, noregistrar: loadNoRegistrar };
+    const refreshers = { registros: loadRegistros, empleados: loadEmpleados, noregistrar: loadNoRegistrar, unidades_excluidas: loadUnidadesExcluidas };
     if (refreshers[table]) refreshers[table]();
   }
   loadCounts();
@@ -4267,6 +4443,26 @@ function toggleImportTurno() {
   if (wrap) wrap.style.display = tabla === 'empleados' ? '' : 'none';
 }
 
+// Centros de costo excluidos: sus empleados no entran a la lista maestra
+// "empleados"; se guardan en "unidades_excluidas" (pestaña Unidades Excluidas).
+var CC_EXCLUIDOS = ['1109','1115','1116','1114','1113','1117','1112'];
+var CC_EXCLUIDOS_NOMBRES = {
+  '1109': 'GERENCIA PLANTA(FS)',
+  '1115': 'MANTENCIÓN PLANTA(FS)',
+  '1116': 'FRIGORÍFICO(FS)',
+  '1114': 'SUPERVISORES(FS)',
+  '1113': 'CONTROL DE CALI(FS)',
+  '1117': 'FABRICA DE HIELO(FS)',
+  '1112': 'CONTROL PROD(FS)'
+};
+function _ccExcluido(cc) {
+  var s = String(cc || '').toUpperCase();
+  for (var i = 0; i < CC_EXCLUIDOS.length; i++) {
+    if (s.indexOf(CC_EXCLUIDOS[i]) !== -1) return CC_EXCLUIDOS[i];
+  }
+  return null;
+}
+
 async function ejecutarImport() {
   var db = getClient();
   if (!db) { toast('Sin conexión a Supabase — ve a Configuración', 'error', 5000); return; }
@@ -4306,16 +4502,32 @@ async function ejecutarImport() {
     return true;
   });
 
+  // ── Separar unidades excluidas (no entran a 'empleados') ──
+  var excluidosImport = [];
+  if (tabla === 'empleados') {
+    var _resto = [];
+    dataLimpia.forEach(function(r) {
+      if (_ccExcluido(r.centro_costo)) excluidosImport.push(r);
+      else _resto.push(r);
+    });
+    dataLimpia = _resto;
+  }
+
   // ── Deduplicar dentro del propio archivo (mismos códigos repetidos) ──
-  var vistos = new Set();
-  var dupsArchivo = 0;
-  dataLimpia = dataLimpia.filter(function(r) {
-    if (tabla !== 'empleados') return true;
-    var cod = String(r.codigo||'').trim().toLowerCase();
-    if (vistos.has(cod)) { dupsArchivo++; return false; }
-    vistos.add(cod);
-    return true;
-  });
+  function _dedupFilas(arr) {
+    var vistos = new Set(), dups = 0;
+    var out = arr.filter(function(r) {
+      if (tabla !== 'empleados') return true;
+      var cod = String(r.codigo||'').trim().toLowerCase();
+      if (vistos.has(cod)) { dups++; return false; }
+      vistos.add(cod);
+      return true;
+    });
+    return { out: out, dups: dups };
+  }
+  var _dMain = _dedupFilas(dataLimpia); dataLimpia = _dMain.out;
+  var _dEx   = _dedupFilas(excluidosImport); excluidosImport = _dEx.out;
+  var dupsArchivo = _dMain.dups + _dEx.dups;
 
   // ── Verificar contra Supabase: qué códigos ya existen ──────
   var yaExisten = new Set();
@@ -4332,29 +4544,54 @@ async function ejecutarImport() {
   var nuevos   = dataLimpia.filter(function(r){ return !yaExisten.has(String(r.codigo||'').trim().toLowerCase()); });
   var skipped  = dataLimpia.length - nuevos.length;
 
-  prog.textContent = nuevos.length + ' nuevos | ' + skipped + ' ya existían | ' + dupsArchivo + ' duplicados en archivo';
+  // ── Excluidos: qué códigos ya están en unidades_excluidas ──
+  var exYa = new Set();
+  if (excluidosImport.length) {
+    var exCodigos = excluidosImport.map(function(r){ return String(r.codigo||'').trim(); }).filter(Boolean);
+    for (var ei = 0; ei < exCodigos.length; ei += 200) {
+      var bloqueEx = exCodigos.slice(ei, ei+200);
+      var { data: exExist } = await db.from('unidades_excluidas').select('codigo').in('codigo', bloqueEx);
+      (exExist||[]).forEach(function(e){ exYa.add(String(e.codigo||'').trim().toLowerCase()); });
+    }
+  }
+  var exNuevos  = excluidosImport.filter(function(r){ return !exYa.has(String(r.codigo||'').trim().toLowerCase()); });
+  var exSkipped = excluidosImport.length - exNuevos.length;
 
-  if (!nuevos.length) {
+  prog.textContent = nuevos.length + ' nuevos | ' + skipped + ' ya existían | ' +
+    (exNuevos.length ? exNuevos.length + ' excluidos | ' : '') +
+    dupsArchivo + ' duplicados en archivo';
+
+  if (!nuevos.length && !exNuevos.length) {
     btn.disabled = false;
     btn.innerHTML = '📥 Importar a Supabase';
-    toast('⚠️ Todos los registros del archivo ya existen en Supabase (' + (skipped + dupsArchivo) + ' omitidos)', 'warn', 6000);
+    toast('⚠️ Todos los registros del archivo ya existen (' + (skipped + dupsArchivo + exSkipped) + ' omitidos)', 'warn', 6000);
     return;
   }
 
-  btn.innerHTML = '<span class="spinner"></span>Importando ' + nuevos.length + '…';
+  btn.innerHTML = '<span class="spinner"></span>Importando ' + (nuevos.length + exNuevos.length) + '…';
+
+  // ── Insertar unidades excluidas (no van a 'empleados') ─────
+  var exOk = 0, exErr = 0, exErrMsg = '';
+  if (exNuevos.length) {
+    var payloadEx = exNuevos.map(function(r) {
+      return { codigo: r.codigo||'', nombre: r.nombre||'', centro_costo: r.centro_costo||'', contrato: r.contrato||'', turno: r.turno||turnoImport };
+    });
+    for (var xi = 0; xi < payloadEx.length; xi += 50) {
+      var chEx = payloadEx.slice(xi, xi+50);
+      var resEx = await db.from('unidades_excluidas').insert(chEx);
+      if (resEx.error) {
+        exErr += chEx.length; exErrMsg = resEx.error.message;
+        console.error('[IMPORT EXCL]', resEx.error.message);
+      } else { exOk += chEx.length; }
+    }
+  }
 
   // ── Insertar solo los nuevos en chunks ─────────────────────
   var okCount = 0, errCount = 0, errMsg = '';
   var CHUNK = 50;
   for (var i = 0; i < nuevos.length; i += CHUNK) {
     var chunk = nuevos.slice(i, i + CHUNK);
-    var result;
-    if (tabla === 'empleados') {
-      // insert puro — ya filtramos duplicados manualmente
-      result = await db.from(tabla).insert(chunk);
-    } else {
-      result = await db.from(tabla).insert(chunk);
-    }
+    var result = await db.from(tabla).insert(chunk);
     if (result.error) {
       errCount += chunk.length;
       errMsg = result.error.message;
@@ -4365,6 +4602,7 @@ async function ejecutarImport() {
     var progNum = Math.min(i + CHUNK, nuevos.length);
     prog.textContent = progNum + '/' + nuevos.length + ' nuevos — ' +
       skipped + ' ya existían — ' + dupsArchivo + ' dups archivo' +
+      (exNuevos.length ? ' — ' + exNuevos.length + ' excluidos' : '') +
       (errCount ? ' — ' + errCount + ' errores' : '');
     btn.innerHTML = '<span class="spinner"></span>' + progNum + '/' + nuevos.length;
   }
@@ -4375,16 +4613,18 @@ async function ejecutarImport() {
   var resumen = okCount + ' nuevos importados';
   if (skipped)    resumen += ' · ' + skipped + ' ya existían (omitidos)';
   if (dupsArchivo) resumen += ' · ' + dupsArchivo + ' duplicados en el archivo';
+  if (exNuevos.length) resumen += ' · ' + exOk + ' unidades excluidas';
+  if (exSkipped)  resumen += ' · ' + exSkipped + ' excluidos ya existían';
 
-  if (errCount === 0) {
+  if (errCount === 0 && exErr === 0) {
     toast('✅ ' + resumen, 'success', 7000);
     cancelarImport();
-    if (tabla === 'empleados')  loadEmpleados();
+    if (tabla === 'empleados')  { loadEmpleados(); loadUnidadesExcluidas(); }
     if (tabla === 'produccion') { loadProdPage('procesos'); loadProdPage('responsables'); loadProdPage('lineas'); loadProdPage('especiales'); }
-  } else if (okCount > 0) {
-    toast('⚠️ ' + resumen + ' · ' + errCount + ' errores: ' + errMsg, 'warn', 8000);
+  } else if (okCount > 0 || exOk > 0) {
+    toast('⚠️ ' + resumen + ' · errores: ' + (errMsg || exErrMsg), 'warn', 8000);
   } else {
-    toast('❌ Error al importar: ' + errMsg, 'error', 8000);
+    toast('❌ Error al importar: ' + (errMsg || exErrMsg), 'error', 8000);
   }
   loadCounts();
 }
