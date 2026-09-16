@@ -149,6 +149,28 @@ t('aplicarRangoMeses: agosto 2026 = 01-08 a 31-08', () => { recSetTodo(); _recFe
 t('aplicarRangoMeses: febrero 2026 (bisiesto) = 01-02 a 28-02', () => { recSetTodo(); _recFechaAuto=true; _recAnio='2026'; _recMeses=[2]; aplicarRangoMeses(); return _recHasta==='2026-02-28'; });
 t('aplicarRangoMeses: sin meses limpia fechas', () => { recSetTodo(); _recFechaAuto=true; _recMeses=[]; aplicarRangoMeses(); return !_recDesde&&!_recHasta; });
 
+// centro de costo automático desde el empleado
+t('pickChooseFrom: centro de costo automático (match _CC)', () => {
+  _page='home'; _SOLIC=[];
+  _CC=[{c:'1110',n:'1110 -PRODUCCIÓN (FS)'}];
+  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',reg:'CON',hs:'',hi:'',start:null,dias:5};
+  _tab=0; _pickerType='emp';
+  pickChooseFrom([{c:'M1',n:'PEREZ SOTO JUAN',cc:'1110 -PRODUCCIÓN (FS)',tipo:'INDEFINIDO'}],0);
+  return !!_form.emp && _form.emp.c==='M1' && !!_form.cc && _form.cc.n==='1110 -PRODUCCIÓN (FS)';
+});
+t('pickChooseFrom: centro de costo cae al valor del empleado si no está en _CC', () => {
+  _page='home'; _SOLIC=[];
+  _CC=[];
+  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',reg:'CON',hs:'',hi:'',start:null,dias:5};
+  _tab=0; _pickerType='emp';
+  pickChooseFrom([{c:'M2',n:'LOPEZ',cc:'1118 -RECEPCIÓN MATERIA PRIMA(FS)',tipo:'INDEFINIDO'}],0);
+  return !!_form.cc && _form.cc.n==='1118 -RECEPCIÓN MATERIA PRIMA(FS)';
+});
+t('fieldStatic: muestra el valor y no es clickeable', () => {
+  var s=fieldStatic('Se completa al elegir el empleado',{c:'1110',n:'1110 -PRODUCCIÓN (FS)'},'Centro de costo',true);
+  return s.indexOf('1110 -PRODUCCIÓN (FS)')>=0 && s.indexOf('onclick')<0;
+});
+
 // selección de calendario (calClick con stubs minimalistas)
 // reprovisionar _form para tab 0
 _tab = 0; _form = { dates:[], tipo:'', emp:null, aut:null, cc:null, start:null, dias:5, reg:'', hs:'', hi:'' };

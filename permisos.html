@@ -204,6 +204,12 @@ textarea{resize:vertical}
 .tbl tbody tr.semana-total:hover td{background:rgba(91,84,214,.12)}
 .tbl tbody tr.fecha-total td{background:rgba(150,150,160,.07);font-weight:700;font-size:10.5px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:3px 18px;line-height:1.15;color:var(--muted)}
 .tbl tbody tr.fecha-total:hover td{background:rgba(150,150,160,.12)}
+/* Vista Día completo compacta */
+.tbl.tbl-compact thead th{padding:8px 10px;font-size:9.5px;letter-spacing:.5px}
+.tbl.tbl-compact tbody td{padding:3px 10px;font-size:12px}
+.tbl.tbl-compact tbody tr.fecha-head td{padding:3px 10px;font-size:11.5px;border-top-width:1px}
+.tbl.tbl-compact tbody tr.fecha-total td{padding:2px 10px}
+.tbl.tbl-compact tbody tr.fecha-total td:first-child{padding-left:18px}
 .tbl .badge{display:inline-block;padding:4px 11px;border-radius:20px;font-size:11.5px;font-weight:600}
 .tbl .badge.gray{background:var(--surface3);color:var(--muted)}
 .tbl .badge.purp{background:var(--accent-soft);color:var(--accent)}
@@ -718,7 +724,8 @@ function renderForm(){
 
   var empBtn=fieldBtn('emp','emp','Seleccionar empleado',f.emp, f.emp?f.emp.c+' · '+f.emp.tipo:'Busca por código o nombre','EMP',!!f.emp);
   var autBtn=t===2?'':fieldBtn('aut','aut','Seleccionar autorizador',f.aut, f.aut?f.aut.sub:'Jefatura responsable','AUT',!!f.aut);
-  var ccBtn=fieldBtn('cc','cc','Seleccionar centro de costo',f.cc, f.cc?f.cc.n:'', 'CC',!!f.cc);
+  // Centro de costo: se deriva automáticamente del empleado (no editable)
+  var ccBtn=fieldStatic('Se completa al elegir el empleado', f.cc, f.cc?'Centro de costo':'Automático', !!f.cc);
 
   var turnoTipo='';
   if(t!==2){
@@ -811,6 +818,15 @@ function fieldBtn(type,key,ph,obj,sub,prefix,ok){
     '<span class="b" style="color:var(--hint)">'+esc(b)+'</span></span><span class="chev">▾</span></button>'+
     '<div class="pick-pop hidden" id="pop_'+key+'"></div></div>';
 }
+// Igual que fieldBtn pero de solo lectura (no abre selector)
+function fieldStatic(ph,obj,sub,ok){
+  var a=obj?obj.n:ph, b=obj?sub:'';
+  return '<div class="pick">'+
+    '<div class="pick-btn" style="cursor:default">'+
+    '<span class="tick '+(ok?'on':'')+'">'+(ok?'✓':'')+'</span>'+
+    '<span class="t"><span class="a" style="color:'+(obj?'var(--text)':'var(--hint)')+'">'+esc(a)+'</span>'+
+    '<span class="b" style="color:var(--hint)">'+esc(b)+'</span></span></div></div>';
+}
 function togglePick(key){
   if(_pickerType===key){ closePick(); return; }
   _pickerType=key;
@@ -863,8 +879,12 @@ function pickChooseFrom(src,i){
   var it=src[i]; if(!it) return;
   if(_pickerType==='emp'){
     _form.emp={c:it.c,n:it.n,tipo:it.tipo||'INDEFINIDO'};
-    var cc=_CC.find(function(c){ return it.cc&&String(it.cc).indexOf(c.c)===0; });
-    _form.cc=cc||null;
+    // Centro de costo automático desde el empleado
+    var cc=null;
+    if(it.cc){
+      cc=_CC.find(function(c){ return String(it.cc).indexOf(c.c)===0; }) || {c:String(it.cc).slice(0,4), n:String(it.cc)};
+    }
+    _form.cc=cc;
   } else if(_pickerType==='aut') _form.aut={c:it.c,n:it.n,sub:it.sub,id:it.id};
   else _form.cc={c:it.c,n:it.n};
   closePick(); render();
@@ -1159,8 +1179,12 @@ function recSetMesAnterior(){
 }
 function recSetTodo(){ _recAnio='';_recMeses=[];_recDesde='';_recHasta='';_recTipo='';_recTurno='';_recEstado=''; _recFechaAuto=false; render(); }
 // Estado de colapso por fecha en vista Día completo: clave YYYY-MM-DD -> true=expandida
+// (solo aplica a fechas PASADAS; hoy y futuras se muestran sin agrupar)
 var _diaExpand = {};
 function toggleDia(dk){ _diaExpand[dk]=!_diaExpand[dk]; render(); }
+// Estado de colapso (solo fechas pasadas) de la vista Día completo
+var _diaExpandC = {};
+function toggleDiaC(dk){ _diaExpandC[dk]=!_diaExpandC[dk]; render(); }
 // Estado de colapso por fecha en vista Media jornada
 var _diaExpandMJ = {};
 function toggleDiaMJ(dk){ _diaExpandMJ[dk]=!_diaExpandMJ[dk]; render(); }
@@ -1484,7 +1508,7 @@ function _cuerpoCompletoHTML(){
   // Filtrar y agrupar POR FECHA (formato de la imagen: fecha una vez arriba, nombres debajo, total al final)
   var items=_SOLIC.filter(function(s){return s.tipo==='COMPLETO'&&hit(s)&&fechaOk(s);});
   var rows=items.map(function(s){ return {fechaRaw:String(s.inicio||'').slice(0,10), raw:s}; });
-  if(!rows.length) return '<tr><td colspan="5" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>';
+  if(!rows.length) return '<tr><td colspan="6" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>';
 
   // Agrupar por fecha (clave YYYY-MM-DD), orden ascendente
   var dias=[]; var dk={};
@@ -1494,53 +1518,73 @@ function _cuerpoCompletoHTML(){
     dk[k].items.push(r);
   });
   dias.sort(function(a,b){ if(a.k==='__sin__')return 1; if(b.k==='__sin__')return -1; return a.k.localeCompare(b.k); });
-  // Expandir por defecto todas las fechas con datos (salvo elección manual)
-  dias.forEach(function(g){
-    if(g.k!=='__sin__' && _diaExpand[g.k]!==true && _diaExpand[g.k]!==false){ _diaExpand[g.k]=true; }
-  });
+
+  function fechaLblDe(k){
+    if(k==='__sin__') return '—';
+    var f=k.split('-'); return f[2]+'-'+f[1]+'-'+f[0];
+  }
+  function ordenar(arr){
+    return arr.slice().sort(function(a,b){
+      var na=(a.raw&&a.raw.nombre)||'', nb=(b.raw&&b.raw.nombre)||'';
+      return na.localeCompare(nb,'es');
+    });
+  }
+  function filaHTML(s, fechaCell, conRef, gStyle){
+    var codNom='<b style="color:var(--text)">'+esc(s.codigo||'')+'</b> <span style="color:var(--text)">'+esc(s.nombre||'')+'</span>'+
+      (s.centro_costo?' <span style="color:var(--hint);margin-left:8px">'+esc(s.centro_costo)+'</span>':'');
+    var acc='<td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')" style="padding:2px 6px;font-size:11px">✏️</button> '+
+      '<button class="btn btn-ghost btn-sm" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')" style="padding:2px 6px;font-size:11px;color:var(--danger)">🗑</button></td>';
+    return '<tr'+(conRef?' id="fechaRef"':'')+' style="'+(gStyle||'')+'">'+
+      '<td style="color:var(--hint);font-size:11px;white-space:nowrap">'+(fechaCell||'')+'</td>'+
+      '<td>'+codNom+'</td>'+
+      celTipo(esTipo(s,'PERSONAL'))+
+      celTipo(esTipo(s,'MEDICO'))+
+      celTipo(esTipo(s,'JUDICIAL'))+
+      acc+'</tr>';
+  }
 
   var body='';
   dias.forEach(function(g){
-    var fechas=g.k.split('-');
-    var fechaLbl=g.k==='__sin__' ? '—' : (fechas[2]+'-'+fechas[1]+'-'+fechas[0]);
+    var fechaLbl=fechaLblDe(g.k);
     var dt=totales(g.items);
     var isRef=g.k===dkRef;
-    var gStyle=isRef?'background:rgba(0,152,212,.12)':'';
-    var refTag = g.k===hoyS ? ' <span style="color:var(--accent)">· HOY</span>' : (isRef? ' <span style="color:var(--accent)">· PRÓXIMA</span>' : '');
-    var diaExp = _diaExpand[g.k]===true;
+    var esPasada=(g.k!=='__sin__' && g.k<hoyS);
+    var esHoy=(g.k===hoyS);
+    var gStyle=(isRef||esHoy)?'background:rgba(0,152,212,.12)':'';
 
-    // Encabezado de la FECHA (botón colapsar) — la fecha se muestra UNA sola vez
-    var diaFlecha = diaExp ? '▼' : '▶';
-    body+='<tr class="fecha-head" id="fechaRef" style="cursor:pointer;'+gStyle+'" onclick="toggleDia(\''+g.k+'\')">'+
-      '<td style="font-weight:700;color:var(--text)"><span style="display:inline-block;width:14px">'+diaFlecha+'</span> '+fechaLbl+refTag+'</td>'+
-      '<td style="font-size:10px;color:var(--hint)">'+g.items.length+' registro'+(g.items.length!==1?'s':'')+'</td>'+
-      '<td></td><td></td><td></td><td></td></tr>';
-
-    // Filas del día (solo código-nombre, agrupadas) — la fecha NO se repite
-    if(diaExp) g.items.slice().sort(function(a,b){
-      var na=(a.raw&&a.raw.nombre)||'', nb=(b.raw&&b.raw.nombre)||'';
-      return na.localeCompare(nb,'es');
-    }).forEach(function(r){
-      var s=r.raw;
-      var codNom='<b style="color:var(--text)">'+esc(s.codigo||'')+'</b> <span style="color:var(--text)">'+esc(s.nombre||'')+'</span>'+
-        (s.centro_costo?' <span style="color:var(--hint);margin-left:8px">'+esc(s.centro_costo)+'</span>':'');
-      var acc='<td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')" style="padding:3px 7px;font-size:11px">✏️</button> '+
-        '<button class="btn btn-ghost btn-sm" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')" style="padding:3px 7px;font-size:11px;color:var(--danger)">🗑</button></td>';
-      body+='<tr style="'+(isRef?gStyle:'')+'">'+
-        '<td style="color:var(--hint);font-size:11px"></td>'+
-        '<td>'+codNom+'</td>'+
-        celTipo(esTipo(s,'PERSONAL'))+
-        celTipo(esTipo(s,'MEDICO'))+
-        celTipo(esTipo(s,'JUDICIAL'))+
-        acc+
-        '</tr>';
-    });
-
-    // Subtotal del DÍA (Total dd-mm-aaaa) al final del grupo
-    body+='<tr class="fecha-total" style="'+gStyle+'">'+
-      '<td style="padding-left:26px"><b>Total '+fechaLbl+'</b></td>'+
-      '<td style="font-size:10px;color:var(--hint)">'+g.items.length+' registro'+(g.items.length!==1?'s':'')+'</td>'+
-      celTipo(dt.p)+celTipo(dt.m)+celTipo(dt.j)+'<td></td></tr>';
+    if(esPasada){
+      // ── Fechas PASADAS: grupo colapsable por fecha (colapsado por defecto) ──
+      if(_diaExpandC[g.k]!==true && _diaExpandC[g.k]!==false) _diaExpandC[g.k]=isRef;
+      var diaExp=_diaExpandC[g.k]===true;
+      body+='<tr class="fecha-head" style="cursor:pointer;'+(isRef?gStyle:'')+'" onclick="toggleDiaC(\''+g.k+'\')">'+
+        '<td style="font-weight:700;color:var(--text)"><span style="display:inline-block;width:14px">'+(diaExp?'▼':'▶')+'</span> '+fechaLbl+'</td>'+
+        '<td style="font-size:10px;color:var(--hint)">'+g.items.length+' registro'+(g.items.length!==1?'s':'')+'</td>'+
+        celTipo(dt.p)+celTipo(dt.m)+celTipo(dt.j)+'<td></td></tr>';
+      if(diaExp){
+        var primera=true;
+        ordenar(g.items).forEach(function(r){
+          body+=filaHTML(r.raw,'',isRef&&primera,'');
+          primera=false;
+        });
+        body+='<tr class="fecha-total">'+
+          '<td style="padding-left:26px"><b>Total '+fechaLbl+'</b></td>'+
+          '<td style="font-size:10px;color:var(--hint)">'+g.items.length+' registro'+(g.items.length!==1?'s':'')+'</td>'+
+          celTipo(dt.p)+celTipo(dt.m)+celTipo(dt.j)+'<td></td></tr>';
+      }
+    } else {
+      // ── HOY y fechas SIGUIENTES: sin agrupar (fila por registro, con su fecha) ──
+      var refTag=(esHoy?' <span style="color:var(--accent)">· HOY</span>':(isRef?' <span style="color:var(--accent)">· PRÓXIMA</span>':''));
+      var primera=true;
+      ordenar(g.items).forEach(function(r){
+        body+=filaHTML(r.raw, primera?('<b>'+fechaLbl+'</b>'+refTag):'', isRef&&primera, gStyle);
+        primera=false;
+      });
+      // Subtotal del día (la fecha ya se mostró una vez arriba)
+      body+='<tr class="fecha-total" style="'+gStyle+'">'+
+        '<td style="padding-left:10px"><b>Total</b></td>'+
+        '<td style="font-size:10px;color:var(--hint)">'+g.items.length+' registro'+(g.items.length!==1?'s':'')+'</td>'+
+        celTipo(dt.p)+celTipo(dt.m)+celTipo(dt.j)+'<td></td></tr>';
+    }
   });
 
   return body||'<tr><td colspan="6" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>';
@@ -1558,7 +1602,7 @@ function renderDiaCompletoVista(){
     '<span style="font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:20px;background:var(--accent-soft);color:'+acc+'">'+total+'</span>'+
     '<span style="font-size:12.5px;color:var(--hint)">'+periodoLabel()+'</span>'+
     '</div>'+recFilterBar(0)+
-    '<div class="table-card"><div style="overflow-x:auto"><table class="tbl" style="min-width:900px"><thead><tr>'+header+'</tr></thead>'+
+    '<div class="table-card"><div style="overflow-x:auto"><table class="tbl tbl-compact" style="min-width:760px"><thead><tr>'+header+'</tr></thead>'+
     '<tbody id="tbodyCompleto">'+body+'</tbody></table></div>'+
     '<div class="tbl-foot"><span>Mostrando '+total+' registros</span><span>'+recTotal(0)+'</span></div></div>';
 }
@@ -1780,7 +1824,7 @@ function eliminarRegistroPermiso(id){
     var res=await d.from(tabla).delete().eq('id',pk_id);
     if(res.error){ toast('Error al eliminar: '+(res.error.message||res.error),'error'); return; }
     toast('Permiso eliminado correctamente','success');
-    _diaExpand={}; await cargarSolicitudes(); render();
+    _diaExpand={};_diaExpandC={}; await cargarSolicitudes(); render();
   })();
 }
 
@@ -1860,7 +1904,7 @@ function guardarEdicion(){
     if(res.error){ toast('Error al actualizar: '+(res.error.message||res.error),'error'); return; }
     toast('Registro actualizado correctamente','success');
     cerrarEditarModal();
-    _diaExpand={};_diaExpandMJ={}; await cargarSolicitudes(); render();
+    _diaExpand={};_diaExpandC={};_diaExpandMJ={}; await cargarSolicitudes(); render();
   })();
 }
 // Reutiliza modal para editar (mantiene la firma del onclick existente)

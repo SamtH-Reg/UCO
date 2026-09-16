@@ -84,7 +84,7 @@ function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
       { tipo:'COMPLETO', estado:'APROBADO', codigo:'H2', nombre:'ALVAREZ', centro_costo:'1110', inicio:'2026-05-11', tipo_permiso:'MEDICO' },
     ];
     _recIdx=0; recQ=''; _recAnio=''; _recMes=''; _recDesde=''; _recHasta='';
-    _diaExpand={}; _scrollRefIntentos=0; win.__scrollCount=0; win.__scrolledTo=null;
+    _diaExpand={}; _diaExpandC={}; _scrollRefIntentos=0; win.__scrollCount=0; win.__scrolledTo=null;
     win.pageYOffset = 0;   // resetear scroll de la ventana entre iteraciones
     // Fecha de referencia MUY abajo en el documento (2000px) para que nunca esté "ya visible"
     topMap['fechaRef'] && (topMap['fechaRef'].offsetTop = 2000);
@@ -98,16 +98,21 @@ function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
     await wait(900);
 
     const scrolled = win.__scrollCount > 0;
-    const scrolledToFecha = topMap['fechaRef'] && (win.pageYOffset > 0 || win.__scrollCount>0);
-    const mesHoyExpandido = _diaExpand[hoyS] === true;
+    const refExiste = !!topMap['fechaRef'];
+    const rendered = contentBox._html || '';
+    // HOY no debe ir agrupado (sin encabezado toggleDiaC de hoy)
+    const hoyAgrupado = rendered.indexOf("toggleDiaC('"+hoyS+"')") >= 0;
+    // La fecha pasada SÍ debe ir agrupada y colapsada por defecto
+    const pasadaAgrupada = rendered.indexOf("toggleDiaC('2026-05-11')") >= 0;
+    const pasadaColapsada = _diaExpandC['2026-05-11'] === false;
 
-    const ok = scrolled && mesHoyExpandido;
+    const ok = scrolled && refExiste && !hoyAgrupado && pasadaAgrupada && pasadaColapsada;
     if(!ok) fallos++;
 
     console.log(
       (ok?'PASS':'FAIL') +
-      ' iter '+(i+1)+' | scroll:'+scrolled+' ('+win.__scrollCount+') | mesHOY:'+mesHoyExpandido +
-      ' | fechaRefExiste:'+!!topMap['fechaRef'] +
+      ' iter '+(i+1)+' | scroll:'+scrolled+' ('+win.__scrollCount+') | refExiste:'+refExiste +
+      ' | hoySinAgrupar:'+(!hoyAgrupado) + ' | pasadaAgrupada:'+pasadaAgrupada + ' | pasadaColapsada:'+pasadaColapsada +
       ' | scrollY:'+Math.round(win.pageYOffset)
     );
   }
