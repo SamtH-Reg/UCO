@@ -177,6 +177,7 @@ t('_docNombre: sin extension', () => _docNombre('M1','PEREZ','doc')==='M1 PEREZ'
 t('_docNombre: limpia caracteres invalidos', () => _docNombre('M1','A/B:C*D?E"F<G>H|I','x.pdf')==='M1 A B C D E F G H I.pdf');
 t('_uuid: formato uuid', () => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(_uuid()));
 t('verDocumento definido', () => typeof verDocumento==='function' && typeof guardarDocumentoLocal==='function');
+t('imprimirDocumento definido', () => typeof imprimirDocumento==='function');
 t('onFormFileChange: guarda nombre y objeto', () => {
   _form={file:'',fileObj:null};
   onFormFileChange({files:[{name:'cert.pdf'}]});

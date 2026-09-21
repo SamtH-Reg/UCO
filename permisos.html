@@ -719,6 +719,8 @@ var _docIds = {};      // id de solicitud -> true (tiene documento guardado)
 var _dirName = '';     // nombre de la carpeta configurada (si hay)
 var _DOCDB_P = null;
 var _docUrlActual = null;
+var _docTipoActual = '';
+var _docNombreActual = '';
 
 function docDB(){
   if(_DOCDB_P) return _DOCDB_P;
@@ -834,17 +836,49 @@ async function verDocumento(id){
       '<div style="background:var(--surface);border-radius:16px;max-width:900px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.4)">'+
       '<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px">'+
       '<b style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(nombre)+'</b>'+
-      '<div style="display:flex;gap:8px;flex-shrink:0"><a class="btn btn-secondary btn-sm" href="'+url+'" download="'+_attr(nombre)+'">⬇ Descargar</a>'+
+      '<div style="display:flex;gap:8px;flex-shrink:0"><button class="btn btn-secondary btn-sm" onclick="imprimirDocumento()">🖨 Imprimir</button>'+
+      '<a class="btn btn-secondary btn-sm" href="'+url+'" download="'+_attr(nombre)+'">⬇ Descargar</a>'+
       '<button class="btn btn-ghost btn-sm" onclick="cerrarDocModal()">✕</button></div></div>'+
       '<div style="padding:16px">'+cuerpo+'</div></div></div>';
     var cont=document.createElement('div'); cont.id='docModalWrap'; cont.innerHTML=html;
     document.body.appendChild(cont);
-    _docUrlActual=url;
+    _docUrlActual=url; _docTipoActual=tipo; _docNombreActual=nombre;
   }catch(e){ toast('Error al abrir documento: '+e.message,'error'); }
 }
 function cerrarDocModal(){
   var el=document.getElementById('docModalWrap'); if(el) el.remove();
-  if(_docUrlActual){ try{ URL.revokeObjectURL(_docUrlActual); }catch(e){} _docUrlActual=null; }
+  if(_docUrlActual){ try{ URL.revokeObjectURL(_docUrlActual); }catch(e){} }
+  _docUrlActual=null; _docTipoActual=''; _docNombreActual='';
+}
+// Imprime el documento actual (imagen o PDF) usando un iframe oculto
+function imprimirDocumento(){
+  var url=_docUrlActual, tipo=_docTipoActual||'', nombre=_docNombreActual||'Documento';
+  if(!url){ toast('No hay documento para imprimir','warn'); return; }
+  try{
+    var fr=document.createElement('iframe');
+    fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    document.body.appendChild(fr);
+    var html;
+    if(tipo.indexOf('image/')===0){
+      html='<!doctype html><html><head><meta charset="utf-8"><title>'+_attr(nombre)+'</title>'+
+        '<style>@page{margin:10mm}html,body{margin:0}img{width:100%;height:auto}</style></head>'+
+        '<body><img src="'+url+'"></body></html>';
+    } else {
+      html='<!doctype html><html><head><meta charset="utf-8"><title>'+_attr(nombre)+'</title>'+
+        '<style>html,body{margin:0;height:100%}iframe{border:0;width:100%;height:100vh}</style></head>'+
+        '<body><iframe src="'+url+'"></iframe></body></html>';
+    }
+    var d=fr.contentWindow.document; d.open(); d.write(html); d.close();
+    var hecho=false;
+    function go(){ if(hecho) return; hecho=true; try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){ console.error('[PRINT]',e); } }
+    fr.onload=function(){ setTimeout(go, 500); };
+    setTimeout(go, 1500);
+    setTimeout(function(){ try{ fr.remove(); }catch(e){} }, 60000);
+  }catch(e){
+    var w=window.open(url,'_blank');
+    if(!w){ toast('No se pudo imprimir. Permite ventanas emergentes o descarga el archivo.','warn',7000); }
+    else { setTimeout(function(){ try{ w.focus(); w.print(); }catch(e2){} }, 800); }
+  }
 }
 
 // ── FORMULARIO ───────────────────────────────────────────────
