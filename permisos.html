@@ -488,8 +488,9 @@ async function cargarDatosBase(){
   if(!_CC.length) _CC=[{c:'1110',n:'1110 Producción (FS)'},{c:'1114',n:'1114 RRHH (FS)'}];
   // Documentos locales: persistencia, carpeta configurada e ids guardados
   _persistirStorage();
-  try{ var dh=await docConfigGet('dir'); if(dh) _dirName=dh.name||'carpeta'; }catch(e){}
+  await cargarCarpetaConfig();
   await cargarDocIds();
+  if(!window._reconectarLst){ window._reconectarLst=true; document.addEventListener('click', _reconectarCarpetaAlClic, {once:true}); }
   await cargarSolicitudes();
   render();
 }
@@ -636,7 +637,7 @@ function goHome(){ go('home'); }
 // ═══════════════════════════════════════════════════════════════
 //  CUPOS por día y topes
 // ═══════════════════════════════════════════════════════════════
-var CUPO_MAX=3, CUPO_PERSONAL_MAX=3;
+var CUPO_MAX=2, CUPO_PERSONAL_MAX=2;
 function cupos(fecha){
   var total=0, personal=0;
   _SOLIC.forEach(function(s){
@@ -717,6 +718,8 @@ function goFormTab(t){ setTab(t); }
 // ═══════════════════════════════════════════════════════════════
 var _docIds = {};      // id de solicitud -> true (tiene documento guardado)
 var _dirName = '';     // nombre de la carpeta configurada (si hay)
+var _dirHandle = null; // handle de la carpeta (File System Access)
+var _dirConectada = false; // permiso de escritura concedido ahora
 var _DOCDB_P = null;
 var _docUrlActual = null;
 var _docTipoActual = '';
@@ -785,16 +788,44 @@ async function _permDir(h){
     return p==='granted';
   }catch(e){ return false; }
 }
+// Carga la carpeta configurada y su estado de permiso (al abrir la app)
+async function cargarCarpetaConfig(){
+  try{
+    var h=await docConfigGet('dir');
+    _dirHandle=h||null;
+    _dirName=h?(h.name||'carpeta'):'';
+    _dirConectada=false;
+    if(h){
+      if(h.queryPermission){ try{ _dirConectada=(await h.queryPermission({mode:'readwrite'}))==='granted'; }catch(e){ _dirConectada=false; } }
+      else { _dirConectada=true; }
+    }
+  }catch(e){ _dirHandle=null; _dirName=''; _dirConectada=false; }
+}
+// Reconecta (pide permiso) a la carpeta guardada; requiere gesto del usuario
+async function conectarCarpeta(){
+  try{
+    if(!_dirHandle){ await elegirCarpetaDocumentos(); return; }
+    var ok=await _permDir(_dirHandle);
+    _dirConectada=ok;
+    toast(ok?('✅ Carpeta conectada: '+_dirName):'No se concedió permiso a la carpeta','success');
+    render();
+  }catch(e){ toast('Error: '+((e&&e.message)||e),'error'); }
+}
 async function elegirCarpetaDocumentos(){
   if(!window.showDirectoryPicker){ toast('Este navegador no permite elegir carpeta (usa Chrome/Edge)','warn',6500); return; }
   try{
     var h=await window.showDirectoryPicker({mode:'readwrite'});
     await docConfigSet('dir',h);
-    await _permDir(h);
-    _dirName=h.name||'carpeta';
+    _dirHandle=h; _dirName=h.name||'carpeta';
+    _dirConectada=await _permDir(h);
     toast('✅ Carpeta de documentos: '+_dirName,'success');
     render();
   }catch(e){ if(!e||e.name!=='AbortError') toast('Error: '+((e&&e.message)||e),'error'); }
+}
+// Intenta reconectar en el primer clic (los permisos requieren gesto)
+function _reconectarCarpetaAlClic(){
+  if(!_dirHandle || _dirConectada) return;
+  _permDir(_dirHandle).then(function(ok){ if(ok){ _dirConectada=true; render(); } }).catch(function(){});
 }
 // Guarda el adjunto: navegador (siempre) + carpeta (si está configurada y permitida)
 async function guardarDocumentoLocal(id, fileObj, cod, nombre, meta){
@@ -947,14 +978,23 @@ function renderForm(){
   var coment='<div class="card"><div class="card-h" style="align-items:baseline">Comentario <span style="font-size:11px;color:var(--hint);text-transform:none;margin-left:6px">opcional</span></div>'+
     '<textarea style="min-height:84px" placeholder="Agrega contexto para quien autoriza..." onchange="_form.com=this.value">'+esc(f.com)+'</textarea></div>';
 
+  var dirHtml, dirHint;
+  if(_dirName){
+    dirHtml='<button class="btn btn-ghost btn-sm" onclick="conectarCarpeta()" title="'+(_dirConectada?'Carpeta conectada':'Clic para conectar la carpeta')+'">'+
+      (_dirConectada?'✅':'⚠')+' Carpeta: '+esc(_dirName)+'</button>'+
+      '<button class="btn btn-ghost btn-sm" onclick="elegirCarpetaDocumentos()" title="Cambiar carpeta">cambiar</button>';
+    dirHint=_dirConectada?'Los adjuntos se guardan en el navegador y en esta carpeta.':'Carpeta configurada; haz clic para reconectar y guardar ahí.';
+  } else {
+    dirHtml='<button class="btn btn-ghost btn-sm" onclick="elegirCarpetaDocumentos()">📁 Elegir carpeta de guardado</button>';
+    dirHint='Se guarda en el navegador; configura una carpeta para guardar también en disco.';
+  }
   var arch='<div class="card" style="position:relative"><div class="card-h" style="align-items:baseline">Archivo adjunto <span style="font-size:11px;color:var(--hint);text-transform:none;margin-left:6px">opcional</span></div>'+
     '<input type="file" id="formFile" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;left:0;top:0" onchange="onFormFileChange(this)">'+
     '<label for="formFile" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:22px;border:1.5px dashed var(--border2);border-radius:13px;background:var(--surface2);cursor:pointer">'+
     '<span id="formFileName" style="font-size:13px;font-weight:500;color:'+(f.file?'var(--text)':'var(--muted)')+'">'+(f.file||'Haz clic para adjuntar un archivo')+'</span>'+
     '<span style="font-size:11.5px;color:var(--hint)">PDF, Word o imagen · hasta 10 MB</span></label>'+
-    '<div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap">'+
-      '<button class="btn btn-ghost btn-sm" onclick="elegirCarpetaDocumentos()">📁 '+(_dirName?('Carpeta: '+esc(_dirName)):'Elegir carpeta de guardado')+'</button>'+
-      '<span style="font-size:11px;color:var(--hint)">Se guarda en el navegador; y en la carpeta si está configurada.</span>'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap">'+dirHtml+
+      '<span style="font-size:11px;color:var(--hint)">'+dirHint+'</span>'+
     '</div></div>';
 
   var notaCupo='', avisoCupo='';

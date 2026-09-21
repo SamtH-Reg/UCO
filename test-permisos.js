@@ -208,6 +208,22 @@ t('_cuerpoCompletoHTML: sin documento no muestra el item', () => {
   return _cuerpoCompletoHTML().indexOf('verDocumento')<0;
 });
 
+// carpeta de guardado
+t('cargarCarpetaConfig/conectarCarpeta definidos', () => typeof cargarCarpetaConfig==='function' && typeof conectarCarpeta==='function');
+t('renderForm: muestra la carpeta configurada y su estado', () => {
+  _dirName='Permisos'; _dirConectada=true; _tab=0;
+  _form={turno:'DIA',tipo:'PERSONAL',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO'},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5};
+  var h=renderForm();
+  var ok=h.indexOf('Carpeta: Permisos')>=0 && h.indexOf('✅')>=0;
+  _dirName=''; _dirConectada=false;
+  return ok;
+});
+t('renderForm: sin carpeta muestra "Elegir carpeta"', () => {
+  _dirName=''; _dirConectada=false; _tab=0;
+  _form={turno:'DIA',tipo:'PERSONAL',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO'},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5};
+  return renderForm().indexOf('Elegir carpeta de guardado')>=0;
+});
+
 // selección de calendario (calClick con stubs minimalistas)
 // reprovisionar _form para tab 0
 _tab = 0; _form = { dates:[], tipo:'', emp:null, aut:null, cc:null, start:null, dias:5, reg:'', hs:'', hi:'' };
