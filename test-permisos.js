@@ -223,6 +223,14 @@ t('renderForm: sin carpeta muestra "Elegir carpeta"', () => {
   _form={turno:'DIA',tipo:'PERSONAL',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO'},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5};
   return renderForm().indexOf('Elegir carpeta de guardado')>=0;
 });
+t('renderForm: carpeta por solicitud se marca en verde', () => {
+  _dirName='Global'; _dirConectada=true; _tab=0;
+  _form={turno:'DIA',tipo:'PERSONAL',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO'},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5,dirHandle:{name:'Otra'},dirName:'Otra'};
+  var h=renderForm();
+  return h.indexOf('Carpeta: Otra')>=0 && h.indexOf('color:var(--green)')>=0;
+});
+t('guardarDocumentoLocal acepta handle por solicitud', () => guardarDocumentoLocal.length>=6);
+t('elegirCarpetaSolicitud definido', () => typeof elegirCarpetaSolicitud==='function');
 
 // selección de calendario (calClick con stubs minimalistas)
 // reprovisionar _form para tab 0

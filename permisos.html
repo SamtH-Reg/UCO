@@ -822,18 +822,30 @@ async function elegirCarpetaDocumentos(){
     render();
   }catch(e){ if(!e||e.name!=='AbortError') toast('Error: '+((e&&e.message)||e),'error'); }
 }
+// Elige una carpeta distinta para la solicitud actual (y la deja como predeterminada)
+async function elegirCarpetaSolicitud(){
+  if(!window.showDirectoryPicker){ toast('Este navegador no permite elegir carpeta (usa Chrome/Edge)','warn',6500); return; }
+  try{
+    var h=await window.showDirectoryPicker({mode:'readwrite'});
+    _form.dirHandle=h; _form.dirName=h.name||'carpeta';
+    await docConfigSet('dir',h);
+    _dirHandle=h; _dirName=h.name||'carpeta'; _dirConectada=await _permDir(h);
+    toast('✅ Carpeta para esta solicitud: '+_form.dirName,'success');
+    render();
+  }catch(e){ if(!e||e.name!=='AbortError') toast('Error: '+((e&&e.message)||e),'error'); }
+}
 // Intenta reconectar en el primer clic (los permisos requieren gesto)
 function _reconectarCarpetaAlClic(){
   if(!_dirHandle || _dirConectada) return;
   _permDir(_dirHandle).then(function(ok){ if(ok){ _dirConectada=true; render(); } }).catch(function(){});
 }
 // Guarda el adjunto: navegador (siempre) + carpeta (si está configurada y permitida)
-async function guardarDocumentoLocal(id, fileObj, cod, nombre, meta){
+async function guardarDocumentoLocal(id, fileObj, cod, nombre, meta, dirHandle){
   var nom=_docNombre(cod,nombre,fileObj.name);
   var okNav=false, okDir=false;
   try{ await docGuardar(id,fileObj,nom,meta); _docIds[id]=true; okNav=true; }catch(e){ console.error('[DOC nav]',e); }
   try{
-    var h=await docConfigGet('dir');
+    var h=dirHandle || await docConfigGet('dir');
     if(h && await _permDir(h)){
       var fh=await h.getFileHandle(nom,{create:true});
       var w=await fh.createWritable();
@@ -915,7 +927,8 @@ function imprimirDocumento(){
 // ── FORMULARIO ───────────────────────────────────────────────
 function resetForm(){
   var autPrev=_form? _form.aut : null;   // conservar autorizador preseleccionado al cambiar de tab
-  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5};
+  var dirH=_form?(_form.dirHandle||null):null, dirN=_form?(_form.dirName||''):'';   // conservar carpeta elegida
+  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5,dirHandle:dirH,dirName:dirN};
   if(autPrev) _form.aut=autPrev;
 }
 
@@ -979,14 +992,18 @@ function renderForm(){
     '<textarea style="min-height:84px" placeholder="Agrega contexto para quien autoriza..." onchange="_form.com=this.value">'+esc(f.com)+'</textarea></div>';
 
   var dirHtml, dirHint;
-  if(_dirName){
-    dirHtml='<button class="btn btn-ghost btn-sm" onclick="conectarCarpeta()" title="'+(_dirConectada?'Carpeta conectada':'Clic para conectar la carpeta')+'">'+
-      (_dirConectada?'✅':'⚠')+' Carpeta: '+esc(_dirName)+'</button>'+
-      '<button class="btn btn-ghost btn-sm" onclick="elegirCarpetaDocumentos()" title="Cambiar carpeta">cambiar</button>';
-    dirHint=_dirConectada?'Los adjuntos se guardan en el navegador y en esta carpeta.':'Carpeta configurada; haz clic para reconectar y guardar ahí.';
+  var fDirName=(f.dirName||_dirName||'');
+  var fDirConectada=f.dirHandle?true:_dirConectada;
+  if(fDirName){
+    var dEst=fDirConectada?'✅':'⚠';
+    var dCol=fDirConectada?'color:var(--green);border-color:var(--green)':'color:var(--oj);border-color:var(--oj)';
+    dirHtml='<button class="btn btn-ghost btn-sm" style="'+dCol+';font-weight:600" onclick="'+(fDirConectada?'':'conectarCarpeta()')+'" title="'+(fDirConectada?'Carpeta conectada':'Clic para conectar la carpeta')+'">'+
+      dEst+' Carpeta: '+esc(fDirName)+'</button>'+
+      '<button class="btn btn-ghost btn-sm" onclick="elegirCarpetaSolicitud()" title="Elegir otra carpeta para esta solicitud">cambiar</button>';
+    dirHint=fDirConectada?'Los adjuntos de esta solicitud se guardan en el navegador y en esta carpeta.':'Carpeta elegida; haz clic para reconectar y guardar ahí.';
   } else {
-    dirHtml='<button class="btn btn-ghost btn-sm" onclick="elegirCarpetaDocumentos()">📁 Elegir carpeta de guardado</button>';
-    dirHint='Se guarda en el navegador; configura una carpeta para guardar también en disco.';
+    dirHtml='<button class="btn btn-ghost btn-sm" onclick="elegirCarpetaSolicitud()">📁 Elegir carpeta de guardado</button>';
+    dirHint='Se guarda en el navegador; elige una carpeta para guardar también en disco.';
   }
   var arch='<div class="card" style="position:relative"><div class="card-h" style="align-items:baseline">Archivo adjunto <span style="font-size:11px;color:var(--hint);text-transform:none;margin-left:6px">opcional</span></div>'+
     '<input type="file" id="formFile" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;left:0;top:0" onchange="onFormFileChange(this)">'+
@@ -1275,7 +1292,7 @@ async function submitForm(){
   if(f.fileObj){
     var meta={codigo:f.emp.c,nombre:f.emp.n,centro_costo:f.cc.n,fecha:payload.inicio,tipo:payload.tipo,tipo_permiso:payload.tipo_permiso};
     try{
-      var g=await guardarDocumentoLocal(newId, f.fileObj, f.emp.c, f.emp.n, meta);
+      var g=await guardarDocumentoLocal(newId, f.fileObj, f.emp.c, f.emp.n, meta, f.dirHandle||null);
       if(!g.okNav) toast('Solicitud guardada, pero no se pudo guardar la copia local del documento','warn',7000);
     }catch(e){ console.error('[DOC]',e); }
   }
