@@ -715,6 +715,7 @@ function goFormTab(t){ setTab(t); }
 var _docIds = {};      // id de solicitud -> true (tiene documento guardado)
 var _dirName = '';     // nombre de la carpeta configurada (si hay)
 var _DOCDB_P = null;
+var _docUrlActual = null;
 
 function docDB(){
   if(_DOCDB_P) return _DOCDB_P;
@@ -806,15 +807,41 @@ async function guardarDocumentoLocal(id, fileObj, cod, nombre, meta){
   }catch(e){ console.error('[DOC dir]',e); }
   return {okNav:okNav, okDir:okDir, nombre:nom};
 }
+function onFormFileChange(inp){
+  try{
+    var hay=!!(inp && inp.files && inp.files.length);
+    _form.file=hay?inp.files[0].name:'';
+    _form.fileObj=hay?inp.files[0]:null;
+    var e=document.getElementById('formFileName');
+    if(e) e.textContent=_form.file||'Haz clic para adjuntar un archivo';
+  }catch(e){ console.error('[FILE]',e); }
+}
+function _attr(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 async function verDocumento(id){
   try{
     var doc=await docObtener(id);
-    if(!doc||!doc.blob){ toast('Este registro no tiene documento guardado','warn'); return; }
+    if(!doc||!doc.blob){ toast('El archivo no está guardado en este equipo (solo se guardan los adjuntos nuevos)','warn',6500); return; }
     var url=URL.createObjectURL(doc.blob);
-    var w=window.open(url,'_blank');
-    if(!w){ var a=document.createElement('a'); a.href=url; a.download=doc.nombre||'documento'; document.body.appendChild(a); a.click(); a.remove(); }
-    setTimeout(function(){ URL.revokeObjectURL(url); },120000);
+    var tipo=doc.blob.type||'', nombre=doc.nombre||'documento';
+    var cuerpo;
+    if(tipo.indexOf('image/')===0) cuerpo='<img src="'+url+'" style="max-width:100%;max-height:75vh;border-radius:8px;display:block;margin:0 auto">';
+    else if(tipo==='application/pdf'||/\.pdf$/i.test(nombre)) cuerpo='<iframe src="'+url+'" style="width:100%;height:75vh;border:none;border-radius:8px"></iframe>';
+    else cuerpo='<div style="padding:26px;text-align:center;color:var(--muted);font-size:13px">Vista previa no disponible para este tipo de archivo. Usa «Descargar».</div>';
+    var html='<div style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)cerrarDocModal()">'+
+      '<div style="background:var(--surface);border-radius:16px;max-width:900px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.4)">'+
+      '<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px">'+
+      '<b style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(nombre)+'</b>'+
+      '<div style="display:flex;gap:8px;flex-shrink:0"><a class="btn btn-secondary btn-sm" href="'+url+'" download="'+_attr(nombre)+'">⬇ Descargar</a>'+
+      '<button class="btn btn-ghost btn-sm" onclick="cerrarDocModal()">✕</button></div></div>'+
+      '<div style="padding:16px">'+cuerpo+'</div></div></div>';
+    var cont=document.createElement('div'); cont.id='docModalWrap'; cont.innerHTML=html;
+    document.body.appendChild(cont);
+    _docUrlActual=url;
   }catch(e){ toast('Error al abrir documento: '+e.message,'error'); }
+}
+function cerrarDocModal(){
+  var el=document.getElementById('docModalWrap'); if(el) el.remove();
+  if(_docUrlActual){ try{ URL.revokeObjectURL(_docUrlActual); }catch(e){} _docUrlActual=null; }
 }
 
 // ── FORMULARIO ───────────────────────────────────────────────
@@ -883,10 +910,10 @@ function renderForm(){
   var coment='<div class="card"><div class="card-h" style="align-items:baseline">Comentario <span style="font-size:11px;color:var(--hint);text-transform:none;margin-left:6px">opcional</span></div>'+
     '<textarea style="min-height:84px" placeholder="Agrega contexto para quien autoriza..." onchange="_form.com=this.value">'+esc(f.com)+'</textarea></div>';
 
-  var arch='<div class="card"><div class="card-h" style="align-items:baseline">Archivo adjunto <span style="font-size:11px;color:var(--hint);text-transform:none;margin-left:6px">opcional</span></div>'+
-    '<label style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:22px;border:1.5px dashed var(--border2);border-radius:13px;background:var(--surface2);cursor:pointer">'+
-    '<input type="file" style="display:none" onchange="_form.file=this.files.length?this.files[0].name:\'\';_form.fileObj=this.files.length?this.files[0]:null;render()">'+
-    '<span style="font-size:13px;font-weight:500;color:var(--muted)">'+(f.file||'Haz clic para adjuntar un archivo')+'</span>'+
+  var arch='<div class="card" style="position:relative"><div class="card-h" style="align-items:baseline">Archivo adjunto <span style="font-size:11px;color:var(--hint);text-transform:none;margin-left:6px">opcional</span></div>'+
+    '<input type="file" id="formFile" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;left:0;top:0" onchange="onFormFileChange(this)">'+
+    '<label for="formFile" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:22px;border:1.5px dashed var(--border2);border-radius:13px;background:var(--surface2);cursor:pointer">'+
+    '<span id="formFileName" style="font-size:13px;font-weight:500;color:'+(f.file?'var(--text)':'var(--muted)')+'">'+(f.file||'Haz clic para adjuntar un archivo')+'</span>'+
     '<span style="font-size:11.5px;color:var(--hint)">PDF, Word o imagen · hasta 10 MB</span></label>'+
     '<div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap">'+
       '<button class="btn btn-ghost btn-sm" onclick="elegirCarpetaDocumentos()">📁 '+(_dirName?('Carpeta: '+esc(_dirName)):'Elegir carpeta de guardado')+'</button>'+
@@ -1660,7 +1687,8 @@ function _cuerpoCompletoHTML(){
   function filaHTML(s, fechaCell, conRef, gStyle){
     var codNom='<b style="color:var(--text)">'+esc(s.codigo||'')+'</b> <span style="color:var(--text)">'+esc(s.nombre||'')+'</span>'+
       (s.centro_costo?' <span style="color:var(--hint);margin-left:8px">'+esc(s.centro_costo)+'</span>':'');
-    var docBtn=_docIds[s.id] ? '<button class="btn btn-ghost btn-sm" onclick="verDocumento(\''+esc(s.id||'')+'\')" title="Ver documento adjunto" style="padding:2px 6px;font-size:11px">📎</button> ' : '';
+    var tieneDoc=!!_docIds[s.id], tieneArchivo=!!s.archivo;
+    var docBtn=(tieneDoc||tieneArchivo) ? '<button class="btn btn-ghost btn-sm" onclick="verDocumento(\''+esc(s.id||'')+'\')" title="'+(tieneDoc?'Ver documento adjunto':'Documento registrado (no guardado localmente)')+'" style="padding:2px 6px;font-size:11px;'+(!tieneDoc?'opacity:.45':'')+'">📎</button> ' : '';
     var acc='<td style="white-space:nowrap">'+docBtn+'<button class="btn btn-ghost btn-sm" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')" style="padding:2px 6px;font-size:11px">✏️</button> '+
       '<button class="btn btn-ghost btn-sm" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')" style="padding:2px 6px;font-size:11px;color:var(--danger)">🗑</button></td>';
     return '<tr'+(conRef?' id="fechaRef"':'')+' style="'+(gStyle||'')+'">'+

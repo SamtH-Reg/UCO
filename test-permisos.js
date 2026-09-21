@@ -177,6 +177,35 @@ t('_docNombre: sin extension', () => _docNombre('M1','PEREZ','doc')==='M1 PEREZ'
 t('_docNombre: limpia caracteres invalidos', () => _docNombre('M1','A/B:C*D?E"F<G>H|I','x.pdf')==='M1 A B C D E F G H I.pdf');
 t('_uuid: formato uuid', () => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(_uuid()));
 t('verDocumento definido', () => typeof verDocumento==='function' && typeof guardarDocumentoLocal==='function');
+t('onFormFileChange: guarda nombre y objeto', () => {
+  _form={file:'',fileObj:null};
+  onFormFileChange({files:[{name:'cert.pdf'}]});
+  return _form.file==='cert.pdf' && !!_form.fileObj && _form.fileObj.name==='cert.pdf';
+});
+t('onFormFileChange: limpia si no hay archivo', () => {
+  _form={file:'x.pdf',fileObj:{name:'x.pdf'}};
+  onFormFileChange({files:[]});
+  return _form.file==='' && _form.fileObj===null;
+});
+t('_attr escapa comillas y signos', () => _attr('a"b<c>&d')==='a&quot;b&lt;c&gt;&amp;d');
+t('_cuerpoCompletoHTML: muestra el item si hay documento local', () => {
+  recSetTodo(); _page='home';
+  _SOLIC=[{tipo:'COMPLETO',estado:'APROBADO',id:'abc',codigo:'M1',nombre:'X',inicio:hoy(),tipo_permiso:'PERSONAL',archivo:null}];
+  _docIds={'abc':true};
+  return _cuerpoCompletoHTML().indexOf('verDocumento')>=0;
+});
+t('_cuerpoCompletoHTML: muestra el item si el registro tiene archivo (no local)', () => {
+  recSetTodo(); _page='home';
+  _SOLIC=[{tipo:'COMPLETO',estado:'APROBADO',id:'xyz',codigo:'M2',nombre:'Y',inicio:hoy(),tipo_permiso:'PERSONAL',archivo:'cert.pdf'}];
+  _docIds={};
+  return _cuerpoCompletoHTML().indexOf('verDocumento')>=0;
+});
+t('_cuerpoCompletoHTML: sin documento no muestra el item', () => {
+  recSetTodo(); _page='home';
+  _SOLIC=[{tipo:'COMPLETO',estado:'APROBADO',id:'n1',codigo:'M3',nombre:'Z',inicio:hoy(),tipo_permiso:'PERSONAL',archivo:null}];
+  _docIds={};
+  return _cuerpoCompletoHTML().indexOf('verDocumento')<0;
+});
 
 // selección de calendario (calClick con stubs minimalistas)
 // reprovisionar _form para tab 0
