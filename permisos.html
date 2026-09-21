@@ -194,6 +194,9 @@ textarea{resize:vertical}
 .table-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-top:20px}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl thead th{text-align:left;padding:13px 18px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10.5px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--hint);white-space:nowrap}
+/* Contenedor con scroll y encabezado de tabla fijo */
+.tbl-scroll{overflow:auto;max-height:calc(100vh - 250px)}
+.tbl-scroll thead th{position:sticky;top:0;z-index:3;box-shadow:inset 0 -1px 0 var(--border)}
 .tbl tbody td{padding:8px 18px;border-bottom:1px solid var(--border);white-space:nowrap;font-variant-numeric:tabular-nums}
 .tbl tbody tr:hover td{background:var(--surface2)}
 .tbl tbody tr.fecha-head td{background:var(--surface2);font-weight:700;font-size:12.5px;color:var(--text);border-top:2px solid var(--border);border-bottom:1px solid var(--border);cursor:pointer;padding:6px 18px}
@@ -1443,7 +1446,7 @@ function renderPorDia(tipo, titulo, accColor, recIdx){
     '<span style="font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:20px;background:var(--accent-soft);color:'+acc+'">'+items.length+'</span>'+
     '<span style="font-size:12.5px;color:var(--hint)">'+periodoLabel()+'</span>'+
     '</div>'+recFilterBar(recIdx)+
-    '<div class="table-card"><div style="overflow-x:auto"><table class="tbl" style="min-width:1120px"><thead><tr>'+header+'</tr></thead>'+
+    '<div class="table-card"><div class="tbl-scroll"><table class="tbl" style="min-width:1120px"><thead><tr>'+header+'</tr></thead>'+
     '<tbody>'+(body||'<tr><td colspan="8" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>')+'</tbody></table></div>'+
     '<div class="tbl-foot"><span>Mostrando '+items.length+' registros</span><span>'+recTotal(recIdx)+'</span></div></div>';
 }
@@ -1518,7 +1521,7 @@ function renderVacaciones(hit, fechaOk){
     '<span style="font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:20px;background:var(--accent-soft);color:'+acc+'">'+items.length+'</span>'+
     '<span style="font-size:12.5px;color:var(--hint)">'+periodoLabel()+'</span>'+
     '</div>'+recFilterBar(2)+
-    '<div class="table-card"><div style="overflow-x:auto"><table class="tbl" style="min-width:1000px"><thead><tr>'+header+'</tr></thead>'+
+    '<div class="table-card"><div class="tbl-scroll"><table class="tbl" style="min-width:1000px"><thead><tr>'+header+'</tr></thead>'+
     '<tbody>'+(body||'<tr><td colspan="7" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>')+'</tbody></table></div>'+
     '<div class="tbl-foot"><span>Mostrando '+items.length+' registros</span><span>'+recTotal(2)+'</span></div></div>'+
     // El resumen usa TODAS las vacaciones (no las filtradas por la tabla) y aplica su propio filtro de años
@@ -1616,7 +1619,7 @@ function resumenVacaciones(items){
     '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap">'+
       '<div class="card-h" style="margin:0">📊 RESUMEN DE VACACIONES</div>'+
       '<div style="display:flex;gap:8px;align-items:center">'+ccResDrop+anioDrop+'</div></div>'+
-    '<div style="overflow-x:auto"><table class="tbl" style="min-width:700px"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div></div>';
+    '<div class="tbl-scroll"><table class="tbl" style="min-width:700px"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div></div>';
 }
 function toggleResVac(key){ _resVacExpand[key]=!_resVacExpand[key]; render(); }
 
@@ -1759,7 +1762,7 @@ function renderDiaCompletoVista(){
     '<span style="font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:20px;background:var(--accent-soft);color:'+acc+'">'+total+'</span>'+
     '<span style="font-size:12.5px;color:var(--hint)">'+periodoLabel()+'</span>'+
     '</div>'+recFilterBar(0)+
-    '<div class="table-card"><div style="overflow-x:auto"><table class="tbl tbl-compact" style="min-width:760px"><thead><tr>'+header+'</tr></thead>'+
+    '<div class="table-card"><div class="tbl-scroll"><table class="tbl tbl-compact" style="min-width:760px"><thead><tr>'+header+'</tr></thead>'+
     '<tbody id="tbodyCompleto">'+body+'</tbody></table></div>'+
     '<div class="tbl-foot"><span>Mostrando '+total+' registros</span><span>'+recTotal(0)+'</span></div></div>';
 }
@@ -1868,7 +1871,7 @@ function renderRec(){
     '<span style="font-size:12.5px;color:var(--hint)">'+PERIOD+'</span>'+
     '<div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+recFilterBar(t)+
     '</div></div>'+
-    '<div class="table-card"><div style="overflow-x:auto"><table class="tbl"><thead><tr>'+header+'</tr></thead>'+
+    '<div class="table-card"><div class="tbl-scroll"><table class="tbl"><thead><tr>'+header+'</tr></thead>'+
     '<tbody>'+(body||'<tr><td colspan="'+cols.length+'" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>')+'</tbody></table></div>'+
     '<div class="tbl-foot"><span>Mostrando '+rows.length+' registros</span><span>'+recTotal(t)+'</span></div></div>';
 }
