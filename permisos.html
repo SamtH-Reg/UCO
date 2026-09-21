@@ -718,8 +718,9 @@ function goFormTab(t){ setTab(t); }
 // ═══════════════════════════════════════════════════════════════
 var _docIds = {};      // id de solicitud -> true (tiene documento guardado)
 var _dirName = '';     // nombre de la carpeta configurada (si hay)
-var _dirHandle = null; // handle de la carpeta (File System Access)
-var _dirConectada = false; // permiso de escritura concedido ahora
+var _dirHandle = null; // handle de la carpeta predeterminada (File System Access)
+var _dirConectada = false; // permiso de escritura concedido ahora (predeterminada)
+var _dirTabs = {};     // carpeta por pestaña/solicitud: {'0':{handle,name,conectada}, ...}
 var _DOCDB_P = null;
 var _docUrlActual = null;
 var _docTipoActual = '';
@@ -788,56 +789,63 @@ async function _permDir(h){
     return p==='granted';
   }catch(e){ return false; }
 }
-// Carga la carpeta configurada y su estado de permiso (al abrir la app)
+async function _queryPerm(h){
+  try{ if(!h.queryPermission) return true; return (await h.queryPermission({mode:'readwrite'}))==='granted'; }catch(e){ return false; }
+}
+// Carga carpetas guardadas: una por pestaña + la predeterminada (al abrir la app)
 async function cargarCarpetaConfig(){
   try{
-    var h=await docConfigGet('dir');
-    _dirHandle=h||null;
-    _dirName=h?(h.name||'carpeta'):'';
-    _dirConectada=false;
-    if(h){
-      if(h.queryPermission){ try{ _dirConectada=(await h.queryPermission({mode:'readwrite'}))==='granted'; }catch(e){ _dirConectada=false; } }
-      else { _dirConectada=true; }
-    }
+    var def=await docConfigGet('dir');
+    _dirHandle=def||null; _dirName=def?(def.name||'carpeta'):''; _dirConectada=def?(await _queryPerm(def)):false;
   }catch(e){ _dirHandle=null; _dirName=''; _dirConectada=false; }
+  try{
+    var tabs=await docConfigGet('dirTabs'); _dirTabs={};
+    if(tabs && typeof tabs==='object'){
+      for(var k in tabs){
+        var e=tabs[k]; if(!e||!e.handle) continue;
+        _dirTabs[k]={handle:e.handle, name:e.name||e.handle.name||'carpeta', conectada:await _queryPerm(e.handle)};
+      }
+    }
+  }catch(e){ _dirTabs={}; }
 }
-// Reconecta (pide permiso) a la carpeta guardada; requiere gesto del usuario
+// Carpeta de la pestaña actual (o la predeterminada si no eligió una)
+function dirDeTab(t){
+  var e=_dirTabs[String(t)];
+  if(e) return e;
+  if(_dirHandle) return {handle:_dirHandle,name:_dirName,conectada:_dirConectada,esDefault:true};
+  return null;
+}
+async function _persistirDirTabs(){ try{ await docConfigSet('dirTabs',_dirTabs); }catch(e){} }
+// Reconecta (pide permiso) a la carpeta de la pestaña actual; requiere gesto
 async function conectarCarpeta(){
   try{
-    if(!_dirHandle){ await elegirCarpetaDocumentos(); return; }
-    var ok=await _permDir(_dirHandle);
-    _dirConectada=ok;
-    toast(ok?('✅ Carpeta conectada: '+_dirName):'No se concedió permiso a la carpeta','success');
+    var e=dirDeTab(_tab);
+    if(!e){ await elegirCarpetaSolicitud(); return; }
+    var ok=await _permDir(e.handle);
+    e.conectada=ok; if(e.esDefault) _dirConectada=ok;
+    toast(ok?('✅ Carpeta conectada: '+e.name):'No se concedió permiso a la carpeta','success');
     render();
   }catch(e){ toast('Error: '+((e&&e.message)||e),'error'); }
 }
-async function elegirCarpetaDocumentos(){
-  if(!window.showDirectoryPicker){ toast('Este navegador no permite elegir carpeta (usa Chrome/Edge)','warn',6500); return; }
-  try{
-    var h=await window.showDirectoryPicker({mode:'readwrite'});
-    await docConfigSet('dir',h);
-    _dirHandle=h; _dirName=h.name||'carpeta';
-    _dirConectada=await _permDir(h);
-    toast('✅ Carpeta de documentos: '+_dirName,'success');
-    render();
-  }catch(e){ if(!e||e.name!=='AbortError') toast('Error: '+((e&&e.message)||e),'error'); }
-}
-// Elige una carpeta distinta para la solicitud actual (y la deja como predeterminada)
+// Elige una carpeta SOLO para la pestaña/solicitud actual (no afecta a las otras)
 async function elegirCarpetaSolicitud(){
   if(!window.showDirectoryPicker){ toast('Este navegador no permite elegir carpeta (usa Chrome/Edge)','warn',6500); return; }
   try{
     var h=await window.showDirectoryPicker({mode:'readwrite'});
-    _form.dirHandle=h; _form.dirName=h.name||'carpeta';
-    await docConfigSet('dir',h);
-    _dirHandle=h; _dirName=h.name||'carpeta'; _dirConectada=await _permDir(h);
-    toast('✅ Carpeta para esta solicitud: '+_form.dirName,'success');
+    var ok=await _permDir(h);
+    _dirTabs[String(_tab)]={handle:h,name:h.name||'carpeta',conectada:ok};
+    await _persistirDirTabs();
+    toast('✅ Carpeta para esta solicitud: '+_dirTabs[String(_tab)].name,'success');
     render();
   }catch(e){ if(!e||e.name!=='AbortError') toast('Error: '+((e&&e.message)||e),'error'); }
 }
+// Alias de compatibilidad
+function elegirCarpetaDocumentos(){ return elegirCarpetaSolicitud(); }
 // Intenta reconectar en el primer clic (los permisos requieren gesto)
 function _reconectarCarpetaAlClic(){
-  if(!_dirHandle || _dirConectada) return;
-  _permDir(_dirHandle).then(function(ok){ if(ok){ _dirConectada=true; render(); } }).catch(function(){});
+  var e=dirDeTab(_tab);
+  if(!e || e.conectada) return;
+  _permDir(e.handle).then(function(ok){ if(ok){ e.conectada=true; if(e.esDefault) _dirConectada=true; render(); } }).catch(function(){});
 }
 // Guarda el adjunto: navegador (siempre) + carpeta (si está configurada y permitida)
 async function guardarDocumentoLocal(id, fileObj, cod, nombre, meta, dirHandle){
@@ -927,8 +935,7 @@ function imprimirDocumento(){
 // ── FORMULARIO ───────────────────────────────────────────────
 function resetForm(){
   var autPrev=_form? _form.aut : null;   // conservar autorizador preseleccionado al cambiar de tab
-  var dirH=_form?(_form.dirHandle||null):null, dirN=_form?(_form.dirName||''):'';   // conservar carpeta elegida
-  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5,dirHandle:dirH,dirName:dirN};
+  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5};
   if(autPrev) _form.aut=autPrev;
 }
 
@@ -992,8 +999,9 @@ function renderForm(){
     '<textarea style="min-height:84px" placeholder="Agrega contexto para quien autoriza..." onchange="_form.com=this.value">'+esc(f.com)+'</textarea></div>';
 
   var dirHtml, dirHint;
-  var fDirName=(f.dirName||_dirName||'');
-  var fDirConectada=f.dirHandle?true:_dirConectada;
+  var _dT=dirDeTab(t);
+  var fDirName=_dT?_dT.name:'';
+  var fDirConectada=_dT?!!_dT.conectada:false;
   if(fDirName){
     var dEst=fDirConectada?'✅':'⚠';
     var dCol=fDirConectada?'color:var(--green);border-color:var(--green)':'color:var(--oj);border-color:var(--oj)';
@@ -1292,7 +1300,8 @@ async function submitForm(){
   if(f.fileObj){
     var meta={codigo:f.emp.c,nombre:f.emp.n,centro_costo:f.cc.n,fecha:payload.inicio,tipo:payload.tipo,tipo_permiso:payload.tipo_permiso};
     try{
-      var g=await guardarDocumentoLocal(newId, f.fileObj, f.emp.c, f.emp.n, meta, f.dirHandle||null);
+      var _dt=dirDeTab(t);
+      var g=await guardarDocumentoLocal(newId, f.fileObj, f.emp.c, f.emp.n, meta, _dt?_dt.handle:null);
       if(!g.okNav) toast('Solicitud guardada, pero no se pudo guardar la copia local del documento','warn',7000);
     }catch(e){ console.error('[DOC]',e); }
   }

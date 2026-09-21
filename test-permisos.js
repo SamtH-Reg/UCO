@@ -211,23 +211,40 @@ t('_cuerpoCompletoHTML: sin documento no muestra el item', () => {
 // carpeta de guardado
 t('cargarCarpetaConfig/conectarCarpeta definidos', () => typeof cargarCarpetaConfig==='function' && typeof conectarCarpeta==='function');
 t('renderForm: muestra la carpeta configurada y su estado', () => {
-  _dirName='Permisos'; _dirConectada=true; _tab=0;
+  _dirTabs={}; _dirHandle={name:'Permisos'}; _dirName='Permisos'; _dirConectada=true; _tab=0;
   _form={turno:'DIA',tipo:'PERSONAL',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO'},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5};
   var h=renderForm();
   var ok=h.indexOf('Carpeta: Permisos')>=0 && h.indexOf('✅')>=0;
-  _dirName=''; _dirConectada=false;
+  _dirHandle=null; _dirName=''; _dirConectada=false;
   return ok;
 });
 t('renderForm: sin carpeta muestra "Elegir carpeta"', () => {
-  _dirName=''; _dirConectada=false; _tab=0;
+  _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _tab=0;
   _form={turno:'DIA',tipo:'PERSONAL',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO'},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5};
   return renderForm().indexOf('Elegir carpeta de guardado')>=0;
 });
-t('renderForm: carpeta por solicitud se marca en verde', () => {
+t('renderForm: carpeta por pestaña se marca en verde', () => {
   _dirName='Global'; _dirConectada=true; _tab=0;
-  _form={turno:'DIA',tipo:'PERSONAL',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO'},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5,dirHandle:{name:'Otra'},dirName:'Otra'};
+  _dirTabs={'0':{handle:{name:'Permisos'},name:'Permisos',conectada:true}};
+  _form={turno:'DIA',tipo:'PERSONAL',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO'},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5};
   var h=renderForm();
-  return h.indexOf('Carpeta: Otra')>=0 && h.indexOf('color:var(--green)')>=0;
+  var ok=h.indexOf('Carpeta: Permisos')>=0 && h.indexOf('color:var(--green)')>=0;
+  _dirTabs={};
+  return ok;
+});
+t('dirDeTab: cada pestaña tiene su propia carpeta', () => {
+  _dirTabs={'0':{handle:{name:'A'},name:'A',conectada:true},'2':{handle:{name:'B'},name:'B',conectada:true}};
+  var a=dirDeTab(0), b=dirDeTab(2);
+  var ok=!!a && !!b && a.name==='A' && b.name==='B';
+  _dirTabs={};
+  return ok;
+});
+t('dirDeTab: sin carpeta de pestaña usa la predeterminada', () => {
+  _dirTabs={}; _dirHandle={name:'Def'}; _dirName='Def'; _dirConectada=true;
+  var d=dirDeTab(2);
+  var ok=!!d && d.name==='Def' && d.esDefault===true;
+  _dirHandle=null; _dirName=''; _dirConectada=false;
+  return ok;
 });
 t('guardarDocumentoLocal acepta handle por solicitud', () => guardarDocumentoLocal.length>=6);
 t('elegirCarpetaSolicitud definido', () => typeof elegirCarpetaSolicitud==='function');
