@@ -171,6 +171,13 @@ t('fieldStatic: muestra el valor y no es clickeable', () => {
   return s.indexOf('1110 -PRODUCCIÓN (FS)')>=0 && s.indexOf('onclick')<0;
 });
 
+// documentos locales
+t('_docNombre: codigo + nombre + extension original', () => _docNombre('M9380','CHIGUAY MARIO ANITA MARIA','certificado.pdf')==='M9380 CHIGUAY MARIO ANITA MARIA.pdf');
+t('_docNombre: sin extension', () => _docNombre('M1','PEREZ','doc')==='M1 PEREZ');
+t('_docNombre: limpia caracteres invalidos', () => _docNombre('M1','A/B:C*D?E"F<G>H|I','x.pdf')==='M1 A B C D E F G H I.pdf');
+t('_uuid: formato uuid', () => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(_uuid()));
+t('verDocumento definido', () => typeof verDocumento==='function' && typeof guardarDocumentoLocal==='function');
+
 // selección de calendario (calClick con stubs minimalistas)
 // reprovisionar _form para tab 0
 _tab = 0; _form = { dates:[], tipo:'', emp:null, aut:null, cc:null, start:null, dias:5, reg:'', hs:'', hi:'' };

@@ -483,6 +483,10 @@ async function cargarDatosBase(){
   var ccSet={}; _EMP.forEach(function(e){ if(e.cc) ccSet[e.cc]=1; });
   _CC=Object.keys(ccSet).map(function(k){ return {c:k.slice(0,4),n:k}; });
   if(!_CC.length) _CC=[{c:'1110',n:'1110 Producción (FS)'},{c:'1114',n:'1114 RRHH (FS)'}];
+  // Documentos locales: persistencia, carpeta configurada e ids guardados
+  _persistirStorage();
+  try{ var dh=await docConfigGet('dir'); if(dh) _dirName=dh.name||'carpeta'; }catch(e){}
+  await cargarDocIds();
   await cargarSolicitudes();
   render();
 }
@@ -703,10 +707,120 @@ function recLink(title,sub,color,shp,idx){
 }
 function goFormTab(t){ setTab(t); }
 
+// ═══════════════════════════════════════════════════════════════
+//  DOCUMENTOS LOCALES (IndexedDB + carpeta del equipo)
+//  No hay nube: el adjunto se guarda en el navegador y, si hay una
+//  carpeta configurada, también como archivo real en disco.
+// ═══════════════════════════════════════════════════════════════
+var _docIds = {};      // id de solicitud -> true (tiene documento guardado)
+var _dirName = '';     // nombre de la carpeta configurada (si hay)
+var _DOCDB_P = null;
+
+function docDB(){
+  if(_DOCDB_P) return _DOCDB_P;
+  _DOCDB_P = new Promise(function(res,rej){
+    try{
+      if(typeof indexedDB==='undefined'){ rej(new Error('IndexedDB no disponible')); return; }
+      var rq=indexedDB.open('permisos_docs',1);
+      rq.onupgradeneeded=function(e){
+        var db=e.target.result;
+        if(!db.objectStoreNames.contains('docs'))   db.createObjectStore('docs',{keyPath:'id'});
+        if(!db.objectStoreNames.contains('config')) db.createObjectStore('config',{keyPath:'k'});
+      };
+      rq.onsuccess=function(e){ res(e.target.result); };
+      rq.onerror=function(e){ rej(e.target.error||new Error('IndexedDB')); };
+    }catch(e){ rej(e); }
+  });
+  return _DOCDB_P;
+}
+function _idbReq(store, mode, fn){
+  return docDB().then(function(db){
+    return new Promise(function(res,rej){
+      var tx=db.transaction(store,mode), st=tx.objectStore(store);
+      var rq=fn(st);
+      tx.oncomplete=function(){ res(rq?rq.result:undefined); };
+      tx.onerror=function(e){ rej(e.target.error||new Error('IndexedDB')); };
+      tx.onabort=function(e){ rej(e.target.error||new Error('IndexedDB')); };
+    });
+  });
+}
+function docGuardar(id,blob,nombre,meta){ return _idbReq('docs','readwrite',function(st){ return st.put({id:id,blob:blob,nombre:nombre,meta:meta||{},ts:Date.now()}); }); }
+function docObtener(id){ return _idbReq('docs','readonly',function(st){ return st.get(id); }); }
+function docListarIds(){ return _idbReq('docs','readonly',function(st){ return st.getAllKeys(); }); }
+function docEliminar(id){ return _idbReq('docs','readwrite',function(st){ return st.delete(id); }); }
+function docConfigSet(k,v){ return _idbReq('config','readwrite',function(st){ return st.put({k:k,v:v}); }); }
+function docConfigGet(k){ return _idbReq('config','readonly',function(st){ return st.get(k); }).then(function(r){ return r?r.v:null; }); }
+
+async function cargarDocIds(){
+  try{
+    var ids=await docListarIds()||[];
+    var set={}; ids.forEach(function(id){ set[id]=true; }); _docIds=set;
+  }catch(e){ _docIds={}; }
+}
+function _persistirStorage(){ try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){} }
+
+// Nombre de archivo: "<codigo> <nombre> - <archivo original>"
+function _docNombre(cod,nombre,orig){
+  var base=(String(cod||'').trim()+' '+String(nombre||'').trim()).trim();
+  var ext=''; var m=String(orig||'').match(/\.[A-Za-z0-9]{1,8}$/); if(m) ext=m[0];
+  base=base.replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
+  return (base||'documento')+ext;
+}
+function _uuid(){
+  try{ if(window.crypto&&crypto.randomUUID) return crypto.randomUUID(); }catch(e){}
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){ var r=Math.random()*16|0, v=c==='x'?r:((r&0x3)|0x8); return v.toString(16); });
+}
+async function _permDir(h){
+  try{
+    if(!h.queryPermission) return true;
+    var p=await h.queryPermission({mode:'readwrite'});
+    if(p==='granted') return true;
+    p=await h.requestPermission({mode:'readwrite'});
+    return p==='granted';
+  }catch(e){ return false; }
+}
+async function elegirCarpetaDocumentos(){
+  if(!window.showDirectoryPicker){ toast('Este navegador no permite elegir carpeta (usa Chrome/Edge)','warn',6500); return; }
+  try{
+    var h=await window.showDirectoryPicker({mode:'readwrite'});
+    await docConfigSet('dir',h);
+    await _permDir(h);
+    _dirName=h.name||'carpeta';
+    toast('✅ Carpeta de documentos: '+_dirName,'success');
+    render();
+  }catch(e){ if(!e||e.name!=='AbortError') toast('Error: '+((e&&e.message)||e),'error'); }
+}
+// Guarda el adjunto: navegador (siempre) + carpeta (si está configurada y permitida)
+async function guardarDocumentoLocal(id, fileObj, cod, nombre, meta){
+  var nom=_docNombre(cod,nombre,fileObj.name);
+  var okNav=false, okDir=false;
+  try{ await docGuardar(id,fileObj,nom,meta); _docIds[id]=true; okNav=true; }catch(e){ console.error('[DOC nav]',e); }
+  try{
+    var h=await docConfigGet('dir');
+    if(h && await _permDir(h)){
+      var fh=await h.getFileHandle(nom,{create:true});
+      var w=await fh.createWritable();
+      await w.write(fileObj); await w.close();
+      okDir=true;
+    }
+  }catch(e){ console.error('[DOC dir]',e); }
+  return {okNav:okNav, okDir:okDir, nombre:nom};
+}
+async function verDocumento(id){
+  try{
+    var doc=await docObtener(id);
+    if(!doc||!doc.blob){ toast('Este registro no tiene documento guardado','warn'); return; }
+    var url=URL.createObjectURL(doc.blob);
+    var w=window.open(url,'_blank');
+    if(!w){ var a=document.createElement('a'); a.href=url; a.download=doc.nombre||'documento'; document.body.appendChild(a); a.click(); a.remove(); }
+    setTimeout(function(){ URL.revokeObjectURL(url); },120000);
+  }catch(e){ toast('Error al abrir documento: '+e.message,'error'); }
+}
+
 // ── FORMULARIO ───────────────────────────────────────────────
 function resetForm(){
   var autPrev=_form? _form.aut : null;   // conservar autorizador preseleccionado al cambiar de tab
-  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',reg:'CON',hs:'',hi:'',start:null,dias:5};
+  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5};
   if(autPrev) _form.aut=autPrev;
 }
 
@@ -771,9 +885,13 @@ function renderForm(){
 
   var arch='<div class="card"><div class="card-h" style="align-items:baseline">Archivo adjunto <span style="font-size:11px;color:var(--hint);text-transform:none;margin-left:6px">opcional</span></div>'+
     '<label style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:22px;border:1.5px dashed var(--border2);border-radius:13px;background:var(--surface2);cursor:pointer">'+
-    '<input type="file" style="display:none" onchange="_form.file=this.files.length?this.files[0].name:\'\'">'+
+    '<input type="file" style="display:none" onchange="_form.file=this.files.length?this.files[0].name:\'\';_form.fileObj=this.files.length?this.files[0]:null;render()">'+
     '<span style="font-size:13px;font-weight:500;color:var(--muted)">'+(f.file||'Haz clic para adjuntar un archivo')+'</span>'+
-    '<span style="font-size:11.5px;color:var(--hint)">PDF, Word o imagen · hasta 10 MB</span></label></div>';
+    '<span style="font-size:11.5px;color:var(--hint)">PDF, Word o imagen · hasta 10 MB</span></label>'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap">'+
+      '<button class="btn btn-ghost btn-sm" onclick="elegirCarpetaDocumentos()">📁 '+(_dirName?('Carpeta: '+esc(_dirName)):'Elegir carpeta de guardado')+'</button>'+
+      '<span style="font-size:11px;color:var(--hint)">Se guarda en el navegador; y en la carpeta si está configurada.</span>'+
+    '</div></div>';
 
   var notaCupo='', avisoCupo='';
   if(t===0){
@@ -1028,7 +1146,9 @@ async function submitForm(){
   else if(!f.dates.length)miss.push(t===1?'día del permiso':'días de permiso');
   if(miss.length){ toast('Faltan datos obligatorios: '+miss.join(', '),'error'); return; }
 
+  var newId=_uuid();
   var payload={
+    id: newId,
     tipo: t===0?'COMPLETO':t===1?'MEDIA_JORNADA':'VACACIONES',
     estado:'PENDIENTE',
     codigo:f.emp.c, nombre:f.emp.n, centro_costo:f.cc.n,
@@ -1047,6 +1167,14 @@ async function submitForm(){
   var d=await dbReady();
   var res=await d.from('solicitudes_permiso').insert(payload);
   if(res.error){ toast('Error al guardar: '+(res.error.message||res.error),'error'); return; }
+  // Guardar el adjunto localmente: navegador (siempre) + carpeta (si está configurada)
+  if(f.fileObj){
+    var meta={codigo:f.emp.c,nombre:f.emp.n,centro_costo:f.cc.n,fecha:payload.inicio,tipo:payload.tipo,tipo_permiso:payload.tipo_permiso};
+    try{
+      var g=await guardarDocumentoLocal(newId, f.fileObj, f.emp.c, f.emp.n, meta);
+      if(!g.okNav) toast('Solicitud guardada, pero no se pudo guardar la copia local del documento','warn',7000);
+    }catch(e){ console.error('[DOC]',e); }
+  }
   toast('✅ Solicitud enviada correctamente','success');
   resetForm();
   await cargarSolicitudes();
@@ -1532,7 +1660,8 @@ function _cuerpoCompletoHTML(){
   function filaHTML(s, fechaCell, conRef, gStyle){
     var codNom='<b style="color:var(--text)">'+esc(s.codigo||'')+'</b> <span style="color:var(--text)">'+esc(s.nombre||'')+'</span>'+
       (s.centro_costo?' <span style="color:var(--hint);margin-left:8px">'+esc(s.centro_costo)+'</span>':'');
-    var acc='<td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')" style="padding:2px 6px;font-size:11px">✏️</button> '+
+    var docBtn=_docIds[s.id] ? '<button class="btn btn-ghost btn-sm" onclick="verDocumento(\''+esc(s.id||'')+'\')" title="Ver documento adjunto" style="padding:2px 6px;font-size:11px">📎</button> ' : '';
+    var acc='<td style="white-space:nowrap">'+docBtn+'<button class="btn btn-ghost btn-sm" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')" style="padding:2px 6px;font-size:11px">✏️</button> '+
       '<button class="btn btn-ghost btn-sm" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')" style="padding:2px 6px;font-size:11px;color:var(--danger)">🗑</button></td>';
     return '<tr'+(conRef?' id="fechaRef"':'')+' style="'+(gStyle||'')+'">'+
       '<td style="color:var(--hint);font-size:11px;white-space:nowrap">'+(fechaCell||'')+'</td>'+
@@ -1823,6 +1952,7 @@ function eliminarRegistroPermiso(id){
     else if(String(id).indexOf('vac_')===0){ tabla='vacaciones'; pk_id=String(id).replace('vac_',''); }
     var res=await d.from(tabla).delete().eq('id',pk_id);
     if(res.error){ toast('Error al eliminar: '+(res.error.message||res.error),'error'); return; }
+    if(tabla==='solicitudes_permiso'){ try{ await docEliminar(pk_id); delete _docIds[pk_id]; }catch(e){} }
     toast('Permiso eliminado correctamente','success');
     _diaExpand={};_diaExpandC={}; await cargarSolicitudes(); render();
   })();
