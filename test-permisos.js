@@ -251,6 +251,23 @@ t('elegirCarpetaSolicitud definido', () => typeof elegirCarpetaSolicitud==='func
 t('_iniciales: primeras letras del nombre', () => _iniciales('ALFREDO VILLARROEL')==='AV');
 t('editor responsables definido', () => typeof abrirEditorResponsables==='function' && typeof agregarResponsable==='function' && typeof quitarResponsable==='function');
 t('editar responsable definido', () => typeof editarResponsable==='function' && typeof guardarEdicionResponsable==='function' && typeof cancelarEditarResponsable==='function');
+t('_unidadVac: valida 1110-1114', () => _unidadVac('1110 -PRODUCCIÓN')===true && _unidadVac('1115 -OTRA')===false && _unidadVac('UN 1113')===true);
+t('_empListaPicker vacaciones: +unidades excluidas 1110-1114 INDEFINIDO', () => {
+  _tab=2;
+  _EMP=[{c:'M1',n:'A',cc:'1110 -X',tipo:'INDEFINIDO'},{c:'M2',n:'B',cc:'1110 -X',tipo:'PLAZO FIJO'}];
+  _EMP_EXCL=[{c:'M3',n:'C',cc:'1112 -SUPERVISORES(FS)',tipo:'INDEFINIDO'},{c:'M4',n:'D',cc:'1115 -GERENCIA(FS)',tipo:'INDEFINIDO'},{c:'M5',n:'E',cc:'1113 -CONTROL(FS)',tipo:'PLAZO FIJO'}];
+  var cs=_empListaPicker().map(function(e){return e.c;});
+  var ok=cs.indexOf('M1')>=0 && cs.indexOf('M3')>=0 && cs.indexOf('M2')<0 && cs.indexOf('M4')<0 && cs.indexOf('M5')<0;
+  _tab=0; _EMP=[]; _EMP_EXCL=[];
+  return ok;
+});
+t('_empListaPicker no-vacaciones usa solo empleados', () => {
+  _tab=0; _EMP=[{c:'M1',n:'A',cc:'x',tipo:'X'}]; _EMP_EXCL=[{c:'M3',n:'C',cc:'y',tipo:'INDEFINIDO'}];
+  var list=_empListaPicker();
+  var ok=list.length===1 && list[0].c==='M1';
+  _EMP=[]; _EMP_EXCL=[];
+  return ok;
+});
 t('renderForm: boton gestionar responsables junto al autorizador', () => {
   _tab=0;
   _form={turno:'DIA',tipo:'PERSONAL',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO'},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5};

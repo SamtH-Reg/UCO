@@ -337,6 +337,7 @@ var _form = {
 
 // Cache de datos
 var _EMP = [];      // empleados
+var _EMP_EXCL = []; // empleados de unidades excluidas (para vacaciones)
 var _AUT = [];      // autorizadores (usuarios con rol != operario)
 var _CC = [];       // centros de costo
 var _SOLIC = [];    // solicitudes guardadas (para registros y cupos)
@@ -472,6 +473,12 @@ async function cargarDatosBase(){
   // Empleados activos
   var empRes=await d.from('empleados').select('codigo,nombre,centro_costo,contrato,turno').eq('activo',true).order('nombre');
   _EMP=(empRes.data||[]).map(function(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO'}; });
+  // Empleados de unidades excluidas (se usan en vacaciones para unidades 1110-1114)
+  _EMP_EXCL=[];
+  try{
+    var ueRes=await d.from('unidades_excluidas').select('codigo,nombre,centro_costo,contrato');
+    if(!ueRes.error){ _EMP_EXCL=(ueRes.data||[]).map(function(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO'}; }); }
+  }catch(e){ _EMP_EXCL=[]; }
   // Responsables (jefaturas directas) desde la tabla 'autorizadores'
   var autRes=await d.from('autorizadores').select('*').eq('activo',true).order('nombre');
   if(autRes.error && autRes.data===null){
@@ -1177,10 +1184,27 @@ function togglePick(key){
 }
 function closePick(){ _pickerType=null; document.querySelectorAll('.pick-pop').forEach(function(p){p.classList.add('hidden');}); }
 
-// Lista de empleados para el selector: en Vacaciones (tab 2) solo contrato INDEFINIDO
+// Unidad (4 dígitos) permitida para vacaciones desde unidades excluidas
+var _UNID_VAC = ['1110','1111','1112','1113','1114'];
+function _unidadVac(cc){
+  var m=String(cc||'').match(/(\d{4})/);
+  return !!m && _UNID_VAC.indexOf(m[1])>=0;
+}
+// Lista de empleados para el selector:
+//  - Vacaciones (tab 2): contrato INDEFINIDO de empleados, MÁS los de
+//    unidades excluidas (1110-1114) también INDEFINIDO.
 function _empListaPicker(){
   if(_tab===2){
-    return _EMP.filter(function(e){ return String(e.tipo||'').toUpperCase().indexOf('INDEFINID')>=0; });
+    var base=_EMP.filter(function(e){ return String(e.tipo||'').toUpperCase().indexOf('INDEFINID')>=0; });
+    var vistos={}; base.forEach(function(e){ vistos[String(e.c).toUpperCase()]=true; });
+    (_EMP_EXCL||[]).forEach(function(e){
+      var k=String(e.c).toUpperCase();
+      if(vistos[k]) return;
+      if(String(e.tipo||'').toUpperCase().indexOf('INDEFINID')<0) return;
+      if(!_unidadVac(e.cc)) return;
+      vistos[k]=true; base.push(e);
+    });
+    return base;
   }
   return _EMP;
 }
