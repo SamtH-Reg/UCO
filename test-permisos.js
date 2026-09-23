@@ -248,6 +248,13 @@ t('dirDeTab: sin carpeta de pestaña usa la predeterminada', () => {
 });
 t('guardarDocumentoLocal acepta handle por solicitud', () => guardarDocumentoLocal.length>=6);
 t('elegirCarpetaSolicitud definido', () => typeof elegirCarpetaSolicitud==='function');
+t('_iniciales: primeras letras del nombre', () => _iniciales('ALFREDO VILLARROEL')==='AV');
+t('editor responsables definido', () => typeof abrirEditorResponsables==='function' && typeof agregarResponsable==='function' && typeof quitarResponsable==='function');
+t('renderForm: boton gestionar responsables junto al autorizador', () => {
+  _tab=0;
+  _form={turno:'DIA',tipo:'PERSONAL',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO'},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5};
+  return renderForm().indexOf('abrirEditorResponsables()')>=0;
+});
 
 // selección de calendario (calClick con stubs minimalistas)
 // reprovisionar _form para tab 0

@@ -472,14 +472,19 @@ async function cargarDatosBase(){
   // Empleados activos
   var empRes=await d.from('empleados').select('codigo,nombre,centro_costo,contrato,turno').eq('activo',true).order('nombre');
   _EMP=(empRes.data||[]).map(function(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO'}; });
-  // Autorizadores: usuarios con rol no-operario (o rol gerente/supervisor)
-  var usrRes=await d.from('usuarios').select('id,nombre,rol').eq('activo',true).neq('rol','operario');
-  _AUT=(usrRes.data||[]).map(function(u){ return {c:(u.rol||'').slice(0,3).toUpperCase(),n:u.nombre,sub:rolSub(u.rol),id:u.id}; });
-  if(!_AUT.length) _AUT=[{c:'A001',n:'Patricia Soto',sub:'Jefa RRHH'}];
-  // Preseleccionar al usuario conectado como autorizador (personal administrativo)
-  if(!_form.aut && _sesion && _sesion.id){
-    var yo=_AUT.find(function(a){ return a.id===_sesion.id; });
-    if(!yo) yo=_AUT[0];
+  // Responsables (jefaturas directas) desde la tabla 'autorizadores'
+  var autRes=await d.from('autorizadores').select('*').eq('activo',true).order('nombre');
+  if(autRes.error && autRes.data===null){
+    // Tabla aún no creada: caer a usuarios con rol != operario
+    var usrRes=await d.from('usuarios').select('id,nombre,rol').eq('activo',true).neq('rol','operario');
+    _AUT=(usrRes.data||[]).map(function(u){ return {c:_iniciales(u.nombre),n:u.nombre,sub:'Jefatura directa',id:u.id}; });
+  } else {
+    _AUT=(autRes.data||[]).map(function(r){ return {c:_iniciales(r.nombre),n:r.nombre,sub:'Jefatura directa',id:r.id}; });
+  }
+  if(!_AUT.length) _AUT=[{c:'A001',n:'Patricia Soto',sub:'Jefa RRHH',id:null}];
+  // Preseleccionar al usuario conectado como autorizador
+  if(!_form.aut && _sesion && _sesion.nombre){
+    var yo=_AUT.find(function(a){ return a.n && String(a.n).toLowerCase()===String(_sesion.nombre).toLowerCase(); });
     if(yo) _form.aut={c:yo.c,n:yo.n,sub:yo.sub,id:yo.id};
   }
   // Centros de costo únicos
@@ -495,6 +500,57 @@ async function cargarDatosBase(){
   render();
 }
 function rolSub(rol){ return {admin:'Administrador',supervisor:'Supervisor',operario:'Operario'}[rol]||rol; }
+// Iniciales (código corto) para un responsable
+function _iniciales(n){ return String(n||'').split(/\s+/).filter(Boolean).map(function(w){return w[0];}).join('').toUpperCase().slice(0,4)||'AUT'; }
+
+// ═══════════════════════════════════════════════════════════════
+//  EDITOR DE RESPONSABLES (jefaturas directas)
+// ═══════════════════════════════════════════════════════════════
+function abrirEditorResponsables(){
+  var html='<div style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)cerrarEditorResponsables()">'+
+    '<div style="background:var(--surface);border-radius:16px;max-width:460px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.4)">'+
+    '<div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between"><b style="font-size:15px">Responsables (jefatura directa)</b><button style="border:none;background:var(--surface2);border-radius:8px;width:28px;height:28px;cursor:pointer" onclick="cerrarEditorResponsables()">✕</button></div>'+
+    '<div style="padding:8px 20px 16px">'+
+      '<div style="display:flex;gap:8px;margin:8px 0 12px">'+
+        '<input id="respNombre" type="text" placeholder="Nombre del responsable" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--surface2)" onkeydown="if(event.key===\'Enter\')agregarResponsable()">'+
+        '<button class="btn btn-primary btn-sm" onclick="agregarResponsable()">Agregar</button></div>'+
+      '<div id="respLista"></div>'+
+    '</div></div></div>';
+  var cont=document.createElement('div'); cont.id='respModalWrap'; cont.innerHTML=html;
+  document.body.appendChild(cont);
+  pintarListaResponsables();
+}
+function cerrarEditorResponsables(){ var el=document.getElementById('respModalWrap'); if(el) el.remove(); }
+function pintarListaResponsables(){
+  var el=document.getElementById('respLista'); if(!el) return;
+  if(!_AUT.length){ el.innerHTML='<div style="color:var(--hint);font-size:12.5px;padding:12px 0">Sin responsables.</div>'; return; }
+  el.innerHTML='<div style="display:flex;flex-direction:column;gap:6px">'+_AUT.map(function(a){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)">'+
+      '<span style="font-size:13px;font-weight:500">'+esc(a.n)+'</span>'+
+      (a.id?'<button class="btn btn-danger btn-sm" onclick="quitarResponsable(\''+esc(a.id)+'\')">🗑</button>':'')+
+      '</div>';
+  }).join('')+'</div>';
+}
+async function agregarResponsable(){
+  var inp=document.getElementById('respNombre'); if(!inp) return;
+  var n=inp.value.trim(); if(!n){ toast('Escribe un nombre','warn'); return; }
+  var d=await dbReady(); if(!d) return;
+  var res=await d.from('autorizadores').insert({nombre:n,activo:true});
+  if(res.error){ toast('Error: '+res.error.message,'error'); return; }
+  inp.value='';
+  await cargarDatosBase();
+  pintarListaResponsables();
+  toast('✅ Responsable agregado','success');
+}
+async function quitarResponsable(id){
+  if(!id) return;
+  var d=await dbReady(); if(!d) return;
+  var res=await d.from('autorizadores').update({activo:false}).eq('id',id);
+  if(res.error){ toast('Error: '+res.error.message,'error'); return; }
+  await cargarDatosBase();
+  pintarListaResponsables();
+  toast('🗑 Responsable quitado','success');
+}
 
 // Cuenta días hábiles (L-V, sin feriados chilenos) entre dos fechas YYYY-MM-DD
 function contarHabiles(inicio, fin){
@@ -952,7 +1008,9 @@ function renderForm(){
   };
 
   var empBtn=fieldBtn('emp','emp','Seleccionar empleado',f.emp, f.emp?f.emp.c+' · '+f.emp.tipo:'Busca por código o nombre','EMP',!!f.emp);
-  var autBtn=t===2?'':fieldBtn('aut','aut','Seleccionar autorizador',f.aut, f.aut?f.aut.sub:'Jefatura responsable','AUT',!!f.aut);
+  var autBtn=t===2?'':('<div style="display:flex;gap:8px;align-items:flex-start">'+
+    fieldBtn('aut','aut','Seleccionar autorizador',f.aut, f.aut?f.aut.sub:'Jefatura responsable','AUT',!!f.aut)+
+    '<button class="btn btn-ghost btn-sm" style="margin-top:4px" onclick="abrirEditorResponsables()" title="Gestionar responsables (agregar/quitar)">⚙</button></div>');
   // Centro de costo: se deriva automáticamente del empleado (no editable)
   var ccBtn=fieldStatic('Se completa al elegir el empleado', f.cc, f.cc?'Centro de costo':'Automático', !!f.cc);
 
