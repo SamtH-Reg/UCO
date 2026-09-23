@@ -524,19 +524,47 @@ function abrirEditorResponsables(){
   document.body.appendChild(cont);
   pintarListaResponsables();
 }
-function cerrarEditorResponsables(){ var el=document.getElementById('respModalWrap'); if(el) el.remove(); }
+function cerrarEditorResponsables(){ _respEditId=null; var el=document.getElementById('respModalWrap'); if(el) el.remove(); }
+var _respEditId=null;
 function pintarListaResponsables(){
   var el=document.getElementById('respLista'); if(!el) return;
   if(!_AUT.length){ el.innerHTML='<div style="color:var(--hint);font-size:12.5px;padding:12px 0">Sin responsables.</div>'; return; }
   el.innerHTML='<div style="display:flex;flex-direction:column;gap:6px">'+_AUT.map(function(a){
+    if(a.id && a.id===_respEditId){
+      var cargo=a.sub&&a.sub!=='Jefatura directa'?a.sub:'';
+      return '<div style="display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--accent);border-radius:10px;background:var(--surface2)">'+
+        '<input id="editRespNombre" type="text" value="'+_attr(a.n)+'" placeholder="Nombre" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:9px;font-size:13px;background:var(--surface)">'+
+        '<input id="editRespCargo" type="text" value="'+_attr(cargo)+'" placeholder="Cargo" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:9px;font-size:13px;background:var(--surface)">'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+          '<button class="btn btn-ghost btn-sm" onclick="cancelarEditarResponsable()">Cancelar</button>'+
+          '<button class="btn btn-primary btn-sm" onclick="guardarEdicionResponsable(\''+esc(a.id)+'\')">Guardar</button>'+
+        '</div></div>';
+    }
     return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)">'+
       '<div style="display:flex;flex-direction:column;min-width:0">'+
         '<span style="font-size:13px;font-weight:500">'+esc(a.n)+'</span>'+
         (a.sub?'<span style="font-size:11px;color:var(--hint)">'+esc(a.sub)+'</span>':'')+
       '</div>'+
-      (a.id?'<button class="btn btn-danger btn-sm" onclick="quitarResponsable(\''+esc(a.id)+'\')">🗑</button>':'')+
+      '<div style="display:flex;gap:6px;flex-shrink:0">'+
+        (a.id?'<button class="btn btn-ghost btn-sm" title="Editar" onclick="editarResponsable(\''+esc(a.id)+'\')">✏️</button>':'')+
+        (a.id?'<button class="btn btn-danger btn-sm" onclick="quitarResponsable(\''+esc(a.id)+'\')">🗑</button>':'')+
+      '</div>'+
       '</div>';
   }).join('')+'</div>';
+}
+function editarResponsable(id){ _respEditId=id; pintarListaResponsables(); }
+function cancelarEditarResponsable(){ _respEditId=null; pintarListaResponsables(); }
+async function guardarEdicionResponsable(id){
+  var nEl=document.getElementById('editRespNombre'), cEl=document.getElementById('editRespCargo');
+  var n=nEl?nEl.value.trim():''; if(!n){ toast('Escribe un nombre','warn'); return; }
+  var cargo=cEl?cEl.value.trim():'';
+  var d=await dbReady(); if(!d) return;
+  var res=await d.from('autorizadores').update({nombre:n,cargo:cargo||null}).eq('id',id);
+  if(res.error){ toast('Error: '+res.error.message,'error'); return; }
+  _respEditId=null;
+  await cargarDatosBase();
+  pintarListaResponsables();
+  toast('✅ Responsable actualizado','success');
 }
 async function agregarResponsable(){
   var inp=document.getElementById('respNombre'); if(!inp) return;

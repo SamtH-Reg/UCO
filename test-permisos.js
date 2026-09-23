@@ -250,6 +250,7 @@ t('guardarDocumentoLocal acepta handle por solicitud', () => guardarDocumentoLoc
 t('elegirCarpetaSolicitud definido', () => typeof elegirCarpetaSolicitud==='function');
 t('_iniciales: primeras letras del nombre', () => _iniciales('ALFREDO VILLARROEL')==='AV');
 t('editor responsables definido', () => typeof abrirEditorResponsables==='function' && typeof agregarResponsable==='function' && typeof quitarResponsable==='function');
+t('editar responsable definido', () => typeof editarResponsable==='function' && typeof guardarEdicionResponsable==='function' && typeof cancelarEditarResponsable==='function');
 t('renderForm: boton gestionar responsables junto al autorizador', () => {
   _tab=0;
   _form={turno:'DIA',tipo:'PERSONAL',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO'},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5};
