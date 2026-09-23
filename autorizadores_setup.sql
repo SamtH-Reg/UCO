@@ -10,9 +10,13 @@
 create table if not exists public.autorizadores (
   id         uuid primary key default gen_random_uuid(),
   nombre     text not null,
+  cargo      text,
   activo     boolean not null default true,
   created_at timestamptz not null default now()
 );
+
+-- Por si la tabla ya existía sin la columna 'cargo'
+alter table public.autorizadores add column if not exists cargo text;
 
 create index if not exists autorizadores_activo_idx on public.autorizadores (activo);
 

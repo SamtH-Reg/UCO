@@ -479,7 +479,7 @@ async function cargarDatosBase(){
     var usrRes=await d.from('usuarios').select('id,nombre,rol').eq('activo',true).neq('rol','operario');
     _AUT=(usrRes.data||[]).map(function(u){ return {c:_iniciales(u.nombre),n:u.nombre,sub:'Jefatura directa',id:u.id}; });
   } else {
-    _AUT=(autRes.data||[]).map(function(r){ return {c:_iniciales(r.nombre),n:r.nombre,sub:'Jefatura directa',id:r.id}; });
+    _AUT=(autRes.data||[]).map(function(r){ return {c:_iniciales(r.nombre),n:r.nombre,sub:r.cargo||'Jefatura directa',id:r.id}; });
   }
   if(!_AUT.length) _AUT=[{c:'A001',n:'Patricia Soto',sub:'Jefa RRHH',id:null}];
   // Preseleccionar al usuario conectado como autorizador
@@ -511,9 +511,13 @@ function abrirEditorResponsables(){
     '<div style="background:var(--surface);border-radius:16px;max-width:460px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.4)">'+
     '<div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between"><b style="font-size:15px">Responsables (jefatura directa)</b><button style="border:none;background:var(--surface2);border-radius:8px;width:28px;height:28px;cursor:pointer" onclick="cerrarEditorResponsables()">✕</button></div>'+
     '<div style="padding:8px 20px 16px">'+
-      '<div style="display:flex;gap:8px;margin:8px 0 12px">'+
-        '<input id="respNombre" type="text" placeholder="Nombre del responsable" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--surface2)" onkeydown="if(event.key===\'Enter\')agregarResponsable()">'+
-        '<button class="btn btn-primary btn-sm" onclick="agregarResponsable()">Agregar</button></div>'+
+      '<div style="display:flex;flex-direction:column;gap:8px;margin:8px 0 12px">'+
+        '<input id="respNombre" type="text" placeholder="Nombre del responsable" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--surface2)" onkeydown="if(event.key===\'Enter\')agregarResponsable()">'+
+        '<div style="display:flex;gap:8px">'+
+          '<input id="respCargo" type="text" placeholder="Cargo (ej: Jefe de Producción)" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--surface2)" onkeydown="if(event.key===\'Enter\')agregarResponsable()">'+
+          '<button class="btn btn-primary btn-sm" onclick="agregarResponsable()">Agregar</button>'+
+        '</div>'+
+      '</div>'+
       '<div id="respLista"></div>'+
     '</div></div></div>';
   var cont=document.createElement('div'); cont.id='respModalWrap'; cont.innerHTML=html;
@@ -526,18 +530,23 @@ function pintarListaResponsables(){
   if(!_AUT.length){ el.innerHTML='<div style="color:var(--hint);font-size:12.5px;padding:12px 0">Sin responsables.</div>'; return; }
   el.innerHTML='<div style="display:flex;flex-direction:column;gap:6px">'+_AUT.map(function(a){
     return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)">'+
-      '<span style="font-size:13px;font-weight:500">'+esc(a.n)+'</span>'+
+      '<div style="display:flex;flex-direction:column;min-width:0">'+
+        '<span style="font-size:13px;font-weight:500">'+esc(a.n)+'</span>'+
+        (a.sub?'<span style="font-size:11px;color:var(--hint)">'+esc(a.sub)+'</span>':'')+
+      '</div>'+
       (a.id?'<button class="btn btn-danger btn-sm" onclick="quitarResponsable(\''+esc(a.id)+'\')">🗑</button>':'')+
       '</div>';
   }).join('')+'</div>';
 }
 async function agregarResponsable(){
   var inp=document.getElementById('respNombre'); if(!inp) return;
+  var cargoEl=document.getElementById('respCargo');
   var n=inp.value.trim(); if(!n){ toast('Escribe un nombre','warn'); return; }
+  var cargo=cargoEl?cargoEl.value.trim():'';
   var d=await dbReady(); if(!d) return;
-  var res=await d.from('autorizadores').insert({nombre:n,activo:true});
+  var res=await d.from('autorizadores').insert({nombre:n,cargo:cargo||null,activo:true});
   if(res.error){ toast('Error: '+res.error.message,'error'); return; }
-  inp.value='';
+  inp.value=''; if(cargoEl) cargoEl.value='';
   await cargarDatosBase();
   pintarListaResponsables();
   toast('✅ Responsable agregado','success');
