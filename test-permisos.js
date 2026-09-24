@@ -253,6 +253,11 @@ t('editor responsables definido', () => typeof abrirEditorResponsables==='functi
 t('editar responsable definido', () => typeof editarResponsable==='function' && typeof guardarEdicionResponsable==='function' && typeof cancelarEditarResponsable==='function');
 t('_unidadVac: valida 1110-1114', () => _unidadVac('1110 -PRODUCCIÓN')===true && _unidadVac('1115 -OTRA')===false && _unidadVac('UN 1113')===true);
 t('_fetchAll definido', () => typeof _fetchAll==='function');
+t('_anosServicio: null sin fecha', () => _anosServicio(null)===null);
+t('_anosServicio: fecha futura -> 0', () => _anosServicio('2999-01-01')===0);
+t('_anosServicio: >=25 para 2000', () => _anosServicio('2000-01-01')>=25);
+t('_diasProgresivos Art.68', () => _diasProgresivos(9)===0 && _diasProgresivos(10)===1 && _diasProgresivos(13)===2 && _diasProgresivos(16)===3 && _diasProgresivos(19)===4 && _diasProgresivos(22)===5 && _diasProgresivos(30)===5);
+t('_diasFeriadoTotal base+prog', () => _diasFeriadoTotal(5)===15 && _diasFeriadoTotal(10)===16);
 t('cargarSolicitudes es async', () => cargarSolicitudes && cargarSolicitudes.constructor && cargarSolicitudes.constructor.name==='AsyncFunction');
 t('_empListaPicker vacaciones: +unidades excluidas 1110-1114 INDEFINIDO', () => {
   _tab=2;

@@ -477,13 +477,13 @@ async function cargarDatosBase(){
   var d=await dbReady();
   // Consultas base EN PARALELO
   var base=await Promise.all([
-    d.from('empleados').select('codigo,nombre,centro_costo,contrato,turno').eq('activo',true).order('nombre'),
-    d.from('unidades_excluidas').select('codigo,nombre,centro_costo,contrato'),
+    d.from('empleados').select('codigo,nombre,centro_costo,contrato,turno,fecha_ingreso').eq('activo',true).order('nombre'),
+    d.from('unidades_excluidas').select('codigo,nombre,centro_costo,contrato,fecha_ingreso'),
     d.from('autorizadores').select('*').eq('activo',true).order('nombre')
   ]);
   var empRes=base[0], ueRes=base[1], autRes=base[2];
-  _EMP=(empRes.data||[]).map(function(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO'}; });
-  _EMP_EXCL=(!ueRes.error&&ueRes.data)?ueRes.data.map(function(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO'}; }):[];
+  _EMP=(empRes.data||[]).map(function(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO',ing:e.fecha_ingreso||null}; });
+  _EMP_EXCL=(!ueRes.error&&ueRes.data)?ueRes.data.map(function(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO',ing:e.fecha_ingreso||null}; }):[];
   // Responsables (jefaturas directas) desde la tabla 'autorizadores'
   if(autRes.error && autRes.data===null){
     // Tabla aún no creada: caer a usuarios con rol != operario
@@ -598,6 +598,32 @@ async function quitarResponsable(id){
   toast('🗑 Responsable quitado','success');
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  FERIADO PROGRESIVO (Art. 68 Código del Trabajo de Chile)
+//  Base 15 días hábiles + 1 día adicional por cada 3 años de
+//  servicio a contar del año 10, con tope de 5 días adicionales.
+// ═══════════════════════════════════════════════════════════════
+var FERIADO_BASE=15, PROG_MAX=5, PROG_DESDE=10, PROG_CADA=3;
+// Años de servicio completos desde la fecha de ingreso (YYYY-MM-DD)
+function _anosServicio(fechaIngreso){
+  if(!fechaIngreso) return null;
+  var fi=new Date(String(fechaIngreso).slice(0,10)+'T12:00:00');
+  if(isNaN(fi.getTime())) return null;
+  var h=new Date();
+  var a=h.getFullYear()-fi.getFullYear();
+  var m=h.getMonth()-fi.getMonth();
+  if(m<0 || (m===0 && h.getDate()<fi.getDate())) a--;
+  return a<0?0:a;
+}
+// Días adicionales de feriado progresivo
+function _diasProgresivos(anos){
+  if(anos==null) return 0;
+  if(anos < PROG_DESDE) return 0;
+  return Math.min(PROG_MAX, Math.floor((anos-PROG_DESDE)/PROG_CADA)+1);
+}
+// Total de días hábiles de feriado (base + progresivo)
+function _diasFeriadoTotal(anos){ return FERIADO_BASE + _diasProgresivos(anos); }
+
 // Cuenta días hábiles (L-V, sin feriados chilenos) entre dos fechas YYYY-MM-DD
 function contarHabiles(inicio, fin){
   if(!inicio||!fin) return null;
@@ -646,7 +672,7 @@ async function cargarSolicitudes(){
     d.from('solicitudes_permiso').select('*').order('created_at',{ascending:false}).limit(1000),
     _fetchAll(d,'permisos','*'),
     d.from('vacaciones').select('*'),
-    _fetchAll(d,'empleados','codigo,centro_costo,turno')
+    _fetchAll(d,'empleados','codigo,centro_costo,turno,fecha_ingreso')
   ]);
   var res=out[0], permAll=(out[1]&&out[1].data)||[], vr=out[2], empAll=(out[3]&&out[3].data)||[];
 
@@ -702,13 +728,14 @@ async function cargarSolicitudes(){
 
   // 4) Completar centro de costo y turno desde empleados (TODOS, incluidos inactivos)
   var empMap={};
-  _EMP.forEach(function(e){ if(e.c) empMap[String(e.c).trim().toUpperCase()]={cc:e.cc, turno:e.turno}; });
-  empAll.forEach(function(e){ if(e.codigo){ var k=String(e.codigo).trim().toUpperCase(); if(!empMap[k]) empMap[k]={cc:e.centro_costo, turno:e.turno}; } });
+  _EMP.forEach(function(e){ if(e.c) empMap[String(e.c).trim().toUpperCase()]={cc:e.cc, turno:e.turno, ing:e.ing||null}; });
+  empAll.forEach(function(e){ if(e.codigo){ var k=String(e.codigo).trim().toUpperCase(); if(!empMap[k]) empMap[k]={cc:e.centro_costo, turno:e.turno, ing:e.fecha_ingreso||null}; } });
   todo.forEach(function(s){
     var k=String(s.codigo||'').trim().toUpperCase();
     if(k && empMap[k]){
       if(!s.centro_costo) s.centro_costo=empMap[k].cc||null;
       if(!s.turno) s.turno=empMap[k].turno||null;
+      if(!s.fecha_ingreso) s.fecha_ingreso=empMap[k].ing||null;
     }
   });
 
@@ -1090,6 +1117,24 @@ function renderForm(){
   var vacBox='';
   if(t===2){
     var end=vacEnd(f.start,f.dias);
+    var fInfo='';
+    if(f.emp){
+      var anos=_anosServicio(f.emp.ing);
+      if(anos!=null){
+        var prog=_diasProgresivos(anos), tot=_diasFeriadoTotal(anos);
+        var rowF=function(l,v,hl){ return '<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">'+l+'</span><span style="'+(hl?'font-weight:700;color:var(--accent)':'font-weight:600')+'">'+v+'</span></div>'; };
+        fInfo='<div class="card"><div class="card-h">Feriado legal · Art. 68</div>'+
+          rowF('Fecha de ingreso', esc(fmt(f.emp.ing)))+
+          rowF('Años de servicio', anos)+
+          rowF('Feriado base', FERIADO_BASE+' días')+
+          rowF('Días progresivos', '+'+prog+' días')+
+          rowF('Total anual', tot+' días hábiles', true)+
+          '<div style="font-size:11px;color:var(--hint);margin-top:8px">1 día adicional por cada '+PROG_CADA+' años de servicio desde el año '+PROG_DESDE+' (tope '+PROG_MAX+').</div>'+
+          '</div>';
+      } else {
+        fInfo='<div class="notice">Sin fecha de ingreso registrada: no se puede calcular el feriado progresivo.</div>';
+      }
+    }
     vacBox='<div class="card"><div class="card-h">Días de vacaciones</div>'+
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px"><span style="font-size:13.5px;color:var(--muted)">Días hábiles solicitados</span>'+
       '<div style="display:flex;align-items:center;gap:4px;background:var(--surface3);border-radius:12px;padding:4px">'+
@@ -1098,6 +1143,7 @@ function renderForm(){
         '<button class="btn-ghost" style="width:32px;height:32px;padding:0;border-radius:9px" onclick="_form.dias=Math.min(30,_form.dias+1);render()">+</button>'+
       '</div></div>'+
       '<div style="font-size:11.5px;color:var(--hint);line-height:1.55;margin-top:12px">Lunes a viernes, sin feriados chilenos. El día de inicio cuenta como día 1.</div></div>'+
+      fInfo+
       '<div style="background:#17171A;color:#fff;border-radius:16px;padding:20px 22px">'+
         '<div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#8E8E98;margin-bottom:14px">Resumen de vacaciones</div>'+
         resRow('Inicio (día 1)',f.start?fmt(f.start):'—')+resRow('Días hábiles',f.dias+' días')+
@@ -1251,7 +1297,7 @@ function pickChooseKey(i){ var src=_pickSrc; pickChooseFrom(src,i); }
 function pickChooseFrom(src,i){
   var it=src[i]; if(!it) return;
   if(_pickerType==='emp'){
-    _form.emp={c:it.c,n:it.n,tipo:it.tipo||'INDEFINIDO'};
+    _form.emp={c:it.c,n:it.n,tipo:it.tipo||'INDEFINIDO',ing:it.ing||null};
     // Centro de costo automático desde el empleado
     var cc=null;
     if(it.cc){
