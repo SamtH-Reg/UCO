@@ -477,13 +477,14 @@ async function cargarDatosBase(){
   var d=await dbReady();
   // Consultas base EN PARALELO
   var base=await Promise.all([
-    d.from('empleados').select('codigo,nombre,centro_costo,contrato,turno,fecha_ingreso').eq('activo',true).order('nombre'),
-    d.from('unidades_excluidas').select('codigo,nombre,centro_costo,contrato,fecha_ingreso'),
+    d.from('empleados').select('codigo,nombre,centro_costo,contrato,turno,fecha_ingreso,dias_progresivos,dias_sindicales').eq('activo',true).order('nombre'),
+    d.from('unidades_excluidas').select('codigo,nombre,centro_costo,contrato,fecha_ingreso,dias_progresivos,dias_sindicales'),
     d.from('autorizadores').select('*').eq('activo',true).order('nombre')
   ]);
   var empRes=base[0], ueRes=base[1], autRes=base[2];
-  _EMP=(empRes.data||[]).map(function(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO',ing:e.fecha_ingreso||null}; });
-  _EMP_EXCL=(!ueRes.error&&ueRes.data)?ueRes.data.map(function(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO',ing:e.fecha_ingreso||null}; }):[];
+  function _mapEmp(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO',ing:e.fecha_ingreso||null,progOverride:(e.dias_progresivos!=null?e.dias_progresivos:null),sindOverride:(e.dias_sindicales!=null?e.dias_sindicales:null)}; }
+  _EMP=(empRes.data||[]).map(_mapEmp);
+  _EMP_EXCL=(!ueRes.error&&ueRes.data)?ueRes.data.map(_mapEmp):[];
   // Responsables (jefaturas directas) desde la tabla 'autorizadores'
   if(autRes.error && autRes.data===null){
     // Tabla aún no creada: caer a usuarios con rol != operario
@@ -603,7 +604,9 @@ async function quitarResponsable(id){
 //  Base 15 días hábiles + 1 día adicional por cada 3 años de
 //  servicio a contar del año 10, con tope de 5 días adicionales.
 // ═══════════════════════════════════════════════════════════════
-var FERIADO_BASE=15, PROG_MAX=5, PROG_DESDE=10, PROG_CADA=3;
+// Base: 15 días hábiles general. En Aysén, Magallanes y provincia de Palena
+// la Ley 20.058 (inciso 2º Art. 67) fija 20 días hábiles.
+var FERIADO_BASE=20, PROG_MAX=5, PROG_DESDE=10, PROG_CADA=3, DIAS_SINDICALES=5;
 // Años de servicio completos desde la fecha de ingreso (YYYY-MM-DD)
 function _anosServicio(fechaIngreso){
   if(!fechaIngreso) return null;
@@ -621,8 +624,58 @@ function _diasProgresivos(anos){
   if(anos < PROG_DESDE) return 0;
   return Math.min(PROG_MAX, Math.floor((anos-PROG_DESDE)/PROG_CADA)+1);
 }
-// Total de días hábiles de feriado (base + progresivo)
-function _diasFeriadoTotal(anos){ return FERIADO_BASE + _diasProgresivos(anos); }
+// Total de días hábiles de feriado (base + progresivo + sindicales)
+function _diasFeriadoTotal(anos){ return FERIADO_BASE + _diasProgresivos(anos) + DIAS_SINDICALES; }
+
+// Asignación de días de un empleado (con valores negociados si existen)
+function _asignacionDias(emp, anos){
+  var prog=(emp && emp.progOverride!=null)?emp.progOverride:_diasProgresivos(anos);
+  var sind=(emp && emp.sindOverride!=null)?emp.sindOverride:DIAS_SINDICALES;
+  return {base:FERIADO_BASE, prog:prog, sind:sind};
+}
+// Días usados de un empleado por bolsa, según las vacaciones registradas
+function _usoDias(codigo, excluirId){
+  var u={base:0,prog:0,sind:0};
+  var k=String(codigo||'').trim().toUpperCase();
+  (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
+    if(s.tipo!=='VACACIONES') return;
+    if(s.id && excluirId && s.id===excluirId) return;
+    if(String(s.codigo||'').trim().toUpperCase()!==k) return;
+    var est=String(s.estado||'').toUpperCase();
+    if(est==='RECHAZADO'||est==='ANULADO') return;
+    var d=parseFloat(s.dias_habiles||0)||0;
+    var td=String(s.tipo_dias||'BASE').toUpperCase();
+    if(td==='PROGRESIVO'||td==='PROG') u.prog+=d;
+    else if(td==='SINDICAL'||td==='SIND') u.sind+=d;
+    else u.base+=d;
+  });
+  return u;
+}
+// Tabla donde vive un empleado (empleados vs unidades_excluidas)
+function _tablaEmpleado(cod){
+  var k=String(cod||'').trim().toUpperCase();
+  if(_EMP.some(function(e){return String(e.c||'').trim().toUpperCase()===k;})) return 'empleados';
+  if((_EMP_EXCL||[]).some(function(e){return String(e.c||'').trim().toUpperCase()===k;})) return 'unidades_excluidas';
+  return 'empleados';
+}
+// Guarda un valor negociable (días progresivos/sindicales) para un empleado
+async function setDiasEmpleado(cod, campo, val){
+  var d=await dbReady(); if(!d) return;
+  var tabla=_tablaEmpleado(cod);
+  var num=(val===''||val==null)?null:Math.max(0,parseInt(val,10)||0);
+  var upd={}; upd[campo]=num;
+  var res=await d.from(tabla).update(upd).eq('codigo',cod);
+  if(res.error){ toast('Error: '+res.error.message,'error'); return; }
+  var k=String(cod).trim().toUpperCase();
+  var arr=(tabla==='empleados')?_EMP:_EMP_EXCL;
+  arr.forEach(function(e){ if(String(e.c||'').trim().toUpperCase()!==k) return; if(campo==='dias_progresivos') e.progOverride=num; else e.sindOverride=num; });
+  if(_form && _form.emp && String(_form.emp.c).trim().toUpperCase()===k){ if(campo==='dias_progresivos') _form.emp.progOverride=num; else _form.emp.sindOverride=num; }
+  toast('✅ Días actualizados','success');
+  render();
+}
+function segBtnDias(val,lbl,on,disp){
+  return '<button class="'+(on?'on':'')+'" onclick="_form.tipoDias=\''+val+'\';render()">'+lbl+(disp!=null?' ('+disp+')':'')+'</button>';
+}
 
 // Cuenta días hábiles (L-V, sin feriados chilenos) entre dos fechas YYYY-MM-DD
 function contarHabiles(inicio, fin){
@@ -1069,7 +1122,7 @@ function imprimirDocumento(){
 // ── FORMULARIO ───────────────────────────────────────────────
 function resetForm(){
   var autPrev=_form? _form.aut : null;   // conservar autorizador preseleccionado al cambiar de tab
-  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5};
+  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5,tipoDias:'BASE',maxDias:null};
   if(autPrev) _form.aut=autPrev;
 }
 
@@ -1116,33 +1169,52 @@ function renderForm(){
   }
   var vacBox='';
   if(t===2){
-    var end=vacEnd(f.start,f.dias);
-    var fInfo='';
+    var maxDisp=null, fInfo='';
     if(f.emp){
       var anos=_anosServicio(f.emp.ing);
       if(anos!=null){
-        var prog=_diasProgresivos(anos), tot=_diasFeriadoTotal(anos);
-        var rowF=function(l,v,hl){ return '<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">'+l+'</span><span style="'+(hl?'font-weight:700;color:var(--accent)':'font-weight:600')+'">'+v+'</span></div>'; };
-        fInfo='<div class="card"><div class="card-h">Feriado legal · Art. 68</div>'+
-          rowF('Fecha de ingreso', esc(fmt(f.emp.ing)))+
-          rowF('Años de servicio', anos)+
-          rowF('Feriado base', FERIADO_BASE+' días')+
-          rowF('Días progresivos', '+'+prog+' días')+
-          rowF('Total anual', tot+' días hábiles', true)+
-          '<div style="font-size:11px;color:var(--hint);margin-top:8px">1 día adicional por cada '+PROG_CADA+' años de servicio desde el año '+PROG_DESDE+' (tope '+PROG_MAX+').</div>'+
+        var asig=_asignacionDias(f.emp,anos);
+        var uso=_usoDias(f.emp.c);
+        var dBase=asig.base-uso.base, dProg=asig.prog-uso.prog, dSind=asig.sind-uso.sind;
+        var totAsig=asig.base+asig.prog+asig.sind, totUso=uso.base+uso.prog+uso.sind, totDisp=totAsig-totUso;
+        maxDisp=(f.tipoDias==='PROGRESIVO')?dProg:(f.tipoDias==='SINDICAL'?dSind:dBase);
+        if(maxDisp<0) maxDisp=0;
+        var inp='width:54px;text-align:center;padding:4px 2px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface2)';
+        var th='text-align:right;font-size:10px;color:var(--hint);font-weight:700;padding:4px;text-transform:uppercase;letter-spacing:.4px';
+        var td='text-align:right;font-size:13px;padding:5px 4px;font-variant-numeric:tabular-nums';
+        var tdL='font-size:13px;padding:5px 4px';
+        fInfo='<div class="card"><div class="card-h">Feriado · saldos</div>'+
+          '<div style="font-size:11.5px;color:var(--hint);margin-bottom:8px">Ingreso '+esc(fmt(f.emp.ing))+' · '+anos+' años de servicio</div>'+
+          '<table style="width:100%;border-collapse:collapse">'+
+            '<thead><tr><th style="text-align:left;'+th+'">Concepto</th><th style="'+th+'">Asign.</th><th style="'+th+'">Usado</th><th style="'+th+'">Disp.</th></tr></thead><tbody>'+
+            '<tr><td style="'+tdL+'">Base (Aysén)</td><td style="'+td+'">'+asig.base+'</td><td style="'+td+'">'+uso.base+'</td><td style="'+td+';font-weight:700">'+dBase+'</td></tr>'+
+            '<tr><td style="'+tdL+'">Progresivo</td><td style="'+td+'"><input type="number" min="0" value="'+asig.prog+'" style="'+inp+'" onchange="setDiasEmpleado(\''+esc(f.emp.c)+'\',\'dias_progresivos\',this.value)"></td><td style="'+td+'">'+uso.prog+'</td><td style="'+td+';font-weight:700">'+dProg+'</td></tr>'+
+            '<tr><td style="'+tdL+'">Sindicales</td><td style="'+td+'"><input type="number" min="0" value="'+asig.sind+'" style="'+inp+'" onchange="setDiasEmpleado(\''+esc(f.emp.c)+'\',\'dias_sindicales\',this.value)"></td><td style="'+td+'">'+uso.sind+'</td><td style="'+td+';font-weight:700">'+dSind+'</td></tr>'+
+            '<tr style="border-top:1px solid var(--border)"><td style="'+tdL+';font-weight:700">Total</td><td style="'+td+';font-weight:700">'+totAsig+'</td><td style="'+td+';font-weight:700">'+totUso+'</td><td style="'+td+';font-weight:700;color:var(--accent)">'+totDisp+'</td></tr>'+
+          '</tbody></table>'+
+          '<div style="margin-top:12px"><div class="field-lbl" style="margin-bottom:6px">Descontar de</div><div class="seg">'+
+            segBtnDias('BASE','Base',f.tipoDias==='BASE',dBase)+
+            segBtnDias('PROGRESIVO','Progresivo',f.tipoDias==='PROGRESIVO',dProg)+
+            segBtnDias('SINDICAL','Sindicales',f.tipoDias==='SINDICAL',dSind)+
+          '</div></div>'+
+          '<div style="font-size:11px;color:var(--hint);margin-top:8px">Progresivos y sindicales son editables (negociables). Se descuentan del disponible al enviar la solicitud.</div>'+
           '</div>';
       } else {
-        fInfo='<div class="notice">Sin fecha de ingreso registrada: no se puede calcular el feriado progresivo.</div>';
+        fInfo='<div class="notice">Sin fecha de ingreso registrada: no se puede calcular el saldo.</div>';
       }
     }
+    if(maxDisp!=null && f.dias>maxDisp) f.dias=maxDisp;
+    f.maxDias=maxDisp;
+    var end=vacEnd(f.start,f.dias);
     vacBox='<div class="card"><div class="card-h">Días de vacaciones</div>'+
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px"><span style="font-size:13.5px;color:var(--muted)">Días hábiles solicitados</span>'+
       '<div style="display:flex;align-items:center;gap:4px;background:var(--surface3);border-radius:12px;padding:4px">'+
         '<button class="btn-ghost" style="width:32px;height:32px;padding:0;border-radius:9px" onclick="_form.dias=Math.max(0,_form.dias-1);render()">−</button>'+
         '<div style="min-width:38px;text-align:center;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">'+f.dias+'</div>'+
-        '<button class="btn-ghost" style="width:32px;height:32px;padding:0;border-radius:9px" onclick="_form.dias=Math.min(30,_form.dias+1);render()">+</button>'+
+        '<button class="btn-ghost" style="width:32px;height:32px;padding:0;border-radius:9px" onclick="_form.dias=Math.max(0,Math.min((_form.maxDias!=null?_form.maxDias:30),(_form.dias||0)+1));render()">+</button>'+
       '</div></div>'+
-      '<div style="font-size:11.5px;color:var(--hint);line-height:1.55;margin-top:12px">Lunes a viernes, sin feriados chilenos. El día de inicio cuenta como día 1.</div></div>'+
+      (maxDisp!=null?'<div style="font-size:11.5px;color:var(--hint);line-height:1.55;margin-top:8px">Disponible de '+(f.tipoDias==='PROGRESIVO'?'progresivos':(f.tipoDias==='SINDICAL'?'sindicales':'base'))+': <b style="color:var(--accent)">'+maxDisp+' días</b>.</div>':'')+
+      '<div style="font-size:11.5px;color:var(--hint);line-height:1.55;margin-top:8px">Lunes a viernes, sin feriados chilenos. El día de inicio cuenta como día 1.</div></div>'+
       fInfo+
       '<div style="background:#17171A;color:#fff;border-radius:16px;padding:20px 22px">'+
         '<div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#8E8E98;margin-bottom:14px">Resumen de vacaciones</div>'+
@@ -1297,7 +1369,8 @@ function pickChooseKey(i){ var src=_pickSrc; pickChooseFrom(src,i); }
 function pickChooseFrom(src,i){
   var it=src[i]; if(!it) return;
   if(_pickerType==='emp'){
-    _form.emp={c:it.c,n:it.n,tipo:it.tipo||'INDEFINIDO',ing:it.ing||null};
+    _form.emp={c:it.c,n:it.n,tipo:it.tipo||'INDEFINIDO',ing:it.ing||null,progOverride:(it.progOverride!=null?it.progOverride:null),sindOverride:(it.sindOverride!=null?it.sindOverride:null)};
+    if(_tab===2) _form.tipoDias='BASE';
     // Centro de costo automático desde el empleado
     var cc=null;
     if(it.cc){
@@ -1458,6 +1531,7 @@ async function submitForm(){
     inicio:t===2?f.start:(f.dates[0]||null),
     termino:t===2?vacEnd(f.start,f.dias):(f.dates.length>1?f.dates[f.dates.length-1]:null),
     dias_habiles:t===2?f.dias:null,
+    tipo_dias:t===2?(f.tipoDias||'BASE'):null,
     tipo_regreso:t===1?f.reg:null,
     hora_salida:t===1?f.hs:null,
     hora_ingreso:t===1?((f.reg==='SIN')?null:f.hi):null,

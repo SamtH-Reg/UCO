@@ -257,7 +257,32 @@ t('_anosServicio: null sin fecha', () => _anosServicio(null)===null);
 t('_anosServicio: fecha futura -> 0', () => _anosServicio('2999-01-01')===0);
 t('_anosServicio: >=25 para 2000', () => _anosServicio('2000-01-01')>=25);
 t('_diasProgresivos Art.68', () => _diasProgresivos(9)===0 && _diasProgresivos(10)===1 && _diasProgresivos(13)===2 && _diasProgresivos(16)===3 && _diasProgresivos(19)===4 && _diasProgresivos(22)===5 && _diasProgresivos(30)===5);
-t('_diasFeriadoTotal base+prog', () => _diasFeriadoTotal(5)===15 && _diasFeriadoTotal(10)===16);
+t('_diasFeriadoTotal base(20 Aysén)+prog+sindicales(5)', () => _diasFeriadoTotal(5)===25 && _diasFeriadoTotal(10)===26 && _diasFeriadoTotal(22)===30);
+t('DIAS_SINDICALES = 5', () => DIAS_SINDICALES===5);
+t('_asignacionDias: usa overrides si existen', () => { var a=_asignacionDias({progOverride:7,sindOverride:3},16); return a.base===20&&a.prog===7&&a.sind===3; });
+t('_asignacionDias: sin overrides usa ley/referencia', () => { var a=_asignacionDias({},16); return a.base===20&&a.prog===_diasProgresivos(16)&&a.sind===5; });
+t('_usoDias: suma por bolsa según tipo_dias', () => {
+  _SOLIC=[
+    {tipo:'VACACIONES',codigo:'M1',dias_habiles:3,tipo_dias:'BASE',estado:'APROBADO'},
+    {tipo:'VACACIONES',codigo:'M1',dias_habiles:2,tipo_dias:'PROGRESIVO',estado:'APROBADO'},
+    {tipo:'VACACIONES',codigo:'M1',dias_habiles:1,tipo_dias:'SINDICAL',estado:'APROBADO'},
+    {tipo:'VACACIONES',codigo:'M1',dias_habiles:9,tipo_dias:'BASE',estado:'ANULADO'},
+    {tipo:'COMPLETO',codigo:'M1',dias_habiles:5,tipo_dias:'BASE'}
+  ];
+  var u=_usoDias('M1');
+  var ok=u.base===3&&u.prog===2&&u.sind===1;
+  _SOLIC=[];
+  return ok;
+});
+t('setDiasEmpleado/segBtnDias definidos', () => typeof setDiasEmpleado==='function' && typeof segBtnDias==='function');
+t('renderForm Vacaciones: muestra saldos y selector de bolsa', () => {
+  _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _SOLIC=[];
+  _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:'2026-09-01',dias:5,tipoDias:'BASE',maxDias:null};
+  var h=renderForm();
+  var ok=h.indexOf('Descontar de')>=0 && h.indexOf('Feriado · saldos')>=0 && h.indexOf('dias_progresivos')>=0;
+  _tab=0; _form={tipoDias:'BASE'};
+  return ok;
+});
 t('cargarSolicitudes es async', () => cargarSolicitudes && cargarSolicitudes.constructor && cargarSolicitudes.constructor.name==='AsyncFunction');
 t('_empListaPicker vacaciones: +unidades excluidas 1110-1114 INDEFINIDO', () => {
   _tab=2;
