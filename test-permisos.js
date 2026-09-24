@@ -291,7 +291,7 @@ t('renderForm Vacaciones: interfaz compacta con steppers y editar', () => {
   _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _SOLIC=[];
   _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:'2026-09-01',dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
   var h=renderForm();
-  var ok=h.indexOf('Total solicitado')>=0 && h.indexOf('_setTomar')>=0 && h.indexOf('editarAsignado')>=0 && h.indexOf('Disponible')>=0;
+  var ok=h.indexOf('Total solicitado')>=0 && h.indexOf('_setTomar')>=0 && h.indexOf('editarAsignado')>=0 && h.indexOf('Disponible')>=0 && h.indexOf('Última vacaciones')>=0 && h.indexOf('Fecha de ingreso')>=0;
   _tab=0; _form={tipoDias:'BASE'};
   return ok;
 });
@@ -302,6 +302,16 @@ t('calClick vacaciones: bloquea fin de semana', () => {
   calClick('2026-09-02');            // miércoles
   ok=ok && _form.start==='2026-09-02';
   _tab=0; return ok;
+});
+t('_ultimaVacacion: máximo término/inicio (ignora anuladas)', () => {
+  _SOLIC=[
+    {tipo:'VACACIONES',codigo:'M1',inicio:'2026-03-01',termino:'2026-03-10',estado:'APROBADO'},
+    {tipo:'VACACIONES',codigo:'M1',inicio:'2026-06-01',termino:'2026-06-05',estado:'APROBADO'},
+    {tipo:'VACACIONES',codigo:'M1',inicio:'2026-09-01',termino:'2026-09-02',estado:'ANULADO'}
+  ];
+  var ok=_ultimaVacacion('M1')==='2026-06-05';
+  _SOLIC=[];
+  return ok;
 });
 t('_tomarTodo: llena todas las bolsas', () => {
   _tab=2; _SOLIC=[];

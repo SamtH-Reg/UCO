@@ -660,6 +660,19 @@ function _usoDias(codigo, excluirId, anio){
   });
   return u;
 }
+// Fecha de la última vacación registrada de un trabajador (YYYY-MM-DD o null)
+function _ultimaVacacion(codigo){
+  var k=String(codigo||'').trim().toUpperCase(), last=null;
+  (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
+    if(s.tipo!=='VACACIONES') return;
+    if(String(s.codigo||'').trim().toUpperCase()!==k) return;
+    var est=String(s.estado||'').toUpperCase();
+    if(est==='RECHAZADO'||est==='ANULADO') return;
+    var d=String(s.termino||s.inicio||'').slice(0,10);
+    if(d && (!last || d>last)) last=d;
+  });
+  return last;
+}
 // Tabla donde vive un empleado (empleados vs unidades_excluidas)
 function _tablaEmpleado(cod){
   var k=String(cod||'').trim().toUpperCase();
@@ -1258,8 +1271,20 @@ function renderForm(){
         fInfo='<div class="notice">Sin fecha de ingreso registrada: no se puede calcular el saldo.</div>';
       }
     }
+    var perfil='';
+    if(f.emp){
+      var ult=_ultimaVacacion(f.emp.c);
+      var filaP=function(l,v){ return '<div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:4px 0"><span style="color:var(--hint)">'+l+'</span><span style="font-weight:600;text-align:right">'+v+'</span></div>'; };
+      perfil='<div class="card" style="background:var(--accent-soft);border-color:transparent">'+
+        '<div style="font-size:14px;font-weight:700;letter-spacing:-.2px">'+esc(f.emp.n)+'</div>'+
+        '<div style="font-size:11.5px;color:var(--hint);margin-bottom:8px">'+esc(f.emp.c)+' · '+esc(f.emp.tipo||'')+'</div>'+
+        filaP('Años de servicio', anos!=null?anos:'—')+
+        filaP('Fecha de ingreso', f.emp.ing?esc(fmt(f.emp.ing)):'—')+
+        filaP('Última vacaciones', ult?esc(fmt(ult)):'Sin registros')+
+        '</div>';
+    }
     var end=vacEnd(f.start,f.dias);
-    vacBox='<div class="card">'+
+    vacBox=perfil+'<div class="card">'+
       '<div class="card-h" style="display:flex;justify-content:space-between;align-items:baseline"><span>Días de vacaciones</span>'+
         '<span style="font-size:11px;color:var(--hint);text-transform:none;font-weight:400">Año '+anioSaldo+(f.emp&&f.emp.ing?' · '+_anosServicio(f.emp.ing)+' años de servicio':'')+'</span></div>'+
       fInfo+
