@@ -477,12 +477,12 @@ async function cargarDatosBase(){
   var d=await dbReady();
   // Consultas base EN PARALELO
   var base=await Promise.all([
-    d.from('empleados').select('codigo,nombre,centro_costo,contrato,turno,fecha_ingreso,dias_progresivos,dias_sindicales').eq('activo',true).order('nombre'),
-    d.from('unidades_excluidas').select('codigo,nombre,centro_costo,contrato,fecha_ingreso,dias_progresivos,dias_sindicales'),
+    d.from('empleados').select('codigo,nombre,centro_costo,contrato,turno,fecha_ingreso,dias_base,dias_progresivos,dias_sindicales').eq('activo',true).order('nombre'),
+    d.from('unidades_excluidas').select('codigo,nombre,centro_costo,contrato,fecha_ingreso,dias_base,dias_progresivos,dias_sindicales'),
     d.from('autorizadores').select('*').eq('activo',true).order('nombre')
   ]);
   var empRes=base[0], ueRes=base[1], autRes=base[2];
-  function _mapEmp(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO',ing:e.fecha_ingreso||null,progOverride:(e.dias_progresivos!=null?e.dias_progresivos:null),sindOverride:(e.dias_sindicales!=null?e.dias_sindicales:null)}; }
+  function _mapEmp(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO',ing:e.fecha_ingreso||null,baseOverride:(e.dias_base!=null?e.dias_base:null),progOverride:(e.dias_progresivos!=null?e.dias_progresivos:null),sindOverride:(e.dias_sindicales!=null?e.dias_sindicales:null)}; }
   _EMP=(empRes.data||[]).map(_mapEmp);
   _EMP_EXCL=(!ueRes.error&&ueRes.data)?ueRes.data.map(_mapEmp):[];
   // Responsables (jefaturas directas) desde la tabla 'autorizadores'
@@ -629,25 +629,34 @@ function _diasFeriadoTotal(anos){ return FERIADO_BASE + _diasProgresivos(anos) +
 
 // Asignación de días de un empleado (con valores negociados si existen)
 function _asignacionDias(emp, anos){
+  var base=(emp && emp.baseOverride!=null)?emp.baseOverride:FERIADO_BASE;
   var prog=(emp && emp.progOverride!=null)?emp.progOverride:_diasProgresivos(anos);
   var sind=(emp && emp.sindOverride!=null)?emp.sindOverride:DIAS_SINDICALES;
-  return {base:FERIADO_BASE, prog:prog, sind:sind};
+  return {base:base, prog:prog, sind:sind};
 }
 // Días usados de un empleado por bolsa, según las vacaciones registradas
-function _usoDias(codigo, excluirId){
+function _usoDias(codigo, excluirId, anio){
+  anio=String(anio||new Date().getFullYear());
   var u={base:0,prog:0,sind:0};
   var k=String(codigo||'').trim().toUpperCase();
   (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
     if(s.tipo!=='VACACIONES') return;
     if(s.id && excluirId && s.id===excluirId) return;
     if(String(s.codigo||'').trim().toUpperCase()!==k) return;
+    if(String(s.inicio||'').slice(0,4)!==anio) return;   // solo el año en curso
     var est=String(s.estado||'').toUpperCase();
     if(est==='RECHAZADO'||est==='ANULADO') return;
-    var d=parseFloat(s.dias_habiles||0)||0;
-    var td=String(s.tipo_dias||'BASE').toUpperCase();
-    if(td==='PROGRESIVO'||td==='PROG') u.prog+=d;
-    else if(td==='SINDICAL'||td==='SIND') u.sind+=d;
-    else u.base+=d;
+    if(s.dias_base!=null || s.dias_progresivo!=null || s.dias_sindical!=null){
+      u.base+=parseFloat(s.dias_base||0)||0;
+      u.prog+=parseFloat(s.dias_progresivo||0)||0;
+      u.sind+=parseFloat(s.dias_sindical||0)||0;
+    } else {
+      var d=parseFloat(s.dias_habiles||0)||0;
+      var td=String(s.tipo_dias||'BASE').toUpperCase();
+      if(td==='PROGRESIVO'||td==='PROG') u.prog+=d;
+      else if(td==='SINDICAL'||td==='SIND') u.sind+=d;
+      else u.base+=d;
+    }
   });
   return u;
 }
@@ -659,6 +668,7 @@ function _tablaEmpleado(cod){
   return 'empleados';
 }
 // Guarda un valor negociable (días progresivos/sindicales) para un empleado
+function _campoOverrideKey(campo){ return campo==='dias_base'?'baseOverride':(campo==='dias_progresivos'?'progOverride':'sindOverride'); }
 async function setDiasEmpleado(cod, campo, val){
   var d=await dbReady(); if(!d) return;
   var tabla=_tablaEmpleado(cod);
@@ -667,11 +677,71 @@ async function setDiasEmpleado(cod, campo, val){
   var res=await d.from(tabla).update(upd).eq('codigo',cod);
   if(res.error){ toast('Error: '+res.error.message,'error'); return; }
   var k=String(cod).trim().toUpperCase();
+  var key=_campoOverrideKey(campo);
   var arr=(tabla==='empleados')?_EMP:_EMP_EXCL;
-  arr.forEach(function(e){ if(String(e.c||'').trim().toUpperCase()!==k) return; if(campo==='dias_progresivos') e.progOverride=num; else e.sindOverride=num; });
-  if(_form && _form.emp && String(_form.emp.c).trim().toUpperCase()===k){ if(campo==='dias_progresivos') _form.emp.progOverride=num; else _form.emp.sindOverride=num; }
+  arr.forEach(function(e){ if(String(e.c||'').trim().toUpperCase()!==k) return; e[key]=num; });
+  if(_form && _form.emp && String(_form.emp.c).trim().toUpperCase()===k) _form.emp[key]=num;
   toast('✅ Días actualizados','success');
+  _recalcTomar();
   render();
+}
+// Reparte/valida los días a tomar según el disponible por bolsa
+function _dispPorBolsa(){
+  if(!_form.emp) return null;
+  var anos=_anosServicio(_form.emp.ing); if(anos==null) return null;
+  var asig=_asignacionDias(_form.emp,anos), uso=_usoDias(_form.emp.c);
+  return {
+    base:Math.max(0,asig.base-uso.base),
+    prog:Math.max(0,asig.prog-uso.prog),
+    sind:Math.max(0,asig.sind-uso.sind)
+  };
+}
+function _recalcTomar(){
+  var disp=_dispPorBolsa(); if(!disp) return;
+  _form.tomarBase=Math.min(_form.tomarBase||0, disp.base);
+  _form.tomarProg=Math.min(_form.tomarProg||0, disp.prog);
+  _form.tomarSind=Math.min(_form.tomarSind||0, disp.sind);
+  _form.dias=(_form.tomarBase||0)+(_form.tomarProg||0)+(_form.tomarSind||0);
+  _form.maxDias=disp.base+disp.prog+disp.sind;
+}
+function _setTomar(bucket, val){
+  var disp=_dispPorBolsa(); if(!disp) return;
+  var max=(bucket==='base')?disp.base:(bucket==='prog'?disp.prog:disp.sind);
+  var n=Math.max(0,Math.min(max,parseInt(val,10)||0));
+  if(bucket==='base') _form.tomarBase=n; else if(bucket==='prog') _form.tomarProg=n; else _form.tomarSind=n;
+  _form.dias=(_form.tomarBase||0)+(_form.tomarProg||0)+(_form.tomarSind||0);
+  render();
+}
+function _tomarTodo(){
+  var d=_dispPorBolsa(); if(!d) return;
+  _form.tomarBase=d.base; _form.tomarProg=d.prog; _form.tomarSind=d.sind;
+  _form.dias=d.base+d.prog+d.sind;
+  render();
+}
+// Fila compacta de una bolsa (con stepper para tomar y ✎ para editar el asignado)
+function _diasRow(key,lbl,color,asig,uso,disp,tomar){
+  return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border)">'+
+    '<span style="width:9px;height:9px;border-radius:50%;background:'+color+';flex-shrink:0"></span>'+
+    '<div style="flex:1;min-width:0">'+
+      '<div style="font-size:13px;font-weight:600;color:'+color+'">'+lbl+'</div>'+
+      '<div style="font-size:11px;color:var(--hint)">Disponible '+disp+' de '+asig+' · usado '+uso+
+        ' <button class="btn btn-ghost btn-sm" style="padding:0 5px;font-size:11px;color:'+color+'" onclick="editarAsignado(\''+key+'\')" title="Editar días asignados (negociable)">✎</button></div>'+
+    '</div>'+
+    '<div style="display:flex;align-items:center;gap:2px;background:var(--surface3);border-radius:10px;padding:2px">'+
+      '<button class="btn-ghost" style="width:30px;height:30px;padding:0;border-radius:8px;font-size:16px" onclick="_setTomar(\''+key+'\',Math.max(0,('+tomar+')-1))">−</button>'+
+      '<div style="min-width:30px;text-align:center;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums">'+tomar+'</div>'+
+      '<button class="btn-ghost" style="width:30px;height:30px;padding:0;border-radius:8px;font-size:16px" onclick="_setTomar(\''+key+'\',Math.min('+disp+',('+tomar+')+1))">+</button>'+
+    '</div></div>';
+}
+function editarAsignado(bucket){
+  if(!_form.emp) return;
+  var campos={base:'dias_base',prog:'dias_progresivos',sind:'dias_sindicales'};
+  var lbls={base:'feriados legales',prog:'progresivos',sind:'sindicales'};
+  var anos=_anosServicio(_form.emp.ing); var asig=_asignacionDias(_form.emp,anos);
+  var actual=(bucket==='base')?asig.base:(bucket==='prog'?asig.prog:asig.sind);
+  var v=window.prompt('Días '+lbls[bucket]+' asignados (negociable):', actual);
+  if(v===null) return;
+  setDiasEmpleado(_form.emp.c, campos[bucket], v);
 }
 function segBtnDias(val,lbl,on,disp){
   return '<button class="'+(on?'on':'')+'" onclick="_form.tipoDias=\''+val+'\';render()">'+lbl+(disp!=null?' ('+disp+')':'')+'</button>';
@@ -1122,7 +1192,7 @@ function imprimirDocumento(){
 // ── FORMULARIO ───────────────────────────────────────────────
 function resetForm(){
   var autPrev=_form? _form.aut : null;   // conservar autorizador preseleccionado al cambiar de tab
-  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5,tipoDias:'BASE',maxDias:null};
+  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
   if(autPrev) _form.aut=autPrev;
 }
 
@@ -1169,57 +1239,40 @@ function renderForm(){
   }
   var vacBox='';
   if(t===2){
-    var maxDisp=null, fInfo='';
+    var fInfo='', anioSaldo=new Date().getFullYear();
     if(f.emp){
       var anos=_anosServicio(f.emp.ing);
       if(anos!=null){
         var asig=_asignacionDias(f.emp,anos);
         var uso=_usoDias(f.emp.c);
-        var dBase=asig.base-uso.base, dProg=asig.prog-uso.prog, dSind=asig.sind-uso.sind;
-        var totAsig=asig.base+asig.prog+asig.sind, totUso=uso.base+uso.prog+uso.sind, totDisp=totAsig-totUso;
-        maxDisp=(f.tipoDias==='PROGRESIVO')?dProg:(f.tipoDias==='SINDICAL'?dSind:dBase);
-        if(maxDisp<0) maxDisp=0;
-        var inp='width:54px;text-align:center;padding:4px 2px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface2)';
-        var th='text-align:right;font-size:10px;color:var(--hint);font-weight:700;padding:4px;text-transform:uppercase;letter-spacing:.4px';
-        var td='text-align:right;font-size:13px;padding:5px 4px;font-variant-numeric:tabular-nums';
-        var tdL='font-size:13px;padding:5px 4px';
-        fInfo='<div class="card"><div class="card-h">Feriado · saldos</div>'+
-          '<div style="font-size:11.5px;color:var(--hint);margin-bottom:8px">Ingreso '+esc(fmt(f.emp.ing))+' · '+anos+' años de servicio</div>'+
-          '<table style="width:100%;border-collapse:collapse">'+
-            '<thead><tr><th style="text-align:left;'+th+'">Concepto</th><th style="'+th+'">Asign.</th><th style="'+th+'">Usado</th><th style="'+th+'">Disp.</th></tr></thead><tbody>'+
-            '<tr><td style="'+tdL+'">Base (Aysén)</td><td style="'+td+'">'+asig.base+'</td><td style="'+td+'">'+uso.base+'</td><td style="'+td+';font-weight:700">'+dBase+'</td></tr>'+
-            '<tr><td style="'+tdL+'">Progresivo</td><td style="'+td+'"><input type="number" min="0" value="'+asig.prog+'" style="'+inp+'" onchange="setDiasEmpleado(\''+esc(f.emp.c)+'\',\'dias_progresivos\',this.value)"></td><td style="'+td+'">'+uso.prog+'</td><td style="'+td+';font-weight:700">'+dProg+'</td></tr>'+
-            '<tr><td style="'+tdL+'">Sindicales</td><td style="'+td+'"><input type="number" min="0" value="'+asig.sind+'" style="'+inp+'" onchange="setDiasEmpleado(\''+esc(f.emp.c)+'\',\'dias_sindicales\',this.value)"></td><td style="'+td+'">'+uso.sind+'</td><td style="'+td+';font-weight:700">'+dSind+'</td></tr>'+
-            '<tr style="border-top:1px solid var(--border)"><td style="'+tdL+';font-weight:700">Total</td><td style="'+td+';font-weight:700">'+totAsig+'</td><td style="'+td+';font-weight:700">'+totUso+'</td><td style="'+td+';font-weight:700;color:var(--accent)">'+totDisp+'</td></tr>'+
-          '</tbody></table>'+
-          '<div style="margin-top:12px"><div class="field-lbl" style="margin-bottom:6px">Descontar de</div><div class="seg">'+
-            segBtnDias('BASE','Base',f.tipoDias==='BASE',dBase)+
-            segBtnDias('PROGRESIVO','Progresivo',f.tipoDias==='PROGRESIVO',dProg)+
-            segBtnDias('SINDICAL','Sindicales',f.tipoDias==='SINDICAL',dSind)+
-          '</div></div>'+
-          '<div style="font-size:11px;color:var(--hint);margin-top:8px">Progresivos y sindicales son editables (negociables). Se descuentan del disponible al enviar la solicitud.</div>'+
-          '</div>';
+        var dBase=Math.max(0,asig.base-uso.base), dProg=Math.max(0,asig.prog-uso.prog), dSind=Math.max(0,asig.sind-uso.sind);
+        if((f.tomarBase||0)>dBase) f.tomarBase=dBase;
+        if((f.tomarProg||0)>dProg) f.tomarProg=dProg;
+        if((f.tomarSind||0)>dSind) f.tomarSind=dSind;
+        f.dias=(f.tomarBase||0)+(f.tomarProg||0)+(f.tomarSind||0);
+        f.maxDias=dBase+dProg+dSind;
+        fInfo=_diasRow('base','Feriados Legales','#4B44C9',asig.base,uso.base,dBase,f.tomarBase||0)+
+          _diasRow('prog','Progresivo','#16794E',asig.prog,uso.prog,dProg,f.tomarProg||0)+
+          _diasRow('sind','Sindicales','#9A6516',asig.sind,uso.sind,dSind,f.tomarSind||0);
       } else {
         fInfo='<div class="notice">Sin fecha de ingreso registrada: no se puede calcular el saldo.</div>';
       }
     }
-    if(maxDisp!=null && f.dias>maxDisp) f.dias=maxDisp;
-    f.maxDias=maxDisp;
     var end=vacEnd(f.start,f.dias);
-    vacBox='<div class="card"><div class="card-h">Días de vacaciones</div>'+
-      '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px"><span style="font-size:13.5px;color:var(--muted)">Días hábiles solicitados</span>'+
-      '<div style="display:flex;align-items:center;gap:4px;background:var(--surface3);border-radius:12px;padding:4px">'+
-        '<button class="btn-ghost" style="width:32px;height:32px;padding:0;border-radius:9px" onclick="_form.dias=Math.max(0,_form.dias-1);render()">−</button>'+
-        '<div style="min-width:38px;text-align:center;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">'+f.dias+'</div>'+
-        '<button class="btn-ghost" style="width:32px;height:32px;padding:0;border-radius:9px" onclick="_form.dias=Math.max(0,Math.min((_form.maxDias!=null?_form.maxDias:30),(_form.dias||0)+1));render()">+</button>'+
-      '</div></div>'+
-      (maxDisp!=null?'<div style="font-size:11.5px;color:var(--hint);line-height:1.55;margin-top:8px">Disponible de '+(f.tipoDias==='PROGRESIVO'?'progresivos':(f.tipoDias==='SINDICAL'?'sindicales':'base'))+': <b style="color:var(--accent)">'+maxDisp+' días</b>.</div>':'')+
-      '<div style="font-size:11.5px;color:var(--hint);line-height:1.55;margin-top:8px">Lunes a viernes, sin feriados chilenos. El día de inicio cuenta como día 1.</div></div>'+
+    vacBox='<div class="card">'+
+      '<div class="card-h" style="display:flex;justify-content:space-between;align-items:baseline"><span>Días de vacaciones</span>'+
+        '<span style="font-size:11px;color:var(--hint);text-transform:none;font-weight:400">Año '+anioSaldo+(f.emp&&f.emp.ing?' · '+_anosServicio(f.emp.ing)+' años de servicio':'')+'</span></div>'+
       fInfo+
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;margin-top:4px;border-top:2px solid var(--border)"><span style="font-size:13.5px;font-weight:600">Total solicitado</span>'+
+        '<span style="font-size:26px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums">'+f.dias+'</span></div>'+
+      (f.maxDias!=null?'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px"><span style="font-size:11.5px;color:var(--hint)">Disponible total: <b style="color:var(--accent)">'+f.maxDias+' días</b></span><button class="btn btn-ghost btn-sm" onclick="_tomarTodo()">Tomar todo</button></div>':'')+
+      '<div style="font-size:11px;color:var(--hint);margin-top:8px">Lunes a viernes, sin feriados. El día 1 cuenta. El ✎ permite editar los días negociables.</div>'+
+      '</div>'+
       '<div style="background:#17171A;color:#fff;border-radius:16px;padding:20px 22px">'+
         '<div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#8E8E98;margin-bottom:14px">Resumen de vacaciones</div>'+
         resRow('Inicio (día 1)',f.start?fmt(f.start):'—')+resRow('Días hábiles',f.dias+' días')+
-        resRow('Último día',end?fmt(end):'—',true)+'</div>';
+        resRow('Último día',end?fmt(end):'—')+
+        resRow('Desglose',(f.tomarBase||0)+' legales · '+(f.tomarProg||0)+' prog · '+(f.tomarSind||0)+' sind',true)+'</div>';
   }
 
   var coment='<div class="card"><div class="card-h" style="align-items:baseline">Comentario <span style="font-size:11px;color:var(--hint);text-transform:none;margin-left:6px">opcional</span></div>'+
@@ -1369,8 +1422,8 @@ function pickChooseKey(i){ var src=_pickSrc; pickChooseFrom(src,i); }
 function pickChooseFrom(src,i){
   var it=src[i]; if(!it) return;
   if(_pickerType==='emp'){
-    _form.emp={c:it.c,n:it.n,tipo:it.tipo||'INDEFINIDO',ing:it.ing||null,progOverride:(it.progOverride!=null?it.progOverride:null),sindOverride:(it.sindOverride!=null?it.sindOverride:null)};
-    if(_tab===2) _form.tipoDias='BASE';
+    _form.emp={c:it.c,n:it.n,tipo:it.tipo||'INDEFINIDO',ing:it.ing||null,baseOverride:(it.baseOverride!=null?it.baseOverride:null),progOverride:(it.progOverride!=null?it.progOverride:null),sindOverride:(it.sindOverride!=null?it.sindOverride:null)};
+    if(_tab===2){ _form.tipoDias='BASE'; _form.tomarBase=0; _form.tomarProg=0; _form.tomarSind=0; _form.dias=0; }
     // Centro de costo automático desde el empleado
     var cc=null;
     if(it.cc){
@@ -1390,6 +1443,20 @@ function renderCalendar(){
   var cells=[];
   for(var i=0;i<start;i++) cells.push('<button class="d empty"></button>');
   var endIso = t===2 ? vacEnd(f.start,f.dias) : null;
+  // Mapa día -> bolsa (base/prog/sind) para colorear el rango de vacaciones
+  var bucketMap={};
+  if(t===2 && f.start && f.dias>0){
+    var cur=new Date(f.start+'T12:00:00'), idx=0, guard=0;
+    var bTot=(f.tomarBase||0)+(f.tomarProg||0)+(f.tomarSind||0);
+    while(idx<bTot && guard<800){
+      var ww=cur.getDay(), ds=iso(cur);
+      if(!FERIADOS[ds] && ww!==0 && ww!==6){
+        bucketMap[ds]= idx<(f.tomarBase||0)?'base':(idx<((f.tomarBase||0)+(f.tomarProg||0))?'prog':'sind');
+        idx++;
+      }
+      cur.setDate(cur.getDate()+1); guard++;
+    }
+  }
   for(var d=1;d<=total;d++){
     var dt=new Date(_cal.y,_cal.m,d), s=iso(dt), w=dt.getDay();
     var hol=!!FERIADOS[s], sun=w===0, we=w===0||w===6;
@@ -1402,9 +1469,20 @@ function renderCalendar(){
     if(hol){ cls+=' hol'; fg='#B84842'; bg='var(--red-soft)'; bd='#EFCFCD'; weight='600'; }
     else if(sun){ cls+=' sun'; fg='#C4544F'; bg='var(--red-soft)'; bd='#F5E3E2'; }
     if(full){ cls+=' full'; fg='#9A6516'; bg='var(--oj-soft)'; bd='#EBD2AE'; }
-    if(inRange){ cls+=' range'; fg='var(--accent)'; bg='var(--accent-soft)'; bd='#C9C6F4'; }
-    if(sel){ cls+=' sel'+(t===1?' verde':t===2?' oj':''); }
-    if(sel){ fg='#fff'; bg='var(--accent)'; bd='var(--accent)'; if(t===1){bg='var(--green)';bd='var(--green)';} if(t===2){bg='var(--oj)';bd='var(--oj)';} weight='600'; }
+    if(t===2){
+      var bk=bucketMap[s];
+      if(bk){
+        cls+=' range'; weight='600';
+        if(bk==='base'){ fg='#4B44C9'; bg='#E7E5FB'; bd='#C9C6F4'; }
+        else if(bk==='prog'){ fg='#16794E'; bg='#DFF3E9'; bd='#B7E0CD'; }
+        else { fg='#9A6516'; bg='#FBF0DC'; bd='#EBD2AE'; }
+        if(sel) shadow='today';
+      }
+    } else {
+      if(inRange){ cls+=' range'; fg='var(--accent)'; bg='var(--accent-soft)'; bd='#C9C6F4'; }
+      if(sel){ cls+=' sel'+(t===1?' verde':''); }
+      if(sel){ fg='#fff'; bg='var(--accent)'; bd='var(--accent)'; if(t===1){bg='var(--green)';bd='var(--green)';} weight='600'; }
+    }
     if(String(s)===hoy()) shadow='today';
     if(blocked&&!sel&&!hol&&!sun){ cls+=' blocked'; bg='transparent'; bd='transparent'; }
     if(t===0&&cup.total>0&&!hol&&!sun){ dot=''+(cup.total>CUPO_MAX?'⬤':'●'); dotc='#D6A045'; }
@@ -1416,9 +1494,16 @@ function renderCalendar(){
       'background:'+bg+';color:'+fg+';border-color:'+bd+';font-weight:'+weight+';box-shadow:'+(shadow?'0 0 0 2px #17171A':'none')+'">'+d+
       (dot?'<span class="dotnum" style="color:'+dotc+'">'+dot+'</span>':'')+'</button>');
   }
+  var legendExtra='';
+  if(t===2){
+    legendExtra='<span><span class="sw" style="background:#E7E5FB;border-color:#C9C6F4"></span>Legales</span>'+
+      '<span><span class="sw" style="background:#DFF3E9;border-color:#B7E0CD"></span>Progresivo</span>'+
+      '<span><span class="sw" style="background:#FBF0DC;border-color:#EBD2AE"></span>Sindicales</span>';
+  }
   var legend='<div class="cal-legend">'+
     '<span><span class="sw" style="background:var(--red-soft);border-color:#EFCFCD"></span>Feriado</span>'+
     '<span><span class="sw" style="background:var(--red-soft);border-color:#F5E3E2"></span>Domingo</span>'+
+    legendExtra+
     '<span><span class="sw" style="background:var(--surface);box-shadow:0 0 0 2px #17171A"></span>Hoy</span>'+
     '<span style="margin-left:auto;color:var(--muted);font-weight:500">'+calSelectedNote()+'</span></div>';
   var monthHol=FER.filter(function(k){ return +k.slice(0,4)===_cal.y && +k.slice(5,7)===_cal.m+1; });
@@ -1453,7 +1538,11 @@ function calNav(dir){
 }
 function calClick(s){
   var f=_form,t=_tab;
-  if(t===2){ f.start=s; render(); return; }
+  if(t===2){
+    var dt=new Date(s+'T12:00:00'), w=dt.getDay();
+    if(FERIADOS[s] || w===0 || w===6){ toast('No puedes iniciar vacaciones en un día no hábil','warn'); return; }
+    f.start=s; render(); return;
+  }
   if(t===1){ f.dates=f.dates[0]===s?[]:[s]; render(); return; }
   var i=f.dates.indexOf(s);
   if(i>=0) f.dates.splice(i,1);
@@ -1520,6 +1609,13 @@ async function submitForm(){
   else if(!f.dates.length)miss.push(t===1?'día del permiso':'días de permiso');
   if(miss.length){ toast('Faltan datos obligatorios: '+miss.join(', '),'error'); return; }
 
+  var _buckets=[];
+  if(t===2){
+    if((f.tomarBase||0)>0)_buckets.push('BASE');
+    if((f.tomarProg||0)>0)_buckets.push('PROGRESIVO');
+    if((f.tomarSind||0)>0)_buckets.push('SINDICAL');
+  }
+  var _tipoDias=t===2?(_buckets.length>1?'MIXTO':(_buckets[0]||'BASE')):null;
   var newId=_uuid();
   var payload={
     id: newId,
@@ -1531,7 +1627,10 @@ async function submitForm(){
     inicio:t===2?f.start:(f.dates[0]||null),
     termino:t===2?vacEnd(f.start,f.dias):(f.dates.length>1?f.dates[f.dates.length-1]:null),
     dias_habiles:t===2?f.dias:null,
-    tipo_dias:t===2?(f.tipoDias||'BASE'):null,
+    tipo_dias:_tipoDias,
+    dias_base:t===2?(f.tomarBase||0):null,
+    dias_progresivo:t===2?(f.tomarProg||0):null,
+    dias_sindical:t===2?(f.tomarSind||0):null,
     tipo_regreso:t===1?f.reg:null,
     hora_salida:t===1?f.hs:null,
     hora_ingreso:t===1?((f.reg==='SIN')?null:f.hi):null,

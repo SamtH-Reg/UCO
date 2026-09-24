@@ -259,28 +259,63 @@ t('_anosServicio: >=25 para 2000', () => _anosServicio('2000-01-01')>=25);
 t('_diasProgresivos Art.68', () => _diasProgresivos(9)===0 && _diasProgresivos(10)===1 && _diasProgresivos(13)===2 && _diasProgresivos(16)===3 && _diasProgresivos(19)===4 && _diasProgresivos(22)===5 && _diasProgresivos(30)===5);
 t('_diasFeriadoTotal base(20 Aysén)+prog+sindicales(5)', () => _diasFeriadoTotal(5)===25 && _diasFeriadoTotal(10)===26 && _diasFeriadoTotal(22)===30);
 t('DIAS_SINDICALES = 5', () => DIAS_SINDICALES===5);
-t('_asignacionDias: usa overrides si existen', () => { var a=_asignacionDias({progOverride:7,sindOverride:3},16); return a.base===20&&a.prog===7&&a.sind===3; });
+t('_asignacionDias: usa overrides si existen (incl. base)', () => { var a=_asignacionDias({baseOverride:18,progOverride:7,sindOverride:3},16); return a.base===18&&a.prog===7&&a.sind===3; });
 t('_asignacionDias: sin overrides usa ley/referencia', () => { var a=_asignacionDias({},16); return a.base===20&&a.prog===_diasProgresivos(16)&&a.sind===5; });
-t('_usoDias: suma por bolsa según tipo_dias', () => {
+t('_usoDias: suma por bolsa del año en curso e ignora otros años', () => {
+  var y=String(new Date().getFullYear());
   _SOLIC=[
-    {tipo:'VACACIONES',codigo:'M1',dias_habiles:3,tipo_dias:'BASE',estado:'APROBADO'},
-    {tipo:'VACACIONES',codigo:'M1',dias_habiles:2,tipo_dias:'PROGRESIVO',estado:'APROBADO'},
-    {tipo:'VACACIONES',codigo:'M1',dias_habiles:1,tipo_dias:'SINDICAL',estado:'APROBADO'},
-    {tipo:'VACACIONES',codigo:'M1',dias_habiles:9,tipo_dias:'BASE',estado:'ANULADO'},
-    {tipo:'COMPLETO',codigo:'M1',dias_habiles:5,tipo_dias:'BASE'}
+    {tipo:'VACACIONES',codigo:'M1',dias_habiles:3,tipo_dias:'BASE',estado:'APROBADO',inicio:y+'-03-01'},
+    {tipo:'VACACIONES',codigo:'M1',dias_habiles:2,tipo_dias:'PROGRESIVO',estado:'APROBADO',inicio:y+'-04-01'},
+    {tipo:'VACACIONES',codigo:'M1',dias_habiles:1,tipo_dias:'SINDICAL',estado:'APROBADO',inicio:y+'-05-01'},
+    {tipo:'VACACIONES',codigo:'M1',dias_habiles:9,tipo_dias:'BASE',estado:'ANULADO',inicio:y+'-06-01'},
+    {tipo:'VACACIONES',codigo:'M1',dias_habiles:7,tipo_dias:'BASE',estado:'APROBADO',inicio:(+y-1)+'-06-01'},
+    {tipo:'COMPLETO',codigo:'M1',dias_habiles:5,tipo_dias:'BASE',inicio:y+'-06-01'}
   ];
   var u=_usoDias('M1');
   var ok=u.base===3&&u.prog===2&&u.sind===1;
   _SOLIC=[];
   return ok;
 });
+t('_usoDias: usa desglose dias_base/progresivo/sindical', () => {
+  var y=String(new Date().getFullYear());
+  _SOLIC=[
+    {tipo:'VACACIONES',codigo:'M2',dias_habiles:6,dias_base:4,dias_progresivo:0,dias_sindical:2,estado:'PENDIENTE',inicio:y+'-07-01'}
+  ];
+  var u=_usoDias('M2');
+  var ok=u.base===4&&u.prog===0&&u.sind===2;
+  _SOLIC=[];
+  return ok;
+});
 t('setDiasEmpleado/segBtnDias definidos', () => typeof setDiasEmpleado==='function' && typeof segBtnDias==='function');
-t('renderForm Vacaciones: muestra saldos y selector de bolsa', () => {
+t('renderForm Vacaciones: interfaz compacta con steppers y editar', () => {
   _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _SOLIC=[];
-  _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:'2026-09-01',dias:5,tipoDias:'BASE',maxDias:null};
+  _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:'2026-09-01',dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
   var h=renderForm();
-  var ok=h.indexOf('Descontar de')>=0 && h.indexOf('Feriado · saldos')>=0 && h.indexOf('dias_progresivos')>=0;
+  var ok=h.indexOf('Total solicitado')>=0 && h.indexOf('_setTomar')>=0 && h.indexOf('editarAsignado')>=0 && h.indexOf('Disponible')>=0;
   _tab=0; _form={tipoDias:'BASE'};
+  return ok;
+});
+t('calClick vacaciones: bloquea fin de semana', () => {
+  _tab=2; _form={start:null};
+  calClick('2026-09-06');            // domingo
+  var ok=_form.start===null;
+  calClick('2026-09-02');            // miércoles
+  ok=ok && _form.start==='2026-09-02';
+  _tab=0; return ok;
+});
+t('_tomarTodo: llena todas las bolsas', () => {
+  _tab=2; _SOLIC=[];
+  _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},tomarBase:0,tomarProg:0,tomarSind:0,dias:0};
+  _tomarTodo();
+  var ok=_form.dias===(20+_diasProgresivos(_anosServicio('2000-01-01'))+5);
+  _tab=0; _form={}; return ok;
+});
+t('renderCalendar: colorea días de vacaciones por bolsa', () => {
+  _tab=2; _cal={y:2026,m:8}; _SOLIC=[];
+  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:'2026-09-01',dias:3,tipoDias:'MIXTO',maxDias:null,tomarBase:2,tomarProg:1,tomarSind:0};
+  var h=renderCalendar();
+  var ok=h.indexOf('#E7E5FB')>=0 && h.indexOf('#DFF3E9')>=0 && h.indexOf('Sindicales')>=0;
+  _tab=0; _form={};
   return ok;
 });
 t('cargarSolicitudes es async', () => cargarSolicitudes && cargarSolicitudes.constructor && cargarSolicitudes.constructor.name==='AsyncFunction');
