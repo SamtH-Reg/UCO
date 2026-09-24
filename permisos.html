@@ -732,13 +732,14 @@ function _tomarTodo(){
   render();
 }
 // Fila compacta de una bolsa (con stepper para tomar y ✎ para editar el asignado)
-function _diasRow(key,lbl,color,asig,uso,disp,tomar){
+function _diasRow(key,lbl,color,asig,uso,disp,tomar,auto){
+  var autoHint=(auto!=null && asig!==auto) ? ' · automático '+auto : '';
   return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border)">'+
     '<span style="width:9px;height:9px;border-radius:50%;background:'+color+';flex-shrink:0"></span>'+
     '<div style="flex:1;min-width:0">'+
       '<div style="font-size:13px;font-weight:600;color:'+color+'">'+lbl+'</div>'+
-      '<div style="font-size:11px;color:var(--hint)">Disponible '+disp+' de '+asig+' · usado '+uso+
-        ' <button class="btn btn-ghost btn-sm" style="padding:0 5px;font-size:11px;color:'+color+'" onclick="editarAsignado(\''+key+'\')" title="Editar días asignados (negociable)">✎</button></div>'+
+      '<div style="font-size:11px;color:var(--hint)">Disponible '+disp+' de '+asig+' · usado '+uso+autoHint+
+        ' <button class="btn btn-ghost btn-sm" style="padding:0 5px;font-size:11px;color:'+color+'" onclick="editarAsignado(\''+key+'\')" title="Editar días asignados (negociable; vacío = automático)">✎</button></div>'+
     '</div>'+
     '<div style="display:flex;align-items:center;gap:2px;background:var(--surface3);border-radius:10px;padding:2px">'+
       '<button class="btn-ghost" style="width:30px;height:30px;padding:0;border-radius:8px;font-size:16px" onclick="_setTomar(\''+key+'\',Math.max(0,('+tomar+')-1))">−</button>'+
@@ -752,7 +753,8 @@ function editarAsignado(bucket){
   var lbls={base:'feriados legales',prog:'progresivos',sind:'sindicales'};
   var anos=_anosServicio(_form.emp.ing); var asig=_asignacionDias(_form.emp,anos);
   var actual=(bucket==='base')?asig.base:(bucket==='prog'?asig.prog:asig.sind);
-  var v=window.prompt('Días '+lbls[bucket]+' asignados (negociable):', actual);
+  var auto=(bucket==='base')?FERIADO_BASE:(bucket==='prog'?_diasProgresivos(anos):DIAS_SINDICALES);
+  var v=window.prompt('Días '+lbls[bucket]+' asignados (negociable).\nAutomático: '+auto+' · deja vacío para usar el automático:', actual);
   if(v===null) return;
   setDiasEmpleado(_form.emp.c, campos[bucket], v);
 }
@@ -1264,9 +1266,9 @@ function renderForm(){
         if((f.tomarSind||0)>dSind) f.tomarSind=dSind;
         f.dias=(f.tomarBase||0)+(f.tomarProg||0)+(f.tomarSind||0);
         f.maxDias=dBase+dProg+dSind;
-        fInfo=_diasRow('base','Feriados Legales','#4B44C9',asig.base,uso.base,dBase,f.tomarBase||0)+
-          _diasRow('prog','Progresivo','#16794E',asig.prog,uso.prog,dProg,f.tomarProg||0)+
-          _diasRow('sind','Sindicales','#9A6516',asig.sind,uso.sind,dSind,f.tomarSind||0);
+        fInfo=_diasRow('base','Feriados Legales','#4B44C9',asig.base,uso.base,dBase,f.tomarBase||0,FERIADO_BASE)+
+          _diasRow('prog','Progresivo','#16794E',asig.prog,uso.prog,dProg,f.tomarProg||0,_diasProgresivos(anos))+
+          _diasRow('sind','Sindicales','#9A6516',asig.sind,uso.sind,dSind,f.tomarSind||0,DIAS_SINDICALES);
       } else {
         fInfo='<div class="notice">Sin fecha de ingreso registrada: no se puede calcular el saldo.</div>';
       }

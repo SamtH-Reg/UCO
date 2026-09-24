@@ -303,6 +303,11 @@ t('calClick vacaciones: bloquea fin de semana', () => {
   ok=ok && _form.start==='2026-09-02';
   _tab=0; return ok;
 });
+t('_diasRow: muestra "automático" cuando el asignado difiere', () => {
+  var h=_diasRow('prog','Progresivo','#16794E',2,0,2,0,0);
+  return h.indexOf('automático 0')>=0;
+});
+t('_diasProgresivos: 2 años -> 0 (base de la consulta)', () => _diasProgresivos(2)===0);
 t('_ultimaVacacion: máximo término/inicio (ignora anuladas)', () => {
   _SOLIC=[
     {tipo:'VACACIONES',codigo:'M1',inicio:'2026-03-01',termino:'2026-03-10',estado:'APROBADO'},
