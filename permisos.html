@@ -164,6 +164,9 @@ textarea{resize:vertical}
 .okbak{background:var(--green-soft);color:var(--green);display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:12px;margin-top:14px;font-size:12.5px}
 .okbak b{font-size:15px}
 .notice{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:11px;background:var(--oj-soft);font-size:11.5px;color:#8A5A16;margin-top:10px}
+.spin{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-box{display:flex;align-items:center;justify-content:center;gap:10px;padding:64px 20px;color:var(--hint);font-size:13px}
 
 /* ══ CALENDARIO ══ */
 .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
@@ -462,6 +465,8 @@ function mostrarApp(){
   document.getElementById('sbAvatar').textContent=(ini.slice(0,2)).toUpperCase();
   document.getElementById('sbUser').textContent=ini;
   document.getElementById('sbRol').textContent='Rol: '+( _sesion.rol.charAt(0).toUpperCase()+_sesion.rol.slice(1));
+  var box=document.getElementById('contentBox');
+  if(box) box.innerHTML='<div class="loading-box"><span class="spin"></span>Cargando datos…</div>';
   cargarDatosBase();
 }
 
@@ -470,17 +475,16 @@ function mostrarApp(){
 // ═══════════════════════════════════════════════════════════════
 async function cargarDatosBase(){
   var d=await dbReady();
-  // Empleados activos
-  var empRes=await d.from('empleados').select('codigo,nombre,centro_costo,contrato,turno').eq('activo',true).order('nombre');
+  // Consultas base EN PARALELO
+  var base=await Promise.all([
+    d.from('empleados').select('codigo,nombre,centro_costo,contrato,turno').eq('activo',true).order('nombre'),
+    d.from('unidades_excluidas').select('codigo,nombre,centro_costo,contrato'),
+    d.from('autorizadores').select('*').eq('activo',true).order('nombre')
+  ]);
+  var empRes=base[0], ueRes=base[1], autRes=base[2];
   _EMP=(empRes.data||[]).map(function(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO'}; });
-  // Empleados de unidades excluidas (se usan en vacaciones para unidades 1110-1114)
-  _EMP_EXCL=[];
-  try{
-    var ueRes=await d.from('unidades_excluidas').select('codigo,nombre,centro_costo,contrato');
-    if(!ueRes.error){ _EMP_EXCL=(ueRes.data||[]).map(function(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO'}; }); }
-  }catch(e){ _EMP_EXCL=[]; }
+  _EMP_EXCL=(!ueRes.error&&ueRes.data)?ueRes.data.map(function(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO'}; }):[];
   // Responsables (jefaturas directas) desde la tabla 'autorizadores'
-  var autRes=await d.from('autorizadores').select('*').eq('activo',true).order('nombre');
   if(autRes.error && autRes.data===null){
     // Tabla aún no creada: caer a usuarios con rol != operario
     var usrRes=await d.from('usuarios').select('id,nombre,rol').eq('activo',true).neq('rol','operario');
@@ -498,12 +502,10 @@ async function cargarDatosBase(){
   var ccSet={}; _EMP.forEach(function(e){ if(e.cc) ccSet[e.cc]=1; });
   _CC=Object.keys(ccSet).map(function(k){ return {c:k.slice(0,4),n:k}; });
   if(!_CC.length) _CC=[{c:'1110',n:'1110 Producción (FS)'},{c:'1114',n:'1114 RRHH (FS)'}];
-  // Documentos locales: persistencia, carpeta configurada e ids guardados
+  // Documentos locales y solicitudes: EN PARALELO (independientes entre sí)
   _persistirStorage();
-  await cargarCarpetaConfig();
-  await cargarDocIds();
   if(!window._reconectarLst){ window._reconectarLst=true; document.addEventListener('click', _reconectarCarpetaAlClic, {once:true}); }
-  await cargarSolicitudes();
+  await Promise.all([cargarCarpetaConfig(), cargarDocIds(), cargarSolicitudes()]);
   render();
 }
 function rolSub(rol){ return {admin:'Administrador',supervisor:'Supervisor',operario:'Operario'}[rol]||rol; }
@@ -619,27 +621,42 @@ function _mapTipoPermisoTexto(t){
   return 'PERSONAL';
 }
 
+// Trae TODAS las filas de una tabla paginando EN PARALELO (más rápido que secuencial)
+async function _fetchAll(d, table, cols, pageSize){
+  pageSize=pageSize||1000;
+  var first=await d.from(table).select(cols||'*',{count:'exact'}).range(0,pageSize-1);
+  if(first.error) return {data:[],error:first.error};
+  var all=first.data||[];
+  var total=(typeof first.count==='number')?first.count:all.length;
+  var paginas=Math.ceil(total/pageSize);
+  if(paginas>1){
+    var reqs=[];
+    for(var p=1;p<paginas;p++){ reqs.push(d.from(table).select(cols||'*').range(p*pageSize, p*pageSize+pageSize-1)); }
+    var res=await Promise.all(reqs);
+    res.forEach(function(r){ if(!r.error && r.data) all=all.concat(r.data); });
+  }
+  return {data:all,error:null};
+}
+
 async function cargarSolicitudes(){
   var d=await dbReady();
   var todo=[];
-  // 1) Solicitudes de la app (tabla rica)
-  var res=await d.from('solicitudes_permiso').select('*').order('created_at',{ascending:false}).limit(1000);
+  // 1) solicitudes de la app, 2) permisos, 3) vacaciones, 4) empleados: EN PARALELO
+  var out=await Promise.all([
+    d.from('solicitudes_permiso').select('*').order('created_at',{ascending:false}).limit(1000),
+    _fetchAll(d,'permisos','*'),
+    d.from('vacaciones').select('*'),
+    _fetchAll(d,'empleados','codigo,centro_costo,turno')
+  ]);
+  var res=out[0], permAll=(out[1]&&out[1].data)||[], vr=out[2], empAll=(out[3]&&out[3].data)||[];
+
   if(res.error){ console.error('[SOLIC]',res.error.message||res.error); }
-  else { res.data.forEach(function(s){ todo.push(s); }); }
+  else { (res.data||[]).forEach(function(s){ todo.push(s); }); }
 
   // 2) Permisos existentes (tabla simple) — se mapean a COMPLETO.
-  //    Se deduplican por codigo+inicio respecto a solicitudes_permiso,
-  //    porque la migración anterior ya volcó estos permisos.
+  //    Se deduplican por codigo+inicio respecto a solicitudes_permiso.
   var vistos={}, duplicados=0;
   todo.forEach(function(s){ if(s.codigo&&s.inicio){ vistos[String(s.codigo).toLowerCase()+'|'+String(s.inicio).slice(0,10)]=1; } });
-  var permAll=[], permPage=0, permHasMore=true;
-  while(permHasMore){
-    var ini=permPage*1000;
-    var pr=await d.from('permisos').select('*').range(ini,ini+999);
-    if(pr.error||!pr.data||pr.data.length===0){ permHasMore=false; break; }
-    permAll=permAll.concat(pr.data);
-    if(pr.data.length<1000) permHasMore=false; else permPage++;
-  }
   permAll.forEach(function(p){
     var clave=String(p.codigo||'').toLowerCase()+'|'+String(p.fecha||'').slice(0,10);
     if(vistos[clave]){ duplicados++; return; }
@@ -661,7 +678,6 @@ async function cargarSolicitudes(){
 
   // 3) Vacaciones (tabla simple) — se mapean a VACACIONES (deduplicadas por codigo+inicio)
   try{
-    var vr=await d.from('vacaciones').select('*');
     if(!vr.error&&vr.data&&vr.data.length){
       vr.data.forEach(function(v){
         var clave=String(v.codigo||'').toLowerCase()+'|'+String(v.fecha_inicio||'').slice(0,10);
@@ -687,16 +703,7 @@ async function cargarSolicitudes(){
   // 4) Completar centro de costo y turno desde empleados (TODOS, incluidos inactivos)
   var empMap={};
   _EMP.forEach(function(e){ if(e.c) empMap[String(e.c).trim().toUpperCase()]={cc:e.cc, turno:e.turno}; });
-  try{
-    var empAll=[], ep=0, more=true;
-    while(more){
-      var er=await d.from('empleados').select('codigo,centro_costo,turno').range(ep*1000,ep*1000+999);
-      if(er.error||!er.data||!er.data.length){ more=false; break; }
-      empAll=empAll.concat(er.data);
-      if(er.data.length<1000) more=false; else ep++;
-    }
-    empAll.forEach(function(e){ if(e.codigo){ var k=String(e.codigo).trim().toUpperCase(); if(!empMap[k]) empMap[k]={cc:e.centro_costo, turno:e.turno}; } });
-  }catch(e){}
+  empAll.forEach(function(e){ if(e.codigo){ var k=String(e.codigo).trim().toUpperCase(); if(!empMap[k]) empMap[k]={cc:e.centro_costo, turno:e.turno}; } });
   todo.forEach(function(s){
     var k=String(s.codigo||'').trim().toUpperCase();
     if(k && empMap[k]){

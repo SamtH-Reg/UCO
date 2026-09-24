@@ -252,6 +252,8 @@ t('_iniciales: primeras letras del nombre', () => _iniciales('ALFREDO VILLARROEL
 t('editor responsables definido', () => typeof abrirEditorResponsables==='function' && typeof agregarResponsable==='function' && typeof quitarResponsable==='function');
 t('editar responsable definido', () => typeof editarResponsable==='function' && typeof guardarEdicionResponsable==='function' && typeof cancelarEditarResponsable==='function');
 t('_unidadVac: valida 1110-1114', () => _unidadVac('1110 -PRODUCCIÓN')===true && _unidadVac('1115 -OTRA')===false && _unidadVac('UN 1113')===true);
+t('_fetchAll definido', () => typeof _fetchAll==='function');
+t('cargarSolicitudes es async', () => cargarSolicitudes && cargarSolicitudes.constructor && cargarSolicitudes.constructor.name==='AsyncFunction');
 t('_empListaPicker vacaciones: +unidades excluidas 1110-1114 INDEFINIDO', () => {
   _tab=2;
   _EMP=[{c:'M1',n:'A',cc:'1110 -X',tipo:'INDEFINIDO'},{c:'M2',n:'B',cc:'1110 -X',tipo:'PLAZO FIJO'}];
