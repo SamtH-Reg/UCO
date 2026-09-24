@@ -732,14 +732,14 @@ function _tomarTodo(){
   render();
 }
 // Fila compacta de una bolsa (con stepper para tomar y ✎ para editar el asignado)
-function _diasRow(key,lbl,color,asig,uso,disp,tomar,auto){
+function _diasRow(key,lbl,color,asig,uso,disp,tomar,auto,editable){
   var autoHint=(auto!=null && asig!==auto) ? ' · automático '+auto : '';
+  var editBtn=(editable===false)?'' : ' <button class="btn btn-ghost btn-sm" style="padding:0 5px;font-size:11px;color:'+color+'" onclick="editarAsignado(\''+key+'\')" title="Editar días asignados (negociable; vacío = automático)">✎</button>';
   return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border)">'+
     '<span style="width:9px;height:9px;border-radius:50%;background:'+color+';flex-shrink:0"></span>'+
     '<div style="flex:1;min-width:0">'+
       '<div style="font-size:13px;font-weight:600;color:'+color+'">'+lbl+'</div>'+
-      '<div style="font-size:11px;color:var(--hint)">Disponible '+disp+' de '+asig+' · usado '+uso+autoHint+
-        ' <button class="btn btn-ghost btn-sm" style="padding:0 5px;font-size:11px;color:'+color+'" onclick="editarAsignado(\''+key+'\')" title="Editar días asignados (negociable; vacío = automático)">✎</button></div>'+
+      '<div style="font-size:11px;color:var(--hint)">Disponible '+disp+' de '+asig+' · usado '+uso+autoHint+editBtn+'</div>'+
     '</div>'+
     '<div style="display:flex;align-items:center;gap:2px;background:var(--surface3);border-radius:10px;padding:2px">'+
       '<button class="btn-ghost" style="width:30px;height:30px;padding:0;border-radius:8px;font-size:16px" onclick="_setTomar(\''+key+'\',Math.max(0,('+tomar+')-1))">−</button>'+
@@ -749,9 +749,11 @@ function _diasRow(key,lbl,color,asig,uso,disp,tomar,auto){
 }
 function editarAsignado(bucket){
   if(!_form.emp) return;
+  var anos=_anosServicio(_form.emp.ing);
+  if(bucket==='prog' && _diasProgresivos(anos)<=0){ toast('Aún no corresponde feriado progresivo (desde el año '+PROG_DESDE+')','warn',6000); return; }
   var campos={base:'dias_base',prog:'dias_progresivos',sind:'dias_sindicales'};
   var lbls={base:'feriados legales',prog:'progresivos',sind:'sindicales'};
-  var anos=_anosServicio(_form.emp.ing); var asig=_asignacionDias(_form.emp,anos);
+  var asig=_asignacionDias(_form.emp,anos);
   var actual=(bucket==='base')?asig.base:(bucket==='prog'?asig.prog:asig.sind);
   var auto=(bucket==='base')?FERIADO_BASE:(bucket==='prog'?_diasProgresivos(anos):DIAS_SINDICALES);
   var v=window.prompt('Días '+lbls[bucket]+' asignados (negociable).\nAutomático: '+auto+' · deja vacío para usar el automático:', actual);
@@ -1259,6 +1261,8 @@ function renderForm(){
       var anos=_anosServicio(f.emp.ing);
       if(anos!=null){
         var asig=_asignacionDias(f.emp,anos);
+        var progAuto=_diasProgresivos(anos);
+        if(progAuto<=0) asig.prog=0;   // si no corresponde, no se agrega ni se negocia
         var uso=_usoDias(f.emp.c);
         var dBase=Math.max(0,asig.base-uso.base), dProg=Math.max(0,asig.prog-uso.prog), dSind=Math.max(0,asig.sind-uso.sind);
         if((f.tomarBase||0)>dBase) f.tomarBase=dBase;
@@ -1266,9 +1270,9 @@ function renderForm(){
         if((f.tomarSind||0)>dSind) f.tomarSind=dSind;
         f.dias=(f.tomarBase||0)+(f.tomarProg||0)+(f.tomarSind||0);
         f.maxDias=dBase+dProg+dSind;
-        fInfo=_diasRow('base','Feriados Legales','#4B44C9',asig.base,uso.base,dBase,f.tomarBase||0,FERIADO_BASE)+
-          _diasRow('prog','Progresivo','#16794E',asig.prog,uso.prog,dProg,f.tomarProg||0,_diasProgresivos(anos))+
-          _diasRow('sind','Sindicales','#9A6516',asig.sind,uso.sind,dSind,f.tomarSind||0,DIAS_SINDICALES);
+        fInfo=_diasRow('base','Feriados Legales','#4B44C9',asig.base,uso.base,dBase,f.tomarBase||0,FERIADO_BASE,true)+
+          _diasRow('prog','Progresivo','#16794E',asig.prog,uso.prog,dProg,f.tomarProg||0,progAuto,progAuto>0)+
+          _diasRow('sind','Sindicales','#9A6516',asig.sind,uso.sind,dSind,f.tomarSind||0,DIAS_SINDICALES,true);
       } else {
         fInfo='<div class="notice">Sin fecha de ingreso registrada: no se puede calcular el saldo.</div>';
       }

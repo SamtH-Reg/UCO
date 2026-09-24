@@ -304,8 +304,20 @@ t('calClick vacaciones: bloquea fin de semana', () => {
   _tab=0; return ok;
 });
 t('_diasRow: muestra "automático" cuando el asignado difiere', () => {
-  var h=_diasRow('prog','Progresivo','#16794E',2,0,2,0,0);
+  var h=_diasRow('prog','Progresivo','#16794E',2,0,2,0,0,true);
   return h.indexOf('automático 0')>=0;
+});
+t('_diasRow: sin ✎ cuando no es editable', () => {
+  var h=_diasRow('prog','Progresivo','#16794E',0,0,0,0,0,false);
+  return h.indexOf('editarAsignado')<0 && h.indexOf('✎')<0;
+});
+t('renderForm Vacaciones: progresivo no editable si no corresponde', () => {
+  _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _SOLIC=[];
+  _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2024-01-02',baseOverride:null,progOverride:2,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
+  var h=renderForm();
+  var ok=h.indexOf("editarAsignado('prog')")<0 && h.indexOf('de 0 · usado')>=0;
+  _tab=0; _form={tipoDias:'BASE'};
+  return ok;
 });
 t('_diasProgresivos: 2 años -> 0 (base de la consulta)', () => _diasProgresivos(2)===0);
 t('_ultimaVacacion: máximo término/inicio (ignora anuladas)', () => {
