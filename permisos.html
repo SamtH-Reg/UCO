@@ -787,13 +787,15 @@ function _descargarDocx(blob, nombre){
 // Campos comunes (feriado legal + progresivo) para cualquier papeleta
 function _papeletaBaseMap(f){
   var startIso=String(f.start).slice(0,10);
-  var legalProg=(f.tomarBase||0)+(f.tomarProg||0);
+  var base=f.tomarBase||0, prog=f.tomarProg||0, legalProg=base+prog;
+  // El cuadro de fechas cubre feriado legal + progresivo. Queda en blanco
+  // solo si no hay ni legales ni progresivos (p. ej. solo sindicales).
   var finLegal = legalProg>0 ? vacEnd(startIso, legalProg) : null;
   return {
     'DATE': _fechaPapeleta(hoy()),
     'F1': f.emp.c||'', 'F2': f.emp.n||'', 'F3': (f.cc?f.cc.n:''),
-    'F5': String(f.tomarBase||0), 'F6': String(f.tomarProg||0), 'F7': String(legalProg),
-    'Inicio': startIso.slice(8,10), 'F11': startIso.slice(5,7), 'F12': startIso.slice(0,4),
+    'F5': String(base), 'F6': String(prog), 'F7': String(legalProg),
+    'Inicio': legalProg>0?startIso.slice(8,10):'', 'F11': legalProg>0?startIso.slice(5,7):'', 'F12': legalProg>0?startIso.slice(0,4):'',
     'Fin': finLegal?finLegal.slice(8,10):'', 'F14': finLegal?finLegal.slice(5,7):'', 'F15': finLegal?finLegal.slice(0,4):''
   };
 }

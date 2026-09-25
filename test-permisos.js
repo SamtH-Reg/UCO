@@ -295,6 +295,16 @@ t('_papeletaBaseMap arma días y fechas', () => {
   var m=_papeletaBaseMap(f);
   return m.F5==='2' && m.F6==='1' && m.F7==='3' && m.Inicio==='01' && m.F11==='09' && m.F12==='2026' && m.Fin==='03';
 });
+t('_papeletaBaseMap: con progresivos (sin legales) sí pone fechas', () => {
+  var f={start:'2026-09-01',tomarBase:0,tomarProg:2,tomarSind:3,emp:{c:'M1',n:'PEREZ'},cc:{n:'x'}};
+  var m=_papeletaBaseMap(f);
+  return m.F5==='0' && m.F6==='2' && m.F7==='2' && m.Inicio==='01' && m.F12==='2026' && m.Fin==='02';
+});
+t('_papeletaBaseMap: solo sindicales -> 1er cuadro de fechas en blanco', () => {
+  var f={start:'2026-09-01',tomarBase:0,tomarProg:0,tomarSind:3,emp:{c:'M1',n:'PEREZ'},cc:{n:'x'}};
+  var m=_papeletaBaseMap(f);
+  return m.F7==='0' && m.Inicio==='' && m.F12==='' && m.Fin==='';
+});
 t('_proximaVacacionRec: devuelve el registro futuro más cercano', () => {
   _SOLIC=[
     {id:'a',tipo:'VACACIONES',codigo:'M1',inicio:'2000-01-01',estado:'APROBADO'},
