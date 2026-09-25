@@ -289,7 +289,12 @@ t('_usoDias: usa desglose dias_base/progresivo/sindical', () => {
 t('setDiasEmpleado/segBtnDias definidos', () => typeof setDiasEmpleado==='function' && typeof segBtnDias==='function');
 t('_fechaPapeleta: fecha larga en español', () => _fechaPapeleta('2026-09-25')==='25 de septiembre de 2026');
 t('_siguienteHabil: viernes -> lunes', () => _siguienteHabil('2026-09-04')==='2026-09-07');
-t('generarPapeleta definido', () => typeof generarPapeleta==='function');
+t('generarPapeletas/_generarDocx/_papeletaBaseMap definidos', () => typeof generarPapeletas==='function' && typeof _generarDocx==='function' && typeof _papeletaBaseMap==='function');
+t('_papeletaBaseMap arma días y fechas', () => {
+  var f={start:'2026-09-01',tomarBase:2,tomarProg:1,tomarSind:0,emp:{c:'M1',n:'PEREZ'},cc:{n:'1110 -X'}};
+  var m=_papeletaBaseMap(f);
+  return m.F5==='2' && m.F6==='1' && m.F7==='3' && m.Inicio==='01' && m.F11==='09' && m.F12==='2026' && m.Fin==='03';
+});
 t('_proximaVacacionRec: devuelve el registro futuro más cercano', () => {
   _SOLIC=[
     {id:'a',tipo:'VACACIONES',codigo:'M1',inicio:'2000-01-01',estado:'APROBADO'},
