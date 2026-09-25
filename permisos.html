@@ -384,12 +384,13 @@ function hoy(){ return iso(new Date()); }
 function toast(msg,type){ var t=document.getElementById('toast'); t.textContent=msg; t.className=(type==='success'?'success':type==='error'?'error':''); t.classList.add('show'); clearTimeout(t._x); t._x=setTimeout(function(){t.classList.remove('show');},2800); }
 
 // Cálculo de término de vacaciones: cuenta días hábiles (L-V, sin feriados)
-function vacEnd(startIso,dias){
+function vacEnd(startIso,dias,incluyeSabado){
   if(!startIso||dias<1) return null;
   var d=new Date(startIso+'T12:00:00'), count=0, last=null;
   while(count<dias){
     var w=d.getDay();
-    if(w!==0&&w!==6&&FER.indexOf(iso(d))<0){ count++; last=iso(d); }
+    var habil = incluyeSabado ? (w!==0) : (w!==0&&w!==6);   // sindicales: L-S; resto: L-V
+    if(habil && FER.indexOf(iso(d))<0){ count++; last=iso(d); }
     if(count<dias) d.setDate(d.getDate()+1);
   }
   return last;
@@ -751,11 +752,24 @@ function _tomarTodo(){
   _form.dias=d.base+d.prog+d.sind;
   render();
 }
-// Primer día hábil posterior a una fecha (YYYY-MM-DD)
-function _siguienteHabil(isoStr){
+// Primer día hábil posterior a una fecha (YYYY-MM-DD). incluyeSabado: los sindicales cuentan sábados.
+function _siguienteHabil(isoStr,incluyeSabado){
   var d=new Date(isoStr+'T12:00:00');
-  do{ d.setDate(d.getDate()+1); }while(d.getDay()===0||d.getDay()===6||FER.indexOf(iso(d))>=0);
+  do{ d.setDate(d.getDate()+1); }while((incluyeSabado?(d.getDay()===0):(d.getDay()===0||d.getDay()===6))||FER.indexOf(iso(d))>=0);
   return iso(d);
+}
+// Último día de las vacaciones considerando días sindicales (con sábados)
+function _finVacaciones(f){
+  if(!f||!f.start) return null;
+  var start=String(f.start).slice(0,10);
+  var legalProg=(f.tomarBase||0)+(f.tomarProg||0);
+  var sind=f.tomarSind||0;
+  var fin = legalProg>0 ? vacEnd(start, legalProg, false) : null;
+  if(sind>0){
+    var s = fin ? _siguienteHabil(fin, true) : start;   // sindicales pueden comenzar sábado
+    fin = vacEnd(s, sind, true);
+  }
+  return fin;
 }
 // Fecha larga para la papeleta: "25 de septiembre de 2026"
 function _fechaPapeleta(isoStr){
@@ -818,8 +832,8 @@ async function generarPapeletas(){
       await new Promise(function(r){ setTimeout(r,700); });
     }
     if(sind>0){
-      var sindStart = finLegal ? _siguienteHabil(finLegal) : startIso;
-      var sindFin = vacEnd(sindStart, sind);
+      var sindStart = finLegal ? _siguienteHabil(finLegal, true) : startIso;
+      var sindFin = vacEnd(sindStart, sind, true);
       var mapS=Object.assign({}, baseMap, {
         'F16': String(sind),
         'Inicio1': sindStart.slice(8,10), 'F20': sindStart.slice(5,7), 'F21': sindStart.slice(0,4),
@@ -1400,7 +1414,7 @@ function renderForm(){
         proxBox+
         '</div>';
     }
-    var end=vacEnd(f.start,f.dias);
+    var end=_finVacaciones(f);
     vacBox=perfil+'<div class="card">'+
       '<div class="card-h" style="display:flex;justify-content:space-between;align-items:baseline"><span>Días de vacaciones</span>'+
         '<span style="font-size:11px;color:var(--hint);text-transform:none;font-weight:400">Año '+anioSaldo+(f.emp&&f.emp.ing?' · '+_anosServicio(f.emp.ing)+' años de servicio':'')+'</span></div>'+
@@ -1585,18 +1599,18 @@ function renderCalendar(){
   var first=new Date(_cal.y,_cal.m,1), start=(first.getDay()+6)%7, total=new Date(_cal.y,_cal.m+1,0).getDate();
   var cells=[];
   for(var i=0;i<start;i++) cells.push('<button class="d empty"></button>');
-  var endIso = t===2 ? vacEnd(f.start,f.dias) : null;
+  var endIso = t===2 ? _finVacaciones(f) : null;
   // Mapa día -> bolsa (base/prog/sind) para colorear el rango de vacaciones
   var bucketMap={};
-  if(t===2 && f.start && f.dias>0){
+  var bBase=f.tomarBase||0, bProg=f.tomarProg||0, bSind=f.tomarSind||0, bTot=bBase+bProg+bSind;
+  if(t===2 && f.start && bTot>0){
     var cur=new Date(f.start+'T12:00:00'), idx=0, guard=0;
-    var bTot=(f.tomarBase||0)+(f.tomarProg||0)+(f.tomarSind||0);
     while(idx<bTot && guard<800){
-      var ww=cur.getDay(), ds=iso(cur);
-      if(!FERIADOS[ds] && ww!==0 && ww!==6){
-        bucketMap[ds]= idx<(f.tomarBase||0)?'base':(idx<((f.tomarBase||0)+(f.tomarProg||0))?'prog':'sind');
-        idx++;
-      }
+      var ww=cur.getDay(), ds=iso(cur), fer=!!FERIADOS[ds];
+      var esSind = idx >= (bBase+bProg);
+      // sindicales cuentan sábados; legal/progresivo solo L-V. Feriados no cuentan.
+      var cuenta = !fer && (esSind ? (ww!==0) : (ww!==0 && ww!==6));
+      if(cuenta){ bucketMap[ds]= esSind?'sind':(idx<bBase?'base':'prog'); idx++; }
       cur.setDate(cur.getDate()+1); guard++;
     }
   }
@@ -1605,7 +1619,7 @@ function renderCalendar(){
     var hol=!!FERIADOS[s], sun=w===0, we=w===0||w===6;
     var sel = t===2 ? f.start===s : f.dates.indexOf(s)>=0;
     var inRange= t===2 && f.start && endIso && s>f.start && s<=endIso && !hol && !we;
-    var blocked = t===2 ? (hol||we) : (hol||sun);
+    var blocked = hol||sun;
     var cup=cupos(s);
     var full = t===0 && !hol && !sun && cup.total>=CUPO_MAX;
     var cls='d', fg='var(--text)', bg='var(--surface)', bd='var(--border)', weight='500', dot='', dotc='', shadow='';
@@ -1627,7 +1641,7 @@ function renderCalendar(){
       if(sel){ fg='#fff'; bg='var(--accent)'; bd='var(--accent)'; if(t===1){bg='var(--green)';bd='var(--green)';} weight='600'; }
     }
     if(String(s)===hoy()) shadow='today';
-    if(blocked&&!sel&&!hol&&!sun){ cls+=' blocked'; bg='transparent'; bd='transparent'; }
+    if(blocked&&!sel&&!hol&&!sun&&!bucketMap[s]){ cls+=' blocked'; bg='transparent'; bd='transparent'; }
     if(t===0&&cup.total>0&&!hol&&!sun){ dot=''+(cup.total>CUPO_MAX?'⬤':'●'); dotc='#D6A045'; }
     var title='';
     if(hol) title=FERIADOS[s]+' · feriado (no seleccionable)';
@@ -1683,7 +1697,8 @@ function calClick(s){
   var f=_form,t=_tab;
   if(t===2){
     var dt=new Date(s+'T12:00:00'), w=dt.getDay();
-    if(FERIADOS[s] || w===0 || w===6){ toast('No puedes iniciar vacaciones en un día no hábil','warn'); return; }
+    // Se permite sábado (los días sindicales cuentan sábados); domingo/feriado no.
+    if(FERIADOS[s] || w===0){ toast('No puedes iniciar en domingo o feriado','warn'); return; }
     f.start=s; render(); return;
   }
   if(t===1){ f.dates=f.dates[0]===s?[]:[s]; render(); return; }

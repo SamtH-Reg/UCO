@@ -289,6 +289,10 @@ t('_usoDias: usa desglose dias_base/progresivo/sindical', () => {
 t('setDiasEmpleado/segBtnDias definidos', () => typeof setDiasEmpleado==='function' && typeof segBtnDias==='function');
 t('_fechaPapeleta: fecha larga en español', () => _fechaPapeleta('2026-09-25')==='25 de septiembre de 2026');
 t('_siguienteHabil: viernes -> lunes', () => _siguienteHabil('2026-09-04')==='2026-09-07');
+t('vacEnd: sindicales incluyen sábado; normales no', () => vacEnd('2026-09-03',3,true)==='2026-09-05' && vacEnd('2026-09-03',3,false)==='2026-09-07');
+t('_finVacaciones: solo sindicales incluyen sábado', () => _finVacaciones({start:'2026-09-03',tomarBase:0,tomarProg:0,tomarSind:3})==='2026-09-05');
+t('_finVacaciones: legal L-V + sindicales L-S (sindical puede iniciar sábado)', () => _finVacaciones({start:'2026-09-03',tomarBase:2,tomarProg:0,tomarSind:3})==='2026-09-08');
+t('_finVacaciones: sindicales pueden iniciar sábado', () => _finVacaciones({start:'2026-09-05',tomarBase:0,tomarProg:0,tomarSind:2})==='2026-09-07');
 t('generarPapeletas/_generarDocx/_papeletaBaseMap definidos', () => typeof generarPapeletas==='function' && typeof _generarDocx==='function' && typeof _papeletaBaseMap==='function');
 t('_papeletaBaseMap arma días y fechas', () => {
   var f={start:'2026-09-01',tomarBase:2,tomarProg:1,tomarSind:0,emp:{c:'M1',n:'PEREZ'},cc:{n:'1110 -X'}};
@@ -333,12 +337,12 @@ t('renderForm Vacaciones: interfaz compacta con steppers y editar', () => {
   _tab=0; _form={tipoDias:'BASE'};
   return ok;
 });
-t('calClick vacaciones: bloquea fin de semana', () => {
+t('calClick vacaciones: bloquea domingo, permite sábado', () => {
   _tab=2; _form={start:null};
-  calClick('2026-09-06');            // domingo
+  calClick('2026-09-06');            // domingo -> bloqueado
   var ok=_form.start===null;
-  calClick('2026-09-02');            // miércoles
-  ok=ok && _form.start==='2026-09-02';
+  calClick('2026-09-05');            // sábado -> permitido
+  ok=ok && _form.start==='2026-09-05';
   _tab=0; return ok;
 });
 t('_diasRow: muestra "automático" cuando el asignado difiere', () => {
