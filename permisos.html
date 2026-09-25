@@ -12,6 +12,8 @@
 <link rel="apple-touch-icon" href="./icon-512-gray.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="papeletas.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 /* ══ VARIABLES ══ */
@@ -660,18 +662,36 @@ function _usoDias(codigo, excluirId, anio){
   });
   return u;
 }
-// Fecha de la última vacación registrada de un trabajador (YYYY-MM-DD o null)
+// Fecha de la última vacación YA tomada (<= hoy) de un trabajador (YYYY-MM-DD o null)
 function _ultimaVacacion(codigo){
-  var k=String(codigo||'').trim().toUpperCase(), last=null;
+  var k=String(codigo||'').trim().toUpperCase(), last=null, h=hoy();
   (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
     if(s.tipo!=='VACACIONES') return;
     if(String(s.codigo||'').trim().toUpperCase()!==k) return;
     var est=String(s.estado||'').toUpperCase();
     if(est==='RECHAZADO'||est==='ANULADO') return;
     var d=String(s.termino||s.inicio||'').slice(0,10);
-    if(d && (!last || d>last)) last=d;
+    if(d && d<=h && (!last || d>last)) last=d;
   });
   return last;
+}
+// Registro de la próxima vacación programada (futura) de un trabajador (o null)
+function _proximaVacacionRec(codigo){
+  var k=String(codigo||'').trim().toUpperCase(), next=null, nextD=null, h=hoy();
+  (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
+    if(s.tipo!=='VACACIONES') return;
+    if(String(s.codigo||'').trim().toUpperCase()!==k) return;
+    var est=String(s.estado||'').toUpperCase();
+    if(est==='RECHAZADO'||est==='ANULADO') return;
+    var d=String(s.inicio||'').slice(0,10);
+    if(d && d>h && (!nextD || d<nextD)){ next=s; nextD=d; }
+  });
+  return next;
+}
+// Fecha de la próxima vacación programada (futura) de un trabajador (YYYY-MM-DD o null)
+function _proximaVacacion(codigo){
+  var r=_proximaVacacionRec(codigo);
+  return r?String(r.inicio||'').slice(0,10):null;
 }
 // Tabla donde vive un empleado (empleados vs unidades_excluidas)
 function _tablaEmpleado(cod){
@@ -730,6 +750,62 @@ function _tomarTodo(){
   _form.tomarBase=d.base; _form.tomarProg=d.prog; _form.tomarSind=d.sind;
   _form.dias=d.base+d.prog+d.sind;
   render();
+}
+// Primer día hábil posterior a una fecha (YYYY-MM-DD)
+function _siguienteHabil(isoStr){
+  var d=new Date(isoStr+'T12:00:00');
+  do{ d.setDate(d.getDate()+1); }while(d.getDay()===0||d.getDay()===6||FER.indexOf(iso(d))>=0);
+  return iso(d);
+}
+// Fecha larga para la papeleta: "25 de septiembre de 2026"
+function _fechaPapeleta(isoStr){
+  var M=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  var d=new Date(isoStr+'T12:00:00');
+  if(isNaN(d.getTime())) return '';
+  return d.getDate()+' de '+M[d.getMonth()]+' de '+d.getFullYear();
+}
+// Genera la papeleta Word (.docx) rellenada con los datos de la solicitud
+async function generarPapeleta(){
+  var f=_form;
+  if(!f.emp){ toast('Selecciona un empleado','warn'); return; }
+  if(!f.start){ toast('Selecciona el día de inicio en el calendario','warn'); return; }
+  if(!f.dias){ toast('No hay días solicitados','warn'); return; }
+  if(typeof JSZip==='undefined'){ toast('Librería Word no cargada — recarga la página','error',6000); return; }
+  var legalProg=(f.tomarBase||0)+(f.tomarProg||0);
+  var sind=f.tomarSind||0;
+  var clave=(sind>0)?'sindicales':'normales';
+  try{
+    var b64=(window.PAPELETAS||{})[clave];
+    if(!b64) throw new Error('Plantilla no disponible');
+    var bin=atob(b64), buf=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+    var zip=await JSZip.loadAsync(buf.buffer);
+    var docFile=zip.file('word/document.xml');
+    if(!docFile) throw new Error('Plantilla inválida');
+    var xml=await docFile.async('string');
+    var startIso=String(f.start).slice(0,10);
+    var finLegal = legalProg>0 ? vacEnd(startIso, legalProg) : null;
+    var sindStart=null, sindFin=null;
+    if(sind>0){ sindStart = finLegal ? _siguienteHabil(finLegal) : startIso; sindFin = vacEnd(sindStart, sind); }
+    var map={
+      'DATE': _fechaPapeleta(hoy()),
+      'F1': f.emp.c||'', 'F2': f.emp.n||'', 'F3': (f.cc?f.cc.n:''),
+      'F5': String(f.tomarBase||0), 'F6': String(f.tomarProg||0), 'F7': String(legalProg), 'F16': String(sind),
+      'Inicio': startIso.slice(8,10), 'F11': startIso.slice(5,7), 'F12': startIso.slice(0,4),
+      'Fin': finLegal?finLegal.slice(8,10):'', 'F14': finLegal?finLegal.slice(5,7):'', 'F15': finLegal?finLegal.slice(0,4):'',
+      'Inicio1': sindStart?sindStart.slice(8,10):'', 'F20': sindStart?sindStart.slice(5,7):'', 'F21': sindStart?sindStart.slice(0,4):'',
+      'Fin1': sindFin?sindFin.slice(8,10):'', 'F23': sindFin?sindFin.slice(5,7):'', 'F24': sindFin?sindFin.slice(0,4):''
+    };
+    xml=xml.replace(/\{\{([A-Za-z0-9_]+)\}\}/g,function(m,name){ return _attr(map[name]!=null?map[name]:''); });
+    zip.file('word/document.xml', xml);
+    var blob=await zip.generateAsync({type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download='Solicitud Vacaciones - '+f.emp.c+' '+f.emp.n+'.docx';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); },60000);
+    toast('📄 Papeleta generada','success');
+  }catch(e){ toast('Error al generar papeleta: '+e.message,'error',7000); }
 }
 // Fila compacta de una bolsa (con stepper para tomar y ✎ para editar el asignado)
 function _diasRow(key,lbl,color,asig,uso,disp,tomar,auto,editable){
@@ -1279,14 +1355,23 @@ function renderForm(){
     }
     var perfil='';
     if(f.emp){
-      var ult=_ultimaVacacion(f.emp.c);
+      var ult=_ultimaVacacion(f.emp.c), proxRec=_proximaVacacionRec(f.emp.c);
       var filaP=function(l,v){ return '<div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:4px 0"><span style="color:var(--hint)">'+l+'</span><span style="font-weight:600;text-align:right">'+v+'</span></div>'; };
+      var proxBox='';
+      if(proxRec){
+        proxBox=filaP('Próximas vacaciones', esc(fmt(String(proxRec.inicio||'').slice(0,10))))+
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px">'+
+            '<span style="font-size:11px;font-weight:600;color:var(--green);background:var(--green-soft);padding:3px 9px;border-radius:20px">📅 Vacaciones programadas</span>'+
+            '<button class="btn btn-secondary btn-sm" onclick="abrirEditarModal(\''+esc(proxRec.id||'')+'\')">Revisar / editar fecha</button>'+
+          '</div>';
+      }
       perfil='<div class="card" style="background:var(--accent-soft);border-color:transparent">'+
         '<div style="font-size:14px;font-weight:700;letter-spacing:-.2px">'+esc(f.emp.n)+'</div>'+
         '<div style="font-size:11.5px;color:var(--hint);margin-bottom:8px">'+esc(f.emp.c)+' · '+esc(f.emp.tipo||'')+'</div>'+
         filaP('Años de servicio', anos!=null?anos:'—')+
         filaP('Fecha de ingreso', f.emp.ing?esc(fmt(f.emp.ing)):'—')+
-        filaP('Última vacaciones', ult?esc(fmt(ult)):'Sin registros')+
+        filaP('Última vacaciones tomada', ult?esc(fmt(ult)):'Sin registros')+
+        proxBox+
         '</div>';
     }
     var end=vacEnd(f.start,f.dias);
@@ -1298,6 +1383,7 @@ function renderForm(){
         '<span style="font-size:26px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums">'+f.dias+'</span></div>'+
       (f.maxDias!=null?'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px"><span style="font-size:11.5px;color:var(--hint)">Disponible total: <b style="color:var(--accent)">'+f.maxDias+' días</b></span><button class="btn btn-ghost btn-sm" onclick="_tomarTodo()">Tomar todo</button></div>':'')+
       '<div style="font-size:11px;color:var(--hint);margin-top:8px">Lunes a viernes, sin feriados. El día 1 cuenta. El ✎ permite editar los días negociables.</div>'+
+      '<button class="btn btn-secondary" style="width:100%;margin-top:10px" onclick="generarPapeleta()">📄 Generar papeleta Word</button>'+
       '</div>'+
       '<div style="background:#17171A;color:#fff;border-radius:16px;padding:20px 22px">'+
         '<div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#8E8E98;margin-bottom:14px">Resumen de vacaciones</div>'+
@@ -2473,13 +2559,17 @@ function abrirEditarModal(id){
   _editTabla='solicitudes_permiso';
   if(String(id).indexOf('perm_')===0){ _editTabla='permisos'; _editPk=String(id).replace('perm_',''); }
   else if(String(id).indexOf('vac_')===0){ _editTabla='vacaciones'; _editPk=String(id).replace('vac_',''); }
-  var esCompleto=(s.tipo==='COMPLETO'), esMedia=(s.tipo==='MEDIA_JORNADA');
+  var esCompleto=(s.tipo==='COMPLETO'), esMedia=(s.tipo==='MEDIA_JORNADA'), esVac=(s.tipo==='VACACIONES');
   var campos='<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 4px">CÓDIGO</label>'+
     '<input id="e_codigo" type="text" value="'+esc(s.codigo||'')+'" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--surface2)">'+
     '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 4px">NOMBRE</label>'+
     '<input id="e_nombre" type="text" value="'+esc(s.nombre||'')+'" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--surface2)">'+
-    '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 4px">FECHA PERMISO</label>'+
+    '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 4px">'+(esVac?'FECHA DE INICIO':'FECHA PERMISO')+'</label>'+
     '<input id="e_fecha" type="date" value="'+esc((s.inicio||'').slice(0,10))+'" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--surface2)">';
+  if(esVac){
+    campos+='<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 4px">DÍAS HÁBILES</label>'+
+      '<input id="e_dias" type="number" min="1" value="'+esc(s.dias_habiles!=null?String(s.dias_habiles):'')+'" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--surface2)">';
+  }
   if(esCompleto||esMedia){
     campos+='<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 4px">TURNO</label>'+
       '<select id="e_turno" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--surface2)">'+
@@ -2507,7 +2597,7 @@ function abrirEditarModal(id){
   }
   var html='<div style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)cerrarEditarModal()">'+
     '<div style="background:var(--surface);border-radius:16px;max-width:440px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.4)">'+
-    '<div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between"><b style="font-size:15px">'+(esMedia?'Editar media jornada':'Editar permiso')+'</b><button style="border:none;background:var(--surface2);border-radius:8px;width:28px;height:28px;cursor:pointer" onclick="cerrarEditarModal()">✕</button></div>'+
+    '<div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between"><b style="font-size:15px">'+(esVac?'Editar vacaciones':(esMedia?'Editar media jornada':'Editar permiso'))+'</b><button style="border:none;background:var(--surface2);border-radius:8px;width:28px;height:28px;cursor:pointer" onclick="cerrarEditarModal()">✕</button></div>'+
     '<div style="padding:8px 20px 20px">'+campos+'</div>'+
     '<div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px">'+
     '<button class="btn btn-ghost" onclick="cerrarEditarModal()">Cancelar</button>'+
@@ -2534,6 +2624,8 @@ function guardarEdicion(){
     if(tabla==='solicitudes_permiso'){
       upd.inicio=fecha; upd.turno=turno; upd.tipo_permiso=tipo; upd.tipo_regreso=reg;
       upd.hora_salida=hsal||null; upd.hora_ingreso=(reg==='SIN')?null:(hing||null);
+      var eDias=document.getElementById('e_dias');
+      if(eDias){ var dd=parseInt(eDias.value,10)||0; if(dd>0){ upd.dias_habiles=dd; upd.termino=vacEnd(fecha,dd); } }
     }
     else if(tabla==='permisos'){ upd.fecha=fecha; upd.tipo=_tipoTexto(tipo); }
     else { upd.fecha_inicio=fecha; upd.codigo=codigo; upd.nombre=nombre; }

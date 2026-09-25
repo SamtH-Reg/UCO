@@ -287,6 +287,29 @@ t('_usoDias: usa desglose dias_base/progresivo/sindical', () => {
   return ok;
 });
 t('setDiasEmpleado/segBtnDias definidos', () => typeof setDiasEmpleado==='function' && typeof segBtnDias==='function');
+t('_fechaPapeleta: fecha larga en español', () => _fechaPapeleta('2026-09-25')==='25 de septiembre de 2026');
+t('_siguienteHabil: viernes -> lunes', () => _siguienteHabil('2026-09-04')==='2026-09-07');
+t('generarPapeleta definido', () => typeof generarPapeleta==='function');
+t('_proximaVacacionRec: devuelve el registro futuro más cercano', () => {
+  _SOLIC=[
+    {id:'a',tipo:'VACACIONES',codigo:'M1',inicio:'2000-01-01',estado:'APROBADO'},
+    {id:'c',tipo:'VACACIONES',codigo:'M1',inicio:'2999-01-01',estado:'APROBADO'},
+    {id:'b',tipo:'VACACIONES',codigo:'M1',inicio:'2500-01-01',estado:'APROBADO'}
+  ];
+  var r=_proximaVacacionRec('M1');
+  var ok=!!r && r.id==='b';
+  _SOLIC=[];
+  return ok;
+});
+t('renderForm Vacaciones: aviso de programadas + botón editar', () => {
+  _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false;
+  _SOLIC=[{id:'v1',tipo:'VACACIONES',codigo:'M1',inicio:'2999-01-01',termino:'2999-01-10',dias_habiles:8,estado:'APROBADO'}];
+  _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
+  var h=renderForm();
+  var ok=h.indexOf('Vacaciones programadas')>=0 && h.indexOf("abrirEditarModal('v1')")>=0;
+  _tab=0; _form={}; _SOLIC=[];
+  return ok;
+});
 t('renderForm Vacaciones: interfaz compacta con steppers y editar', () => {
   _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _SOLIC=[];
   _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:'2026-09-01',dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
@@ -320,13 +343,24 @@ t('renderForm Vacaciones: progresivo no editable si no corresponde', () => {
   return ok;
 });
 t('_diasProgresivos: 2 años -> 0 (base de la consulta)', () => _diasProgresivos(2)===0);
-t('_ultimaVacacion: máximo término/inicio (ignora anuladas)', () => {
+t('_ultimaVacacion: última tomada (ignora futuras y anuladas)', () => {
   _SOLIC=[
-    {tipo:'VACACIONES',codigo:'M1',inicio:'2026-03-01',termino:'2026-03-10',estado:'APROBADO'},
-    {tipo:'VACACIONES',codigo:'M1',inicio:'2026-06-01',termino:'2026-06-05',estado:'APROBADO'},
-    {tipo:'VACACIONES',codigo:'M1',inicio:'2026-09-01',termino:'2026-09-02',estado:'ANULADO'}
+    {tipo:'VACACIONES',codigo:'M1',inicio:'2000-01-01',termino:'2000-01-10',estado:'APROBADO'},
+    {tipo:'VACACIONES',codigo:'M1',inicio:'2999-01-01',termino:'2999-01-10',estado:'APROBADO'},
+    {tipo:'VACACIONES',codigo:'M1',inicio:'2050-05-01',termino:'2050-05-10',estado:'ANULADO'}
   ];
-  var ok=_ultimaVacacion('M1')==='2026-06-05';
+  var ok=_ultimaVacacion('M1')==='2000-01-10';
+  _SOLIC=[];
+  return ok;
+});
+t('_proximaVacacion: la futura más cercana (ignora pasadas y anuladas)', () => {
+  _SOLIC=[
+    {tipo:'VACACIONES',codigo:'M1',inicio:'2000-01-01',termino:'2000-01-10',estado:'APROBADO'},
+    {tipo:'VACACIONES',codigo:'M1',inicio:'2999-01-01',termino:'2999-01-10',estado:'APROBADO'},
+    {tipo:'VACACIONES',codigo:'M1',inicio:'2050-05-01',termino:'2050-05-10',estado:'ANULADO'},
+    {tipo:'VACACIONES',codigo:'M1',inicio:'2500-01-01',termino:'2500-01-10',estado:'APROBADO'}
+  ];
+  var ok=_proximaVacacion('M1')==='2500-01-01';
   _SOLIC=[];
   return ok;
 });
