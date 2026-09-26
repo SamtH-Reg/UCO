@@ -723,7 +723,7 @@ async function setDiasEmpleado(cod, campo, val){
 function _dispPorBolsa(){
   if(!_form.emp) return null;
   var anos=_anosServicio(_form.emp.ing); if(anos==null) return null;
-  var asig=_asignacionDias(_form.emp,anos), uso=_usoDias(_form.emp.c);
+  var asig=_asignacionDias(_form.emp,anos), uso=_usoDias(_form.emp.c,_editSolId);
   return {
     base:Math.max(0,asig.base-uso.base),
     prog:Math.max(0,asig.prog-uso.prog),
@@ -1014,7 +1014,7 @@ function go(p){ _page=p; var s=document.querySelectorAll('.sb-item'); s.forEach(
   if(p==='rec' && _recIdx===0){ window._scrollARef=true; }
   render();
 }
-function setTab(t){ _tab=t; resetForm(); document.body.setAttribute('data-formtab', String(t)); go('form'); }
+function setTab(t){ _tab=t; _editSolId=null; resetForm(); document.body.setAttribute('data-formtab', String(t)); go('form'); }
 function setRecIdx(i){
   _recIdx=i; go('rec');
   // Al abrir los registros, mostrar por defecto el MES ACTUAL (si no hay filtros de fecha activos)
@@ -1379,7 +1379,7 @@ function renderForm(){
         var asig=_asignacionDias(f.emp,anos);
         var progAuto=_diasProgresivos(anos);
         if(progAuto<=0) asig.prog=0;   // si no corresponde, no se agrega ni se negocia
-        var uso=_usoDias(f.emp.c);
+        var uso=_usoDias(f.emp.c,_editSolId);
         var dBase=Math.max(0,asig.base-uso.base), dProg=Math.max(0,asig.prog-uso.prog), dSind=Math.max(0,asig.sind-uso.sind);
         if((f.tomarBase||0)>dBase) f.tomarBase=dBase;
         if((f.tomarProg||0)>dProg) f.tomarProg=dProg;
@@ -1470,8 +1470,8 @@ function renderForm(){
 
   return '<div style="position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--border);padding:26px 40px 16px;margin:-26px -40px 0">'+
     '<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">'+
-    '<div><div style="font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--acc)">Solicitud 0'+(t+1)+'</div>'+
-    '<h1 style="font-size:23px;font-weight:700;letter-spacing:-.6px;margin-top:5px">'+TITLES[t]+'</h1></div>'+tabSeg+'</div></div>'+
+    '<div><div style="font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:'+( _editSolId?'var(--oj)':'var(--acc)')+'">'+(_editSolId?'✏️ Edición':'Solicitud 0'+(t+1))+'</div>'+
+    '<h1 style="font-size:23px;font-weight:700;letter-spacing:-.6px;margin-top:5px">'+(_editSolId?'Edición de vacaciones':TITLES[t])+'</h1></div>'+tabSeg+'</div></div>'+
     '<div style="padding-top:24px">'+
       '<div class="grid2">'+
         '<div style="display:flex;flex-direction:column;gap:16px">'+
@@ -1484,8 +1484,8 @@ function renderForm(){
     '</div>'+
     '<div style="position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--border);padding:14px 0;display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:14px">'+
       '<span style="margin-right:auto;font-size:12.5px;color:var(--hint)">'+status+notaCupo+(avisoCupo||'')+'</span>'+
-      '<button class="btn btn-ghost" onclick="resetForm();render();toast(\'Formulario limpiado\',\'\')">Limpiar</button>'+
-      '<button class="btn btn-dark" onclick="submitForm()">Enviar solicitud</button>'+
+      '<button class="btn btn-ghost" onclick="_editSolId=null;resetForm();render();toast(\'Formulario limpiado\',\'\')">'+(_editSolId?'Cancelar edición':'Limpiar')+'</button>'+
+      '<button class="btn btn-dark" onclick="submitForm()">'+(_editSolId?'Guardar cambios':'Enviar solicitud')+'</button>'+
     '</div>';
 }
 function segBtn(lbl,on){ return '<button class="'+(on?'on':'')+'" onclick="_form.turno=\''+(lbl==='Día'?'DIA':lbl.toUpperCase())+'\';render()">'+lbl+'</button>'; }
@@ -1774,6 +1774,34 @@ async function submitForm(){
     if((f.tomarSind||0)>0)_buckets.push('SINDICAL');
   }
   var _tipoDias=t===2?(_buckets.length>1?'MIXTO':(_buckets[0]||'BASE')):null;
+  // ── Modo EDICIÓN: actualiza el registro existente ──
+  if(_editSolId){
+    try{
+      var dE=await dbReady();
+      var updE={
+        codigo:f.emp.c, nombre:f.emp.n, centro_costo:f.cc?f.cc.n:null,
+        inicio:t===2?f.start:(f.dates[0]||null),
+        termino:t===2?_finVacaciones(f):(f.dates.length>1?f.dates[f.dates.length-1]:null),
+        dias_habiles:t===2?f.dias:null,
+        tipo_dias:_tipoDias,
+        dias_base:t===2?(f.tomarBase||0):null,
+        dias_progresivo:t===2?(f.tomarProg||0):null,
+        dias_sindical:t===2?(f.tomarSind||0):null,
+        tipo_regreso:t===1?f.reg:null,
+        hora_salida:t===1?f.hs:null,
+        hora_ingreso:t===1?((f.reg==='SIN')?null:f.hi):null,
+        horas_permiso:t===1?parseFloat(calcularHoras().replace(',','.'))||null:null,
+        comentario:f.com||null
+      };
+      var rE=await dE.from('solicitudes_permiso').update(updE).eq('id',_editSolId);
+      if(rE.error){ toast('Error al guardar: '+(rE.error.message||rE.error),'error'); return; }
+      toast('✅ Cambios guardados','success');
+      _editSolId=null;
+      await cargarSolicitudes();
+      go('rec');
+      return;
+    }catch(e){ toast('Error al guardar: '+e.message,'error'); return; }
+  }
   var newId=_uuid();
   var payload={
     id: newId,
@@ -1783,7 +1811,7 @@ async function submitForm(){
     turno:f.turno||null, tipo_permiso:f.tipo||null,
     autorizador:f.aut?f.aut.n:null, autorizador_sub:f.aut?f.aut.sub:null,
     inicio:t===2?f.start:(f.dates[0]||null),
-    termino:t===2?vacEnd(f.start,f.dias):(f.dates.length>1?f.dates[f.dates.length-1]:null),
+    termino:t===2?_finVacaciones(f):(f.dates.length>1?f.dates[f.dates.length-1]:null),
     dias_habiles:t===2?f.dias:null,
     tipo_dias:_tipoDias,
     dias_base:t===2?(f.tomarBase||0):null,
@@ -2594,6 +2622,7 @@ function eliminarRegistroPermiso(id){
 
 // Modal de edición — se rellena y guarda desde un formulario
 var _editId=null, _editTabla='solicitudes_permiso', _editPk='';
+var _editSolId=null;   // id de la solicitud de vacaciones en edición (formulario completo)
 function abrirEditarModal(id){
   var s=_buscarRegistro(id); if(!s){ toast('Registro no encontrado','error'); return; }
   _editId=id; _editPk=id;
@@ -2678,7 +2707,41 @@ function guardarEdicion(){
   })();
 }
 // Reutiliza modal para editar (mantiene la firma del onclick existente)
-function editarRegistroPermiso(id){ abrirEditarModal(id); }
+function editarRegistroPermiso(id){
+  var s=_buscarRegistro(id);
+  if(s && s.tipo==='VACACIONES'){ iniciarEdicionVacacion(s); return; }
+  abrirEditarModal(id);
+}
+function _empDeCodigo(cod){
+  var k=String(cod||'').trim().toUpperCase();
+  var e=(_EMP||[]).find(function(x){return String(x.c||'').trim().toUpperCase()===k;}); if(e) return e;
+  var x=(_EMP_EXCL||[]).find(function(y){return String(y.c||'').trim().toUpperCase()===k;}); if(x) return x;
+  return {c:cod,n:'',tipo:'INDEFINIDO',ing:null,baseOverride:null,progOverride:null,sindOverride:null};
+}
+// Abre el formulario completo de vacaciones en modo EDICIÓN, precargado con el registro
+function iniciarEdicionVacacion(s){
+  if(!s) return;
+  if(String(s.id||'').indexOf('perm_')===0 || String(s.id||'').indexOf('vac_')===0){
+    toast('Esta vacación proviene de otro sistema; usa el editor simple','warn',6500);
+    abrirEditarModal(String(s.id)); return;
+  }
+  var emp=_empDeCodigo(s.codigo); if(!emp.n) emp.n=s.nombre||'';
+  var cc=s.centro_costo?{c:String(s.centro_costo).slice(0,4),n:s.centro_costo}:null;
+  var base=parseInt(s.dias_base,10)||0, prog=parseInt(s.dias_progresivo,10)||0, sind=parseInt(s.dias_sindical,10)||0;
+  if(base+prog+sind===0){
+    var dh=parseInt(s.dias_habiles,10)||0, td=String(s.tipo_dias||'BASE').toUpperCase();
+    if(td==='PROGRESIVO'||td==='PROG') prog=dh; else if(td==='SINDICAL'||td==='SIND') sind=dh; else base=dh;
+  }
+  setTab(2);
+  _editSolId=s.id;
+  _form.emp=emp; _form.cc=cc;
+  _form.start=s.inicio?String(s.inicio).slice(0,10):null;
+  _form.com=s.comentario||'';
+  _form.tomarBase=base; _form.tomarProg=prog; _form.tomarSind=sind;
+  _form.dias=base+prog+sind;
+  _form.tipoDias=(s.tipo_dias||'BASE');
+  render();
+}
 function _tipoTexto(t){ return {PERSONAL:'Permiso Personal',MEDICO:'Permiso Medico',JUDICIAL:'Permiso Judicial'}[t]||'Permiso Personal'; }
 
 // ═══════════════════════════════════════════════════════════════

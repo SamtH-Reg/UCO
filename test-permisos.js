@@ -294,6 +294,17 @@ t('_finVacaciones: solo sindicales incluyen sábado', () => _finVacaciones({star
 t('_finVacaciones: legal L-V + sindicales L-S (sindical puede iniciar sábado)', () => _finVacaciones({start:'2026-09-03',tomarBase:2,tomarProg:0,tomarSind:3})==='2026-09-08');
 t('_finVacaciones: sindicales pueden iniciar sábado', () => _finVacaciones({start:'2026-09-05',tomarBase:0,tomarProg:0,tomarSind:2})==='2026-09-07');
 t('generarPapeletas/_generarDocx/_papeletaBaseMap definidos', () => typeof generarPapeletas==='function' && typeof _generarDocx==='function' && typeof _papeletaBaseMap==='function');
+t('iniciarEdicionVacacion/_empDeCodigo definidos', () => typeof iniciarEdicionVacacion==='function' && typeof _empDeCodigo==='function');
+t('_empDeCodigo encuentra por código', () => { _EMP=[{c:'M1',n:'A',ing:'2000-01-01'}]; var e=_empDeCodigo('m1'); var ok=!!e&&e.c==='M1'; _EMP=[]; return ok; });
+t('renderForm en edición muestra "Edición de vacaciones"', () => {
+  _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _SOLIC=[];
+  _editSolId='rec1';
+  _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},aut:null,cc:{c:'1',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:'2026-09-01',dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
+  var h=renderForm();
+  var ok=h.indexOf('Edición de vacaciones')>=0 && h.indexOf('Guardar cambios')>=0;
+  _editSolId=null; _tab=0; _form={};
+  return ok;
+});
 t('_papeletaBaseMap arma días y fechas', () => {
   var f={start:'2026-09-01',tomarBase:2,tomarProg:1,tomarSind:0,emp:{c:'M1',n:'PEREZ'},cc:{n:'1110 -X'}};
   var m=_papeletaBaseMap(f);
@@ -308,6 +319,13 @@ t('_papeletaBaseMap: solo sindicales -> 1er cuadro de fechas en blanco', () => {
   var f={start:'2026-09-01',tomarBase:0,tomarProg:0,tomarSind:3,emp:{c:'M1',n:'PEREZ'},cc:{n:'x'}};
   var m=_papeletaBaseMap(f);
   return m.F7==='0' && m.Inicio==='' && m.F12==='' && m.Fin==='';
+});
+t('_usoDias: excluye el registro en edición', () => {
+  var y=String(new Date().getFullYear());
+  _SOLIC=[{id:'x',tipo:'VACACIONES',codigo:'M1',dias_habiles:5,dias_base:5,estado:'APROBADO',inicio:y+'-03-01'}];
+  var u=_usoDias('M1','x');
+  var ok=u.base===0 && u.prog===0 && u.sind===0;
+  _SOLIC=[]; return ok;
 });
 t('_proximaVacacionRec: devuelve el registro futuro más cercano', () => {
   _SOLIC=[
