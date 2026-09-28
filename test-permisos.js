@@ -120,6 +120,44 @@ t('periodoLabel: rango -> "Rango ..."', () => { recSetTodo(); _recDesde='2026-08
 t('periodoLabel: varios meses -> "Meses: Ago, Sep"', () => { recSetTodo(); _recMeses=[8,9]; return periodoLabel()==='Meses: Ago, Sep'; });
 t('recClearFilters limpia todo', () => { _recAnio='2026';_recMeses=[8];_recDesde='x';_recHasta='x'; _recTipo='PERSONAL'; recClearFilters(); return !_recAnio&&!_recMeses.length&&!_recDesde&&!_recHasta&&!_recTipo; });
 t('recSetMesActual fija año/mes actual + rango', () => { recSetMesActual(); var d=new Date(),a=d.getFullYear(),m=d.getMonth()+1; return _recAnio===String(a) && _recMeses.length===1 && _recMeses[0]===m && _recDesde===a+'-'+String(m).padStart(2,'0')+'-01'; });
+t('recToggleEstado agrega/quita', () => {
+  _page='home'; _SOLIC=[]; _recEstados=['EN CURSO','POR TOMAR'];
+  recToggleEstado('FINALIZADAS'); var ok=_recEstados.length===3;
+  recToggleEstado('FINALIZADAS'); ok=ok&&_recEstados.length===2;
+  return ok;
+});
+t('recSetTodosEstados alterna; recEstadosLbl', () => {
+  _page='home'; _SOLIC=[]; _recEstados=['EN CURSO','POR TOMAR'];
+  var lbl=recEstadosLbl();
+  recSetTodosEstados(); var ok=_recEstados.length===3;
+  recSetTodosEstados(); ok=ok&&_recEstados.length===0;
+  var vacio=recEstadosLbl();
+  _recEstados=['EN CURSO','POR TOMAR'];
+  return lbl==='2 estados' && vacio==='Estado' && ok;
+});
+t('setRecIdx(2): vacaciones usa los meses restantes del año', () => {
+  _page='home'; _SOLIC=[]; _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta='';
+  setRecIdx(2);
+  var d=new Date(), m=d.getMonth()+1;
+  var ok=_recMeses.length===(13-m) && _recMeses[0]===m && _recMeses[_recMeses.length-1]===12;
+  recClearFilters(); return ok;
+});
+t('setRecIdx(0): dia completo usa mes actual + siguiente', () => {
+  _page='home'; _SOLIC=[]; _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta='';
+  setRecIdx(0);
+  var d=new Date(), m=d.getMonth()+1, m2=(m+1)>12?1:(m+1);
+  var ok=_recMeses.length===2 && _recMeses.indexOf(m)>=0 && _recMeses.indexOf(m2)>=0;
+  recClearFilters(); return ok;
+});
+t('recSetMesActualSiguiente: mes actual + siguiente', () => {
+  _page='home'; _SOLIC=[];
+  _recAnio='2020'; _recMeses=[5]; _recDesde='x'; _recHasta='x';
+  recSetMesActualSiguiente();
+  var d=new Date(), m=d.getMonth()+1, m2=(m+1)>12?1:(m+1);
+  var ok=_recMeses.length===2 && _recMeses.indexOf(m)>=0 && _recMeses.indexOf(m2)>=0;
+  recClearFilters();
+  return ok;
+});
 t('recSetMesAnterior fija mes previo', () => { recSetMesAnterior(); var d=new Date(),m=d.getMonth()-1,a=d.getFullYear(); if(m<0){m=11;a--;} return _recMeses.length===1&&_recMeses[0]===m+1&&_recAnio===String(a); });
 t('recSetTodo vacía filtros', () => { recSetTodo(); return !_recAnio&&!_recMeses.length&&!_recDesde&&!_recHasta&&!_recTipo; });
 t('periodoLabel con tipo = "Todos los registros · Personal"', () => { recSetTodo(); _recTipo='PERSONAL'; return periodoLabel()==='Todos los registros · Personal'; });
@@ -288,6 +326,7 @@ t('_usoDias: usa desglose dias_base/progresivo/sindical', () => {
 });
 t('setDiasEmpleado/segBtnDias definidos', () => typeof setDiasEmpleado==='function' && typeof segBtnDias==='function');
 t('_fechaPapeleta: fecha larga en español', () => _fechaPapeleta('2026-09-25')==='25 de septiembre de 2026');
+t('_diaSemana: 2026-09-29 -> martes', () => _diaSemana('2026-09-29')==='martes');
 t('_siguienteHabil: viernes -> lunes', () => _siguienteHabil('2026-09-04')==='2026-09-07');
 t('vacEnd: sindicales incluyen sábado; normales no', () => vacEnd('2026-09-03',3,true)==='2026-09-05' && vacEnd('2026-09-03',3,false)==='2026-09-07');
 t('_finVacaciones: solo sindicales incluyen sábado', () => _finVacaciones({start:'2026-09-03',tomarBase:0,tomarProg:0,tomarSind:3})==='2026-09-05');

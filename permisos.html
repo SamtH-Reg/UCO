@@ -26,6 +26,7 @@
   --oj:#B0711C; --oj-soft:rgba(176,113,28,.1);
   --red:#D8615E; --red-soft:rgba(216,97,94,.11);
   --shadow:0 8px 30px rgba(23,23,26,.08);
+  --ease-out:cubic-bezier(.23,1,.32,1); --ease-in-out:cubic-bezier(.77,0,.175,1); --ease-drawer:cubic-bezier(.32,.72,0,1);
   --acc:var(--accent); --acc-soft:var(--accent-soft); --acc-bd:#C9C6F4;
 }
 /* Color activo según formulario (tab) */
@@ -90,11 +91,12 @@ body{
 .topbar-actions{display:flex;gap:10px;align-items:center}
 
 .content{flex:1;padding:26px 40px 56px}
-.content-box{max-width:1080px;animation:fade .3s ease}
+.content-box{max-width:1600px;animation:fade .3s ease}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* ══ BOTONES ══ */
-.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:10px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s,opacity .15s}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:10px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s var(--ease-out),opacity .15s var(--ease-out),transform .16s var(--ease-out)}
+.btn:active:not(:disabled){transform:scale(.97)}
 .btn:disabled{opacity:.4;cursor:default}
 .btn-primary{background:var(--accent);color:#fff}
 .btn-primary:hover{background:var(--accent2)}
@@ -135,7 +137,8 @@ input[type=text],input[type=date],input[type=time],input[type=number],select,tex
 select{cursor:pointer}
 textarea{resize:vertical}
 .seg{display:flex;gap:8px}
-.seg button{flex:1;padding:11px 8px;border:1px solid var(--border2);border-radius:11px;background:var(--surface);color:var(--muted);font-size:12.5px;font-weight:500;cursor:pointer;transition:all .15s;font-family:inherit}
+.seg button{flex:1;padding:11px 8px;border:1px solid var(--border2);border-radius:11px;background:var(--surface);color:var(--muted);font-size:12.5px;font-weight:500;cursor:pointer;transition:background .15s var(--ease-out),color .15s var(--ease-out),border-color .15s var(--ease-out),transform .16s var(--ease-out);font-family:inherit}
+.seg button:active{transform:scale(.97)}
 .seg button.on{background:var(--acc-soft);color:var(--acc);border-color:var(--acc)}
 .seg button.on.verde{background:var(--green-soft);color:var(--green);border-color:var(--green)}
 .seg button.on.oj{background:var(--oj-soft);color:var(--oj);border-color:var(--oj)}
@@ -143,7 +146,8 @@ textarea{resize:vertical}
 
 /* ══ PICKER (input con dropdown) ══ */
 .pick{position:relative}
-.pick-btn{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface2);cursor:pointer;transition:border-color .15s;font-family:inherit}
+.pick-btn{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;border:1.5px solid var(--border);border-radius:12px;background:var(--surface2);cursor:pointer;transition:border-color .15s var(--ease-out),transform .16s var(--ease-out);font-family:inherit}
+.pick-btn:active{transform:scale(.995)}
 .pick-btn:focus{border-color:var(--accent)}
 .pick-btn .tick{width:20px;height:20px;flex-shrink:0;border-radius:50%;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
 .pick-btn .tick.on{background:var(--acc);border-color:var(--acc)}
@@ -151,13 +155,14 @@ textarea{resize:vertical}
 .pick-btn .t .a{display:block;font-size:13.5px;font-weight:600;white-space:normal;word-break:break-word}
 .pick-btn .t .b{display:block;font-size:11.5px;color:var(--hint);margin-top:2px}
 .pick-btn .chev{color:var(--hint);font-size:11px}
-.pick-pop{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;animation:pop .16s ease}
-@keyframes pop{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:none}}
+.pick-pop{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;transform-origin:top center;animation:pop .16s var(--ease-out)}
+@keyframes pop{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
 .pick-search{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)}
 .pick-search input{flex:1;border:none;outline:none;background:none;font-size:14px;color:var(--text);padding:0}
 .pick-list{max-height:300px;overflow-y:auto}
-.pick-it{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:12px 16px;border:none;border-bottom:1px solid var(--border);background:var(--surface);cursor:pointer;transition:background .12s;font-family:inherit}
+.pick-it{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:12px 16px;border:none;border-bottom:1px solid var(--border);background:var(--surface);cursor:pointer;transition:background .12s var(--ease-out),transform .16s var(--ease-out);font-family:inherit}
 .pick-it:hover{background:var(--surface2)}
+.pick-it:active{transform:scale(.99)}
 .pick-it .code{width:34px;height:34px;flex-shrink:0;border-radius:10px;background:var(--surface3);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700}
 .pick-it .t{flex:1;min-width:0}
 .pick-it .t .a{display:block;font-size:13.5px;font-weight:500;white-space:normal;word-break:break-word}
@@ -179,7 +184,8 @@ textarea{resize:vertical}
 .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px}
 .cal-dow div{text-align:center;font-size:10.5px;font-weight:600;color:var(--hint);letter-spacing:.5px}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.cal .d{aspect-ratio:1;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:12.5px;font-weight:500;cursor:pointer;font-variant-numeric:tabular-nums;position:relative;display:flex;align-items:center;justify-content:center;transition:background .13s,border-color .13s;padding:0;font-family:inherit}
+.cal .d{aspect-ratio:1;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:12.5px;font-weight:500;cursor:pointer;font-variant-numeric:tabular-nums;position:relative;display:flex;align-items:center;justify-content:center;transition:background .13s var(--ease-out),border-color .13s var(--ease-out),transform .14s var(--ease-out);padding:0;font-family:inherit}
+.cal .d:active:not(.empty){transform:scale(.94)}
 .cal .d.empty{border-color:transparent;background:transparent;cursor:default}
 .cal .d .dotnum{position:absolute;bottom:4px;font-size:7.5px;font-weight:700}
 .cal .d.sun{background:var(--red-soft);color:#C4544F;border-color:#F5E3E2}
@@ -246,6 +252,12 @@ textarea{resize:vertical}
 }
 @media(max-width:500px){
   .kpi-grid{grid-template-columns:1fr}
+}
+/* Accesibilidad: menos movimiento si el usuario lo pide */
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  .content-box,.pick-pop{animation:none!important}
+  .btn:active,.seg button:active,.pick-it:active,.pick-btn:active,.cal .d:active{transform:none!important}
 }
 </style>
 </head>
@@ -771,6 +783,12 @@ function _finVacaciones(f){
   }
   return fin;
 }
+// Nombre del día de la semana (español) para una fecha YYYY-MM-DD
+function _diaSemana(isoStr){
+  var d=new Date(String(isoStr||'').slice(0,10)+'T12:00:00');
+  if(isNaN(d.getTime())) return '';
+  return ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'][d.getDay()];
+}
 // Fecha larga para la papeleta: "25 de septiembre de 2026"
 function _fechaPapeleta(isoStr){
   var M=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -1017,9 +1035,12 @@ function go(p){ _page=p; var s=document.querySelectorAll('.sb-item'); s.forEach(
 function setTab(t){ _tab=t; _editSolId=null; resetForm(); document.body.setAttribute('data-formtab', String(t)); go('form'); }
 function setRecIdx(i){
   _recIdx=i; go('rec');
-  // Al abrir los registros, mostrar por defecto el MES ACTUAL (si no hay filtros de fecha activos)
+  // Al abrir los registros, filtro por defecto:
+  //  - Día completo / Media jornada: MES ACTUAL + SIGUIENTE
+  //  - Vacaciones: MESES QUE QUEDAN DEL AÑO (mes actual -> diciembre)
   if(!_recAnio&&!_recMeses.length&&!_recDesde&&!_recHasta){
-    recSetMesActual();
+    if(i===2) recSetMesesRestantes();
+    else recSetMesActualSiguiente();
   }
 }
 function goHome(){ go('home'); }
@@ -1881,22 +1902,8 @@ function recFilterBar(t){
     '</div></div>';
   var esPermiso=(t===0||t===1);
   var esVac=(t===2);
-  // Atajos solo para permisos (dia completo / media jornada)
-  var atajos=esPermiso?'<div style="display:flex;gap:6px;align-items:center">'+
-    '<button class="btn btn-ghost'+( _recMeses.length===1&&_recMeses[0]===new Date().getMonth()+1&&!_recDesde?' btn-active':'')+'" style="padding:7px 11px;font-size:12px" onclick="recSetMesActual()">Este mes</button>'+
-    '<button class="btn btn-ghost" style="padding:7px 11px;font-size:12px" onclick="recSetMesAnterior()">Mes anterior</button>'+
-    '<button class="btn btn-ghost" style="padding:7px 11px;font-size:12px" onclick="recSetTodo()">Todo</button>'+
-    '</div>':'';
   var busca='<div class="searchbar" style="width:200px;min-width:200px"><span class="i">⌕</span>'+
       '<input placeholder="Buscar..." value="'+esc(recQ)+'" oninput="recQ=this.value;recRefrescarTbody()" style="border:none;outline:none;background:none;flex:1;font-size:13px;color:var(--text)"></div>';
-  // Rango Desde/Hasta solo para permisos (no para vacaciones)
-  var rango='';
-  if(esPermiso){
-    rango='<div style="display:flex;gap:6px;align-items:center">'+
-      '<label style="font-size:11px;color:var(--hint)">Desde</label><input type="date" class="f-date" value="'+esc(_recDesde)+'" onchange="_recFechaAuto=false;_recDesde=this.value;render()">'+
-      '<label style="font-size:11px;color:var(--hint)">Hasta</label><input type="date" class="f-date" value="'+esc(_recHasta)+'" onchange="_recFechaAuto=false;_recHasta=this.value;render()">'+
-    '</div>';
-  }
   // Turno solo para permisos; Tipo de permiso NO para vacaciones
   var turnoSel='', tipoSel='';
   if(esPermiso){
@@ -1907,14 +1914,18 @@ function recFilterBar(t){
     turnoSel=sel(turnoOpts,'_recTurno=this.value;render()');
     tipoSel=sel(tipoOpts,'_recTipo=this.value;render()');
   }
-  // Estado solo para vacaciones
-  var estadoSel='';
+  // Estado (multiselección) solo para vacaciones — por defecto: En curso + Por tomar
+  var estadoDrop='';
   if(esVac){
-    var estadoOpts='<option value="">Estado</option>'+
-      '<option value="EN CURSO"'+( _recEstado==='EN CURSO'?' selected':'')+'>En curso</option>'+
-      '<option value="POR TOMAR"'+( _recEstado==='POR TOMAR'?' selected':'')+'>Por tomar</option>'+
-      '<option value="FINALIZADAS"'+( _recEstado==='FINALIZADAS'?' selected':'')+'>Finalizadas</option>';
-    estadoSel=sel(estadoOpts,'_recEstado=this.value;render()');
+    var ESTADOS=['EN CURSO','POR TOMAR','FINALIZADAS'];
+    var todosEst=(_recEstados.length===ESTADOS.length)?'✓ Todos':'☐ Seleccionar todos';
+    var estChk='<div onclick="recSetTodosEstados()" style="padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;font-weight:600;color:var(--accent)">'+todosEst+'</div>'+
+      ESTADOS.map(function(e2){ var checked=_recEstados.indexOf(e2)>=0;
+        return '<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12.5px;white-space:nowrap"><input type="checkbox" '+(checked?'checked':'')+' onchange="recToggleEstado(\''+e2+'\')" style="accent-color:var(--accent)">'+e2+'</label>'; }).join('');
+    estadoDrop='<div class="pick" style="position:relative">'+
+      '<div class="pick-btn" style="padding:8px 12px;border:1px solid var(--border);border-radius:11px;background:var(--surface2);font-size:12px;cursor:pointer;min-width:130px;display:flex;align-items:center;gap:6px" onclick="var p=document.getElementById(\'estPop\');p.classList.toggle(\'hidden\')">'+
+      '<span style="flex:1;color:var(--text)">'+recEstadosLbl()+'</span><span style="color:var(--hint)">▾</span></div>'+
+      '<div id="estPop" class="pick-pop hidden" style="width:170px">'+estChk+'</div></div>';
   }
   // Dropdown multiselección de centros de costo (solo vacaciones)
   var ccDrop='';
@@ -1931,15 +1942,14 @@ function recFilterBar(t){
   }
   var anioSel=sel(anioOpts,'_recAnio=this.value;if(_recMeses.length)aplicarRangoMeses();render()');
   var bar='<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">'+
-    atajos+busca+
-    rango+
+    busca+
     '<div style="display:flex;gap:6px;align-items:center">'+
       anioSel+
       mesDrop+
       ccDrop+
       tipoSel+
       turnoSel+
-      estadoSel+
+      estadoDrop+
     '</div>'+
     '<div style="margin-left:auto;display:flex;gap:8px;align-items:center">'+
       '<button class="btn btn-ghost" onclick="exportRec('+t+')">Exportar</button>'+clr+
@@ -1952,21 +1962,41 @@ function recRefrescarTbody(){
   var tb=document.getElementById('tbodyCompleto');
   if(tb){ tb.innerHTML=_cuerpoCompletoHTML(); }
 }
-function recClearFilters(){ _recAnio='';_recAnios=[];_recMeses=[];_recCC=[];_recDesde='';_recHasta=''; recQ=''; _recTipo=''; _recTurno=''; _recEstado=''; _recFechaAuto=false; render(); }
+function recClearFilters(){ _recAnio='';_recAnios=[];_recMeses=[];_recCC=[];_recDesde='';_recHasta=''; recQ=''; _recTipo=''; _recTurno=''; _recEstados=['EN CURSO','POR TOMAR']; _recFechaAuto=false; render(); }
+function recToggleEstado(e){ var i=_recEstados.indexOf(e); if(i>=0)_recEstados.splice(i,1); else _recEstados.push(e); render(); }
+function recSetTodosEstados(){ var all=['EN CURSO','POR TOMAR','FINALIZADAS']; if(_recEstados.length===all.length)_recEstados=[]; else _recEstados=all.slice(); render(); }
+function recEstadosLbl(){ if(!_recEstados.length) return 'Estado'; return _recEstados.length===1?_recEstados[0]:(_recEstados.length+' estados'); }
 var _recTipo='';   // '' | PERSONAL | MEDICO | JUDICIAL
 var _recTurno='';  // '' | DIA | TARDE | NOCHE (filtro de turno, solo media jornada)
-var _recEstado=''; // '' | EN CURSO | POR TOMAR (solo vacaciones)
+var _recEstados=['EN CURSO','POR TOMAR']; // multiselección de estados (solo vacaciones)
 // Atajos de rango
 function recSetMesActual(){
   var d=new Date(), a=d.getFullYear(), m=d.getMonth();
   _recAnio=String(a); _recMeses=[m+1]; _recTipo=''; _recFechaAuto=true; aplicarRangoMeses(); render();
+}
+// Por defecto vacaciones: meses que quedan del año (mes actual -> diciembre)
+function recSetMesesRestantes(){
+  var d=new Date(), y=d.getFullYear(), m=d.getMonth()+1;
+  _recAnio=String(y); _recMeses=[]; for(var i=m;i<=12;i++) _recMeses.push(i);
+  _recTipo=''; _recFechaAuto=true; aplicarRangoMeses(); render();
+}
+// Por defecto: mes actual + mes siguiente (para revisar lo solicitado próximamente)
+function recSetMesActualSiguiente(){
+  var d=new Date(), y=d.getFullYear(), m=d.getMonth()+1;
+  var m2=m+1, y2=y; if(m2>12){ m2=1; y2=y+1; }
+  var pad=function(n){ return String(n).padStart(2,'0'); };
+  var last=new Date(y2,m2,0);
+  _recAnio=''; _recMeses=[m,m2]; _recTipo=''; _recFechaAuto=false;
+  _recDesde=y+'-'+pad(m)+'-01';
+  _recHasta=y2+'-'+pad(m2)+'-'+pad(last.getDate());
+  render();
 }
 function recSetMesAnterior(){
   var d=new Date(), m=d.getMonth()-1; var a=d.getFullYear();
   if(m<0){ m=11; a--; }
   _recAnio=String(a); _recMeses=[m+1]; _recTipo=''; _recFechaAuto=true; aplicarRangoMeses(); render();
 }
-function recSetTodo(){ _recAnio='';_recMeses=[];_recDesde='';_recHasta='';_recTipo='';_recTurno='';_recEstado=''; _recFechaAuto=false; render(); }
+function recSetTodo(){ _recAnio='';_recMeses=[];_recDesde='';_recHasta='';_recTipo='';_recTurno='';_recEstados=['EN CURSO','POR TOMAR']; _recFechaAuto=false; render(); }
 // Estado de colapso por fecha en vista Día completo: clave YYYY-MM-DD -> true=expandida
 // (solo aplica a fechas PASADAS; hoy y futuras se muestran sin agrupar)
 var _diaExpand = {};
@@ -2033,7 +2063,7 @@ function renderPorDia(tipo, titulo, accColor, recIdx){
 
   dias.forEach(function(g){
     var fechas=g.k.split('-');
-    var fechaLbl=g.k==='__sin__' ? '—' : (fechas[2]+'-'+fechas[1]+'-'+fechas[0]);
+    var fechaLbl=g.k==='__sin__' ? '—' : ((fechas[2]+'-'+fechas[1]+'-'+fechas[0])+(_diaSemana(g.k)?' · '+_diaSemana(g.k):''));
     var sumaDia=0;
     g.items.forEach(function(s){ var hN=parseFloat(calcularHorasPermiso(s))||0; sumaDia+=hN; acumTurno(s,hN); });
     var diaExp=_diaExpand[g.k]===true;
@@ -2105,7 +2135,7 @@ function renderVacaciones(hit, fechaOk){
   var items=_SOLIC.filter(function(s){
     if(s.tipo!=='VACACIONES') return false;
     if(!hitS(s)||!fechaOkS(s)) return false;
-    if(_recEstado && estadoDe(s)!==_recEstado) return false;
+    if(_recEstados.length && _recEstados.indexOf(estadoDe(s))<0) return false;
     return true;
   });
   var meses=[]; var mk={};
@@ -2310,7 +2340,9 @@ function _cuerpoCompletoHTML(){
 
   function fechaLblDe(k){
     if(k==='__sin__') return '—';
-    var f=k.split('-'); return f[2]+'-'+f[1]+'-'+f[0];
+    var f=k.split('-'); var lbl=f[2]+'-'+f[1]+'-'+f[0];
+    var dow=_diaSemana(k);
+    return dow ? (lbl+' · '+dow) : lbl;
   }
   function ordenar(arr){
     return arr.slice().sort(function(a,b){
