@@ -335,6 +335,14 @@ t('_finVacaciones: sindicales pueden iniciar sábado', () => _finVacaciones({sta
 t('generarPapeletas/_generarDocx/_papeletaBaseMap definidos', () => typeof generarPapeletas==='function' && typeof _generarDocx==='function' && typeof _papeletaBaseMap==='function');
 t('iniciarEdicionVacacion/_empDeCodigo definidos', () => typeof iniciarEdicionVacacion==='function' && typeof _empDeCodigo==='function');
 t('_empDeCodigo encuentra por código', () => { _EMP=[{c:'M1',n:'A',ing:'2000-01-01'}]; var e=_empDeCodigo('m1'); var ok=!!e&&e.c==='M1'; _EMP=[]; return ok; });
+t('resumenVacaciones: año completo (12 meses) + días', () => {
+  _resInit=true; _resAnios=['2026']; _resCC=[]; _resVacExpand={};
+  var items=[{tipo:'VACACIONES',inicio:'2026-03-10',termino:'2026-03-15',dias_habiles:5,centro_costo:'1110',nombre:'X',codigo:'M1'}];
+  var h=resumenVacaciones(items);
+  var ok=h.indexOf('2026-ene')>=0 && h.indexOf('2026-dic')>=0 && h.indexOf('2026-mar')>=0 && h.indexOf('días')>=0 && h.indexOf('registros')>=0;
+  _resAnios=[]; _resCC=[]; _resInit=false;
+  return ok;
+});
 t('renderForm en edición muestra "Edición de vacaciones"', () => {
   _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _SOLIC=[];
   _editSolId='rec1';
