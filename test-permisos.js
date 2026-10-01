@@ -95,13 +95,39 @@ t('cupos(): clase media jornada suma al total', () => {
 
 // calcularHoras()
 _form = { hs:'09:00', hi:'12:30', reg:'CON' };
-t('calcularHoras(): 09:00-12:30 = 3,5 h', () => calcularHoras() === '3,5 h');
+t('calcularHoras(): 09:00-12:30 = 3,50 h', () => calcularHoras() === '3,50 h');
 _form = { hs:'22:00', hi:'01:00', reg:'CON' };
-t('calcularHoras(): cruce de medianoche 22:00-01:00 = 3,0 h', () => calcularHoras() === '3,0 h');
+t('calcularHoras(): cruce de medianoche 22:00-01:00 = 3,00 h', () => calcularHoras() === '3,00 h');
 _form = { hs:'09:00', hi:'12:30', reg:'SIN' };
-t('calcularHoras(): sin regreso -> —', () => calcularHoras() === '—');
+t('calcularHoras(): sin regreso (DIA) 09:00 -> 8,00 h (hasta 17:00)', () => calcularHoras() === '8,00 h');
+_form = { hs:'23:00', hi:'', reg:'SIN', turno:'TARDE' };
+t('calcularHoras(): sin regreso (TARDE) 23:00 -> 2,00 h (hasta 01:00)', () => calcularHoras() === '2,00 h');
+_form = { hs:'03:00', hi:'', reg:'SIN', turno:'NOCHE' };
+t('calcularHoras(): sin regreso (NOCHE) 03:00 -> 2,50 h (hasta 05:30)', () => calcularHoras() === '2,50 h');
+_form = { hs:'', hi:'10:00', reg:'ING', turno:'DIA' };
+t('calcularHoras(): ingreso a planta (DIA) 10:00 -> 2,00 h (desde 08:00)', () => calcularHoras() === '2,00 h');
 _form = { hs:'09:00', hi:'', reg:'CON' };
-t('calcularHoras(): sin hora ingreso -> —', () => calcularHoras() === '—');
+t('calcularHoras(): con regreso sin hora ingreso -> —', () => calcularHoras() === '—');
+t('_horasTrabajadasDe: fórmula del sheet (9−L, tope 8,5 si >5)', () => _horasTrabajadasDe(4)===5 && _horasTrabajadasDe(0.67)===7.83 && _horasTrabajadasDe(7.25)===1.75 && _horasTrabajadasDe(0)===8.5);
+t('calcularHorasTrabajadas: SIN DIA 14:00 -> 5,5 trabajadas', () => calcularHorasTrabajadas({turno:'DIA',tipo_regreso:'SIN',hora_salida:'14:00'})===5.5);
+t('calcularHorasPermiso: redondea a 2 decimales (14:38 -> 2,37)', () => calcularHorasPermiso({turno:'DIA',tipo_regreso:'SIN',hora_salida:'14:38'})===2.37);
+t('reporte media jornada: HORAS TRABAJADAS y subtotales solo con datos', () => {
+  _SOLIC=[{id:'m1',tipo:'MEDIA_JORNADA',codigo:'M1',nombre:'X',inicio:'2026-10-01',turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20',estado:'APROBADO'}];
+  _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpand={};
+  var h=renderPorDia('MEDIA_JORNADA','Registros media jornada','#1C8A5B',1);
+  var ok=h.indexOf('HORAS TRABAJADAS')>=0 && h.indexOf('Subtotal HORAS DE PERMISO')>=0 && h.indexOf('Total TARDE')<0 && h.indexOf('Total NOCHE')<0 && h.indexOf('Suma total')<0;
+  _SOLIC=[]; return ok;
+});
+t('reporte media jornada: con 2 turnos aparece Suma total', () => {
+  _SOLIC=[
+    {id:'m1',tipo:'MEDIA_JORNADA',codigo:'M1',nombre:'X',inicio:'2026-10-01',turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20',estado:'APROBADO'},
+    {id:'m2',tipo:'MEDIA_JORNADA',codigo:'M2',nombre:'Y',inicio:'2026-10-01',turno:'TARDE',tipo_regreso:'SIN',hora_salida:'20:00',estado:'APROBADO'}
+  ];
+  _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpand={};
+  var h=renderPorDia('MEDIA_JORNADA','Registros media jornada','#1C8A5B',1);
+  var ok=h.indexOf('Total DIA')>=0 && h.indexOf('Total TARDE')>=0 && h.indexOf('Total NOCHE')<0 && h.indexOf('Subtotal HORAS DE PERMISO')>=0;
+  _SOLIC=[]; return ok;
+});
 
 // esc()
 t('esc() escapa HTML', () => esc('<b>"x"&</b>') === '&lt;b&gt;&quot;x&quot;&amp;&lt;/b&gt;');
@@ -135,11 +161,10 @@ t('recSetTodosEstados alterna; recEstadosLbl', () => {
   _recEstados=['EN CURSO','POR TOMAR'];
   return lbl==='2 estados' && vacio==='Estado' && ok;
 });
-t('setRecIdx(2): vacaciones usa los meses restantes del año', () => {
+t('setRecIdx(2): vacaciones sin filtro de fecha (todas)', () => {
   _page='home'; _SOLIC=[]; _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta='';
   setRecIdx(2);
-  var d=new Date(), m=d.getMonth()+1;
-  var ok=_recMeses.length===(13-m) && _recMeses[0]===m && _recMeses[_recMeses.length-1]===12;
+  var ok=_recMeses.length===0 && !_recDesde && !_recHasta && !_recAnio;
   recClearFilters(); return ok;
 });
 t('setRecIdx(0): dia completo usa mes actual + siguiente', () => {
@@ -270,6 +295,16 @@ t('renderForm: carpeta por pestaña se marca en verde', () => {
   _dirTabs={};
   return ok;
 });
+t('_carpetaObligatoriaOk: requiere carpeta configurada', () => {
+  _dirHandle=null; _dirConectada=false; _dirTabs={};
+  var a=_carpetaObligatoriaOk();
+  _dirHandle={name:'x'}; _dirConectada=true;
+  var b=_carpetaObligatoriaOk();
+  _dirHandle=null; _dirConectada=false; _dirTabs={'0':{handle:{},conectada:true}};
+  var c=_carpetaObligatoriaOk();
+  _dirTabs={}; _dirHandle=null; _dirConectada=false;
+  return a===false && b===true && c===true;
+});
 t('dirDeTab: cada pestaña tiene su propia carpeta', () => {
   _dirTabs={'0':{handle:{name:'A'},name:'A',conectada:true},'2':{handle:{name:'B'},name:'B',conectada:true}};
   var a=dirDeTab(0), b=dirDeTab(2);
@@ -297,8 +332,9 @@ t('_anosServicio: >=25 para 2000', () => _anosServicio('2000-01-01')>=25);
 t('_diasProgresivos Art.68', () => _diasProgresivos(9)===0 && _diasProgresivos(10)===1 && _diasProgresivos(13)===2 && _diasProgresivos(16)===3 && _diasProgresivos(19)===4 && _diasProgresivos(22)===5 && _diasProgresivos(30)===5);
 t('_diasFeriadoTotal base(20 Aysén)+prog+sindicales(5)', () => _diasFeriadoTotal(5)===25 && _diasFeriadoTotal(10)===26 && _diasFeriadoTotal(22)===30);
 t('DIAS_SINDICALES = 5', () => DIAS_SINDICALES===5);
-t('_asignacionDias: usa overrides si existen (incl. base)', () => { var a=_asignacionDias({baseOverride:18,progOverride:7,sindOverride:3},16); return a.base===18&&a.prog===7&&a.sind===3; });
+t('_asignacionDias: base/sind usan override, pero prog es por ley (ignora override)', () => { var a=_asignacionDias({baseOverride:18,progOverride:7,sindOverride:3},16); return a.base===18 && a.prog===_diasProgresivos(16) && a.prog!==7 && a.sind===3; });
 t('_asignacionDias: sin overrides usa ley/referencia', () => { var a=_asignacionDias({},16); return a.base===20&&a.prog===_diasProgresivos(16)&&a.sind===5; });
+t('_asignacionDias: 2 años -> progresivo 0 (por ley)', () => { var a=_asignacionDias({progOverride:9},2); return a.prog===0; });
 t('_usoDias: suma por bolsa del año en curso e ignora otros años', () => {
   var y=String(new Date().getFullYear());
   _SOLIC=[
@@ -333,6 +369,7 @@ t('_finVacaciones: solo sindicales incluyen sábado', () => _finVacaciones({star
 t('_finVacaciones: legal L-V + sindicales L-S (sindical puede iniciar sábado)', () => _finVacaciones({start:'2026-09-03',tomarBase:2,tomarProg:0,tomarSind:3})==='2026-09-08');
 t('_finVacaciones: sindicales pueden iniciar sábado', () => _finVacaciones({start:'2026-09-05',tomarBase:0,tomarProg:0,tomarSind:2})==='2026-09-07');
 t('generarPapeletas/_generarDocx/_papeletaBaseMap definidos', () => typeof generarPapeletas==='function' && typeof _generarDocx==='function' && typeof _papeletaBaseMap==='function');
+t('_guardarSolicitud definido', () => typeof _guardarSolicitud==='function');
 t('iniciarEdicionVacacion/_empDeCodigo definidos', () => typeof iniciarEdicionVacacion==='function' && typeof _empDeCodigo==='function');
 t('_empDeCodigo encuentra por código', () => { _EMP=[{c:'M1',n:'A',ing:'2000-01-01'}]; var e=_empDeCodigo('m1'); var ok=!!e&&e.c==='M1'; _EMP=[]; return ok; });
 t('resumenVacaciones: año completo (12 meses) + días', () => {
@@ -342,6 +379,11 @@ t('resumenVacaciones: año completo (12 meses) + días', () => {
   var ok=h.indexOf('2026-ene')>=0 && h.indexOf('2026-dic')>=0 && h.indexOf('2026-mar')>=0 && h.indexOf('días')>=0 && h.indexOf('registros')>=0;
   _resAnios=[]; _resCC=[]; _resInit=false;
   return ok;
+});
+t('recTotal(2): cuenta vacaciones (no días)', () => {
+  _SOLIC=[{tipo:'VACACIONES',dias_habiles:10},{tipo:'VACACIONES',dias_habiles:5},{tipo:'COMPLETO'}];
+  var ok=recTotal(2)==='Total: 2 vacaciones';
+  _SOLIC=[]; return ok;
 });
 t('renderForm en edición muestra "Edición de vacaciones"', () => {
   _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _SOLIC=[];
@@ -390,7 +432,7 @@ t('renderForm Vacaciones: aviso de programadas + botón editar', () => {
   _SOLIC=[{id:'v1',tipo:'VACACIONES',codigo:'M1',inicio:'2999-01-01',termino:'2999-01-10',dias_habiles:8,estado:'APROBADO'}];
   _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
   var h=renderForm();
-  var ok=h.indexOf('Vacaciones programadas')>=0 && h.indexOf("abrirEditarModal('v1')")>=0;
+  var ok=h.indexOf('Vacaciones programadas')>=0 && h.indexOf("editarRegistroPermiso('v1')")>=0;
   _tab=0; _form={}; _SOLIC=[];
   return ok;
 });
@@ -401,6 +443,36 @@ t('renderForm Vacaciones: interfaz compacta con steppers y editar', () => {
   var ok=h.indexOf('Total solicitado')>=0 && h.indexOf('_setTomar')>=0 && h.indexOf('editarAsignado')>=0 && h.indexOf('Disponible')>=0 && h.indexOf('Última vacaciones')>=0 && h.indexOf('Fecha de ingreso')>=0;
   _tab=0; _form={tipoDias:'BASE'};
   return ok;
+});
+t('_calIrHoy: vuelve al mes actual', () => {
+  _page='home'; _SOLIC=[]; _cal={y:2000,m:5};
+  _calIrHoy();
+  var d=new Date();
+  return _cal.y===d.getFullYear() && _cal.m===d.getMonth();
+});
+t('resetForm: deja el calendario en el mes actual', () => {
+  _cal={y:2000,m:5}; _form=null;
+  resetForm();
+  var d=new Date();
+  return _cal.y===d.getFullYear() && _cal.m===d.getMonth();
+});
+t('calClick dia completo: bloquea domingo y feriado', () => {
+  _tab=0; _form={dates:[],tipo:'PERSONAL'}; _SOLIC=[];
+  calClick('2026-09-06');   // domingo -> bloqueado
+  var ok=_form.dates.length===0;
+  calClick('2026-09-18');   // feriado -> bloqueado
+  ok = ok && _form.dates.length===0;
+  calClick('2026-09-01');   // martes -> permitido
+  ok = ok && _form.dates.indexOf('2026-09-01')>=0;
+  _tab=0; return ok;
+});
+t('calClick media jornada: bloquea domingo', () => {
+  _tab=1; _form={dates:[]}; _SOLIC=[];
+  calClick('2026-09-06');   // domingo -> bloqueado
+  var ok=_form.dates.length===0;
+  calClick('2026-09-02');   // miércoles -> permitido
+  ok = ok && _form.dates[0]==='2026-09-02';
+  _tab=0; return ok;
 });
 t('calClick vacaciones: bloquea domingo, permite sábado', () => {
   _tab=2; _form={start:null};
@@ -479,6 +551,199 @@ t('_empListaPicker no-vacaciones usa solo empleados', () => {
   var ok=list.length===1 && list[0].c==='M1';
   _EMP=[]; _EMP_EXCL=[];
   return ok;
+});
+// ——— Lógica del formulario de Vacaciones ———
+t('_dispPorBolsa: descuenta lo usado por bolsa del año', () => {
+  var y=String(new Date().getFullYear());
+  _tab=2; _editSolId=null;
+  _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null}};
+  _SOLIC=[{id:'u1',tipo:'VACACIONES',codigo:'M1',dias_base:2,estado:'APROBADO',inicio:y+'-02-01'}];
+  var d=_dispPorBolsa(), anos=_anosServicio('2000-01-01');
+  var ok=!!d && d.base===FERIADO_BASE-2 && d.prog===_diasProgresivos(anos) && d.sind===DIAS_SINDICALES;
+  _form={}; _SOLIC=[]; _tab=0; return ok;
+});
+t('_dispPorBolsa: null sin fecha de ingreso', () => {
+  _tab=2; _form={emp:{c:'M1',ing:null}};
+  var ok=_dispPorBolsa()===null;
+  _form={}; _tab=0; return ok;
+});
+t('_dispPorBolsa: no baja de 0 con sobreuso', () => {
+  var y=String(new Date().getFullYear());
+  _tab=2; _editSolId=null;
+  _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:2,progOverride:0,sindOverride:0}};
+  _SOLIC=[{id:'u1',tipo:'VACACIONES',codigo:'M1',dias_base:9,estado:'APROBADO',inicio:y+'-02-01'}];
+  var d=_dispPorBolsa();
+  var ok=!!d && d.base===0 && d.prog===_diasProgresivos(_anosServicio('2000-01-01')) && d.sind===0;
+  _form={}; _SOLIC=[]; _tab=0; return ok;
+});
+t('_recalcTomar: recorta a lo disponible y fija maxDias', () => {
+  var y=String(new Date().getFullYear());
+  _tab=2; _editSolId=null;
+  _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},tomarBase:999,tomarProg:999,tomarSind:999,dias:0};
+  _SOLIC=[{id:'u1',tipo:'VACACIONES',codigo:'M1',dias_base:3,estado:'APROBADO',inicio:y+'-02-01'}];
+  _recalcTomar();
+  var d=_dispPorBolsa();
+  var ok=_form.tomarBase===d.base && _form.tomarProg===d.prog && _form.tomarSind===d.sind && _form.maxDias===d.base+d.prog+d.sind && _form.dias===d.base+d.prog+d.sind;
+  _form={}; _SOLIC=[]; _tab=0; return ok;
+});
+t('_setTomar: recorta negativos y excedentes (prog por ley)', () => {
+  _tab=2; _editSolId=null; _SOLIC=[];
+  var progLaw=_diasProgresivos(_anosServicio('2000-01-01'));
+  _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:2,progOverride:1,sindOverride:0},tomarBase:0,tomarProg:0,tomarSind:0,dias:0};
+  _setTomar('base',-5); var ok=_form.tomarBase===0;
+  _setTomar('base',99); ok=ok && _form.tomarBase===2;
+  _setTomar('prog',99); ok=ok && _form.tomarProg===progLaw;
+  _setTomar('sind',1);  ok=ok && _form.tomarSind===0 && _form.dias===2+progLaw;
+  _form={}; _tab=0; return ok;
+});
+t('_tomarTodo: llena lo disponible (descontando lo usado)', () => {
+  var y=String(new Date().getFullYear());
+  _tab=2; _editSolId=null;
+  _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},tomarBase:0,tomarProg:0,tomarSind:0,dias:0};
+  _SOLIC=[{id:'u1',tipo:'VACACIONES',codigo:'M1',dias_base:5,estado:'APROBADO',inicio:y+'-02-01'}];
+  _tomarTodo();
+  var ok=_form.tomarBase===FERIADO_BASE-5 && _form.dias===(FERIADO_BASE-5)+_diasProgresivos(_anosServicio('2000-01-01'))+DIAS_SINDICALES;
+  _form={}; _SOLIC=[]; _tab=0; return ok;
+});
+t('_papeletaInputDeRegistro: usa el desglose guardado', () => {
+  var f=_papeletaInputDeRegistro({codigo:'M1',nombre:'PEREZ',centro_costo:'1110 -X',inicio:'2026-09-01T00:00:00',dias_habiles:4,dias_base:2,dias_progresivo:1,dias_sindical:1});
+  return f.tomarBase===2 && f.tomarProg===1 && f.tomarSind===1 && f.dias===4 && f.start==='2026-09-01' && f.emp.c==='M1' && f.cc.n==='1110 -X';
+});
+t('_papeletaInputDeRegistro: fallback por tipo_dias (sin desglose)', () => {
+  var a=_papeletaInputDeRegistro({codigo:'M1',inicio:'2026-09-01',dias_habiles:5,tipo_dias:'SINDICAL'});
+  var b=_papeletaInputDeRegistro({codigo:'M1',inicio:'2026-09-01',dias_habiles:5});
+  return a.tomarSind===5 && a.tomarBase===0 && b.tomarBase===5 && b.tomarSind===0;
+});
+t('generarPapeletaRegistro/_generarPapeletasDe definidos', () => typeof generarPapeletaRegistro==='function' && typeof _generarPapeletasDe==='function');
+t('ficha de vacaciones: botón Generar papeleta + Editar', () => {
+  _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false;
+  _SOLIC=[{id:'v1',tipo:'VACACIONES',codigo:'M1',inicio:'2999-01-01',termino:'2999-01-10',dias_habiles:8,estado:'APROBADO'}];
+  _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
+  var h=renderForm();
+  var ok=h.indexOf("generarPapeletaRegistro('v1')")>=0 && h.indexOf("editarRegistroPermiso('v1')")>=0;
+  _tab=0; _form={}; _SOLIC=[]; return ok;
+});
+t('iniciarEdicionVacacion: mapea el calendario al mes de inicio', () => {
+  _tab=0; _cal={y:2000,m:0}; _SOLIC=[];
+  _EMP=[{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',cc:'1110 -X'}];
+  iniciarEdicionVacacion({id:'s1',tipo:'VACACIONES',codigo:'M1',nombre:'PEREZ',centro_costo:'1110 -X',inicio:'2026-10-01T00:00:00',termino:'2026-10-09',dias_habiles:7,estado:'APROBADO'});
+  var ok=_cal.y===2026 && _cal.m===9 && _form.start==='2026-10-01' && _form.dias===7 && _form.tomarBase===7;
+  _tab=0; _form={}; _EMP=[]; _SOLIC=[]; _cal={y:new Date().getFullYear(),m:new Date().getMonth()};
+  return ok;
+});
+t('iniciarEdicionVacacion: calcula días desde inicio/fin si faltan', () => {
+  _tab=0; _cal={y:2000,m:0}; _SOLIC=[];
+  _EMP=[{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',cc:'1110 -X'}];
+  iniciarEdicionVacacion({id:'s2',tipo:'VACACIONES',codigo:'M1',nombre:'PEREZ',inicio:'2026-10-01',termino:'2026-10-07',dias_habiles:null,estado:'APROBADO'});
+  var ok=_form.dias===contarHabiles('2026-10-01','2026-10-07') && _form.dias>0;
+  _tab=0; _form={}; _EMP=[]; _cal={y:new Date().getFullYear(),m:new Date().getMonth()};
+  return ok;
+});
+t('edición: conserva los días guardados aunque el saldo esté sobregirado', () => {
+  var y=String(new Date().getFullYear());
+  _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false;
+  _SOLIC=[
+    {id:'o1',tipo:'VACACIONES',codigo:'M1',dias_base:30,estado:'APROBADO',inicio:y+'-01-05'},
+    {id:'s1',tipo:'VACACIONES',codigo:'M1',dias_base:8,tipo_dias:'BASE',estado:'APROBADO',inicio:y+'-10-01'}
+  ];
+  _editSolId='s1';
+  _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:y+'-10-01',dias:8,tipoDias:'BASE',maxDias:null,tomarBase:8,tomarProg:0,tomarSind:0};
+  var h=renderForm();
+  var ok=_form.tomarBase===8 && _form.dias===8 && h.indexOf('Falta inicio')<0;
+  _editSolId=null; _tab=0; _form={}; _SOLIC=[]; return ok;
+});
+t('_setTomar: al editar no baja del valor guardado', () => {
+  var y=String(new Date().getFullYear());
+  _tab=2; _editSolId='s1';
+  _SOLIC=[{id:'o1',tipo:'VACACIONES',codigo:'M1',dias_base:30,estado:'APROBADO',inicio:y+'-01-05'}];
+  _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},tomarBase:8,tomarProg:0,tomarSind:0,dias:8};
+  _setTomar('base',8); var ok=_form.tomarBase===8;
+  _setTomar('base',99); ok=ok && _form.tomarBase===8;
+  _setTomar('base',3);  ok=ok && _form.tomarBase===3;
+  _editSolId=null; _form={}; _SOLIC=[]; _tab=0; return ok;
+});
+t('renderForm Vacaciones: progresivo nunca editable (por ley), base sí', () => {
+  _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _SOLIC=[];
+  _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',baseOverride:null,progOverride:9,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
+  var h=renderForm();
+  var ok=h.indexOf("editarAsignado('prog')")<0 && h.indexOf("editarAsignado('base')")>=0;
+  _tab=0; _form={tipoDias:'BASE'}; return ok;
+});
+t('edición: progresivo se recalcula por ley (2 años -> 0)', () => {
+  var y=String(new Date().getFullYear());
+  _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false;
+  _SOLIC=[{id:'s1',tipo:'VACACIONES',codigo:'M1',dias_base:20,dias_progresivo:2,dias_sindical:1,tipo_dias:'MIXTO',estado:'APROBADO',inicio:y+'-10-21'}];
+  _editSolId='s1';
+  _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2024-01-02',baseOverride:null,progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:y+'-10-21',dias:23,tipoDias:'MIXTO',maxDias:null,tomarBase:20,tomarProg:2,tomarSind:1};
+  renderForm();
+  var ok=_form.tomarProg===0 && _form.dias===21;
+  _editSolId=null; _tab=0; _form={}; _SOLIC=[]; return ok;
+});
+t('CSS: .btn-secondary definido (evita botones en blanco)', () => /\.btn-secondary\s*\{/.test(html));
+t('CSS: .btn base define fondo y color', () => /\.btn\{[^}]*background:var\(--surface\)/.test(html));
+t('sidebar moderno: toggleSb + botón colapsar + íconos + rail', () => typeof toggleSb==='function' && /class="sb-collapse"/.test(html) && /\.sb-item \.ico\s*\{/.test(html) && /\.sidebar\.collapsed\s*\{/.test(html));
+t('_respAgg: agrupa por responsable, suma y ordena desc', () => {
+  var a=_respAgg([{autorizador:'ANA'},{autorizador:'ANA'},{autorizador:'LUIS'},{autorizador:''}], function(){return 1;});
+  return a[0].label==='ANA' && a[0].value===2 && a.some(function(p){return p.label==='Sin responsable' && p.value===1;});
+});
+t('_donutSVG: genera svg con porcentajes', () => {
+  var h=_donutSVG([{label:'A',value:3},{label:'B',value:1}]);
+  return h.indexOf('<svg')>=0 && h.indexOf('75,0%')>=0 && h.indexOf('25,0%')>=0;
+});
+t('panel: incluye los dos gráficos por responsable', () => {
+  var y=new Date().getFullYear(), m=String(new Date().getMonth()+1).padStart(2,'0');
+  _SOLIC=[
+    {tipo:'COMPLETO',estado:'APROBADO',inicio:y+'-'+m+'-05',autorizador:'ANA'},
+    {tipo:'MEDIA_JORNADA',estado:'APROBADO',inicio:y+'-'+m+'-06',turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20',autorizador:'LUIS'}
+  ];
+  var h=renderHome();
+  var ok=h.indexOf('Permisos día completo por responsable')>=0 && h.indexOf('Horas de media jornada por responsable')>=0 && h.indexOf('class="dn-svg"')>=0;
+  _SOLIC=[]; return ok;
+});
+t('registros día completo: columna RESPONSABLE (autorizador)', () => {
+  _SOLIC=[{tipo:'COMPLETO',codigo:'C1',nombre:'PEREZ',inicio:'2026-10-01',tipo_permiso:'PERSONAL',autorizador:'HUGO MILLANERI',estado:'APROBADO'}];
+  _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpandC={}; _docIds={};
+  var h=renderDiaCompletoVista();
+  var ok=h.indexOf('RESPONSABLE')>=0 && h.indexOf('HUGO MILLANERI')>=0 && h.indexOf('FECHA PERMISO')>=0;
+  _SOLIC=[]; return ok;
+});
+t('registros media jornada: acciones editar/eliminar por fila', () => {
+  _SOLIC=[{tipo:'MEDIA_JORNADA',id:'x1',codigo:'M1',nombre:'X',inicio:'2026-10-01',turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20',autorizador:'ANA',estado:'APROBADO'}];
+  _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpand={}; _docIds={};
+  var h=renderPorDia('MEDIA_JORNADA','Registros media jornada','#1C8A5B',1);
+  var ok=h.indexOf("editarRegistroPermiso('x1')")>=0 && h.indexOf("eliminarRegistroPermiso('x1')")>=0;
+  _SOLIC=[]; return ok;
+});
+t('registros media jornada: columna RESPONSABLE', () => {
+  _SOLIC=[{tipo:'MEDIA_JORNADA',codigo:'M1',nombre:'X',inicio:'2026-10-01',turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20',autorizador:'ANA PEREZ',estado:'APROBADO'}];
+  _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpand={};
+  var h=renderPorDia('MEDIA_JORNADA','Registros media jornada','#1C8A5B',1);
+  var ok=h.indexOf('RESPONSABLE')>=0 && h.indexOf('ANA PEREZ')>=0;
+  _SOLIC=[]; return ok;
+});
+t('registros: NO muestran gráficos (solo en el panel)', () => {
+  _SOLIC=[{tipo:'MEDIA_JORNADA',codigo:'M1',nombre:'X',inicio:'2026-10-01',turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20',autorizador:'ANA',estado:'APROBADO'}];
+  _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpand={};
+  var h=renderPorDia('MEDIA_JORNADA','Registros media jornada','#1C8A5B',1);
+  var ok=h.indexOf('dn-svg')<0 && h.indexOf('por responsable')<0;
+  _SOLIC=[]; return ok;
+});
+t('panel: KPIs del mes presente + vacaciones EN CURSO', () => {
+  var y=new Date().getFullYear(), m=String(new Date().getMonth()+1).padStart(2,'0');
+  var other=(m==='01'?'02':'01');
+  _SOLIC=[
+    {tipo:'COMPLETO',estado:'APROBADO',inicio:y+'-'+m+'-05'},
+    {tipo:'COMPLETO',estado:'APROBADO',inicio:(y-1)+'-'+m+'-05'},
+    {tipo:'MEDIA_JORNADA',estado:'APROBADO',inicio:y+'-'+m+'-06',turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20'},
+    {tipo:'MEDIA_JORNADA',estado:'APROBADO',inicio:y+'-'+other+'-06',turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20'},
+    {tipo:'VACACIONES',estado:'APROBADO',inicio:hoy(),termino:hoy(),dias_habiles:1},
+    {tipo:'VACACIONES',estado:'APROBADO',inicio:(y-3)+'-01-01',termino:(y-3)+'-01-05',dias_habiles:5}
+  ];
+  var h=renderHome();
+  var ok=h.indexOf('<div class="l">Permisos del mes</div><div class="v">2</div>')>=0
+      && h.indexOf('<div class="l">Medias jornadas</div><div class="v">1</div>')>=0
+      && h.indexOf('<div class="l">Vacaciones en curso</div><div class="v">1</div>')>=0;
+  _SOLIC=[]; return ok;
 });
 t('renderForm: boton gestionar responsables junto al autorizador', () => {
   _tab=0;

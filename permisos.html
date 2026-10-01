@@ -40,13 +40,30 @@
   --shadow-sm:0 1px 2px rgba(0,0,0,.25),0 3px 10px rgba(0,0,0,.3);
   color-scheme:dark;
 }
+/* Fondo del formulario según la pestaña (tinte del color primario) */
+body[data-page="form"][data-formtab="0"]{ --bg:#F0F0F1; --topbar:rgba(240,240,241,.86) }
+body[data-page="form"][data-formtab="1"]{ --bg:#EEF6F2; --topbar:rgba(238,246,242,.86) }
+body[data-page="form"][data-formtab="2"]{ --bg:#FBF3E9; --topbar:rgba(251,243,233,.86) }
+body[data-theme="oscuro"][data-page="form"][data-formtab="0"]{ --bg:#17171A; --topbar:rgba(23,23,26,.86) }
+body[data-theme="oscuro"][data-page="form"][data-formtab="1"]{ --bg:#121A17; --topbar:rgba(18,26,23,.86) }
+body[data-theme="oscuro"][data-page="form"][data-formtab="2"]{ --bg:#1B1710; --topbar:rgba(27,23,16,.86) }
+/* Mismo tinte para los Registros según su pestaña */
+body[data-page="rec"][data-rec="0"]{ --bg:#F0F0F1; --topbar:rgba(240,240,241,.86) }
+body[data-page="rec"][data-rec="1"]{ --bg:#EEF6F2; --topbar:rgba(238,246,242,.86) }
+body[data-page="rec"][data-rec="2"]{ --bg:#FBF3E9; --topbar:rgba(251,243,233,.86) }
+body[data-theme="oscuro"][data-page="rec"][data-rec="0"]{ --bg:#17171A; --topbar:rgba(23,23,26,.86) }
+body[data-theme="oscuro"][data-page="rec"][data-rec="1"]{ --bg:#121A17; --topbar:rgba(18,26,23,.86) }
+body[data-theme="oscuro"][data-page="rec"][data-rec="2"]{ --bg:#1B1710; --topbar:rgba(27,23,16,.86) }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-tap-highlight-color:transparent}
 body{
-  font-family:'Calibri','Barlow',-apple-system,BlinkMacSystemFont,sans-serif;
+  font-family:-apple-system,system-ui,'Segoe UI Variable Text','Segoe UI',Roboto,'Inter','Barlow','Helvetica Neue',Arial,sans-serif;
   background:var(--bg);color:var(--text);
   min-height:100vh;transition:background .3s,color .3s;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;
+  font-size:14px;line-height:1.5;
 }
+h1,h2,h3{font-weight:700;letter-spacing:-0.02em;line-height:1.15}
 .hidden{display:none!important}
 
 /* ══ LOGIN ══ */
@@ -67,29 +84,50 @@ body{
 
 /* ══ LAYOUT ══ */
 .app{display:flex;min-height:100vh}
-.sidebar{width:238px;flex-shrink:0;background:#17171A;color:#fff;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:22px 14px 14px;overflow-y:auto}
-.sb-brand{display:flex;align-items:center;gap:11px;padding:0 8px 20px}
-.sb-brand .logo{width:34px;height:34px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;letter-spacing:-.4px}
-.sb-brand .t{font-size:13.5px;font-weight:600;letter-spacing:-.2px}
-.sb-brand .s{font-size:11px;color:#75757F;margin-top:1px}
-.sb-lab{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#5B5B65;padding:16px 10px 7px}
-.sb-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border:none;border-radius:9px;background:transparent;color:#C6C6CE;font-size:13px;font-weight:500;text-align:left;cursor:pointer;transition:background .16s,color .16s;width:100%;font-family:inherit}
-.sb-item:hover{background:rgba(255,255,255,.07);color:#fff}
-.sb-item.active{background:rgba(91,84,214,.2);color:#fff}
-.sb-item .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.sb-item .bar{width:14px;height:2px;border-radius:2px;flex-shrink:0}
-.sb-foot{border-top:1px solid rgba(255,255,255,.08);padding-top:14px;margin-top:auto;display:flex;align-items:center;gap:10px}
-.sb-avatar{width:30px;height:30px;border-radius:50%;background:#26262B;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;color:#B9B9C2}
+.sidebar{width:252px;flex-shrink:0;background:#17171C;color:#fff;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:1px;padding:14px 12px;border-right:1px solid rgba(255,255,255,.06);overflow-y:auto;overflow-x:hidden;transition:width .22s var(--ease-out),padding .22s var(--ease-out)}
+.sidebar::-webkit-scrollbar{width:0}
+.sb-brand{display:flex;align-items:center;gap:11px;padding:6px 8px 14px;position:relative}
+.sb-brand .logo{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,#6E66F2,#5B54D6);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;letter-spacing:-.4px;flex-shrink:0;box-shadow:0 5px 16px rgba(91,84,214,.42)}
+.sb-brand .tt{min-width:0}
+.sb-brand .t{font-size:13.5px;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
+.sb-brand .s{font-size:10.5px;color:#72727E;margin-top:1px;white-space:nowrap}
+.sb-collapse{position:absolute;right:2px;top:6px;width:26px;height:26px;border-radius:50%;background:#26262E;border:1px solid rgba(255,255,255,.14);color:#B9B9C4;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:5;transition:background .15s,color .15s,transform .15s}
+.sb-collapse:hover{background:#33333D;color:#fff}
+.sb-collapse:active{transform:scale(.9)}
+.sb-collapse svg{width:13px;height:13px;transition:transform .22s var(--ease-out)}
+.sb-lab{font-size:10px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:#5A5A66;padding:16px 12px 6px;white-space:nowrap;overflow:hidden;transition:opacity .18s}
+.sb-item{display:flex;align-items:center;gap:11px;padding:9px 11px;border:none;border-radius:11px;background:transparent;color:#AEAFBA;font-size:13px;font-weight:500;text-align:left;cursor:pointer;transition:background .16s,color .16s;width:100%;font-family:inherit}
+.sb-item .ico{width:19px;height:19px;flex-shrink:0;display:flex;align-items:center;justify-content:center;opacity:.85;transition:opacity .16s,color .16s}
+.sb-item .ico svg{width:18px;height:18px;display:block}
+.sb-item .lb{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-item:hover{background:rgba(255,255,255,.06);color:#fff}
+.sb-item:hover .ico{opacity:1}
+.sb-item.active{background:#2A2A34;color:#fff;font-weight:600;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
+.sb-item.active .ico{color:#8B85F0;opacity:1}
+.sb-foot{border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-top:auto;display:flex;align-items:center;gap:10px}
+.sb-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3A3A46,#2A2A34);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;color:#C7C7D0;flex-shrink:0}
 .sb-user{flex:1;min-width:0}
-.sb-user .n{font-size:12px;font-weight:500;color:#E4E4EA;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sb-user .r{font-size:10.5px;color:#6C6C76}
-.sb-logout{border:none;background:none;color:#6C6C76;cursor:pointer;font-size:15px;padding:4px}
+.sb-user .n{font-size:12px;font-weight:600;color:#E8E8EE;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-user .r{font-size:10.5px;color:#6C6C78}
+.sb-logout{border:none;background:none;color:#6C6C78;cursor:pointer;font-size:15px;padding:6px;border-radius:8px;transition:background .15s,color .15s}
+.sb-logout:hover{background:rgba(255,255,255,.07);color:#fff}
+/* Estado colapsado (rail de íconos) */
+.sidebar.collapsed{width:78px;padding:14px 12px}
+.sidebar.collapsed .sb-brand{flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:6px 0 12px}
+.sidebar.collapsed .sb-brand .tt{display:none}
+.sidebar.collapsed .sb-collapse{position:static}
+.sidebar.collapsed .sb-collapse svg{transform:rotate(180deg)}
+.sidebar.collapsed .sb-item{justify-content:center;padding:11px}
+.sidebar.collapsed .sb-item .lb,.sidebar.collapsed .sb-user{display:none}
+.sidebar.collapsed .sb-foot{justify-content:center}
+.sidebar.collapsed .sb-lab{font-size:0;padding:12px 6px 4px;height:20px}
+.sidebar.collapsed .sb-lab::after{content:'';display:block;height:1px;background:rgba(255,255,255,.09)}
 
 .main{flex:1;min-width:0;display:flex;flex-direction:column}
-.topbar{position:sticky;top:0;z-index:30;background:rgba(246,246,244,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:22px 40px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;transition:background .3s}
-[data-theme="oscuro"] .topbar{background:rgba(19,19,22,.86)}
-.topbar .kicker{font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--accent)}
-.topbar h1{font-size:23px;font-weight:700;letter-spacing:-.6px;margin-top:3px}
+.topbar{position:sticky;top:0;z-index:30;background:var(--topbar,rgba(246,246,244,.86));backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:22px 40px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;transition:background .3s}
+[data-theme="oscuro"] .topbar{background:var(--topbar,rgba(19,19,22,.86))}
+.topbar .kicker{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--acc)}
+.topbar h1{font-size:clamp(22px,2.1vw,28px);font-weight:700;letter-spacing:-.025em;line-height:1.08;margin-top:5px}
 .topbar-actions{display:flex;gap:10px;align-items:center}
 
 .content{flex:1;padding:26px 40px 56px}
@@ -97,11 +135,13 @@ body{
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* ══ BOTONES ══ */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:12px 20px;border-radius:12px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s var(--ease-out),opacity .15s var(--ease-out),transform .16s var(--ease-out)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:12px 20px;border-radius:12px;border:none;background:var(--surface);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s var(--ease-out),opacity .15s var(--ease-out),transform .16s var(--ease-out)}
 .btn:active:not(:disabled){transform:scale(.97)}
 .btn:disabled{opacity:.4;cursor:default}
 .btn-primary{background:var(--accent);color:#fff}
 .btn-primary:hover{background:var(--accent2)}
+.btn-secondary{background:var(--surface);border:1px solid var(--border2);color:var(--text)}
+.btn-secondary:hover{background:var(--surface3)}
 .btn-dark{background:#17171A;color:#fff}
 .btn-dark:hover{background:#2C2C33}
 .btn-ghost{background:var(--surface);border:1px solid var(--border2);color:var(--muted)}
@@ -118,7 +158,7 @@ body{
 /* ══ CARD ══ */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:var(--shadow-sm);transition:background .3s var(--ease-out),box-shadow .3s var(--ease-out)}
 .card + .card{margin-top:16px}
-.card-h{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--hint)}
+.card-h{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--hint)}
 .tag{font-size:9.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;padding:3px 8px;border-radius:20px}
 .tag-ok{background:var(--acc-soft);color:var(--acc)}
 .tag-warn{background:var(--oj-soft);color:#9A6516}
@@ -132,7 +172,7 @@ body{
 
 /* ══ FORM / CABECERAS ══ */
 .section-title{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--hint);margin:38px 0 14px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;max-width:1080px;margin:0}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .field-lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--hint);margin-bottom:7px}
 input[type=text],input[type=date],input[type=time],input[type=number],select,textarea{
@@ -237,6 +277,22 @@ textarea{resize:vertical}
 .tbl .badge.green{background:var(--green-soft);color:var(--green)}
 .tbl .badge.oj{background:var(--oj-soft);color:var(--oj)}
 .tbl-foot{padding:14px 18px;background:var(--surface2);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--hint)}
+/* Gráfico de torta (donut) por responsable */
+.chart-card{margin-top:20px}
+.chart-head{margin-bottom:16px}
+.chart-title{font-size:14.5px;font-weight:700;letter-spacing:-.2px}
+.chart-sub{font-size:12px;color:var(--hint);margin-top:2px}
+.dn-wrap{display:flex;align-items:center;gap:28px;flex-wrap:wrap}
+.dn-svg{flex-shrink:0;filter:drop-shadow(0 6px 18px rgba(23,23,26,.10))}
+.dn-legend{flex:1;min-width:230px;display:flex;flex-direction:column;gap:2px;max-height:330px;overflow:auto}
+.dn-it{display:grid;grid-template-columns:11px 1fr auto auto;align-items:center;gap:10px;font-size:12.5px;padding:5px 2px;border-bottom:1px solid var(--border)}
+.dn-it .sw{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+.dn-it .nm{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.dn-it .pc{font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
+.dn-it .vl{color:var(--hint);font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
+.dn-empty{color:var(--hint);font-size:13px;padding:24px 0;text-align:center}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+[data-theme="oscuro"] .dn-svg{filter:none}
 .searchbar{display:flex;align-items:center;gap:8px;padding:9px 14px;border:1px solid var(--border);border-radius:11px;background:var(--surface);min-width:260px}
 .searchbar input{flex:1;border:none;outline:none;background:none;font-size:13px;color:var(--text);padding:0;width:auto}
 .searchbar .i{color:var(--faint);font-size:12px}
@@ -249,11 +305,17 @@ textarea{resize:vertical}
 #toast.error{background:var(--red)}
 
 @media(max-width:820px){
-  .sidebar{width:70px;padding:18px 8px}
-  .sb-brand .t,.sb-brand .s,.sb-item span,.sb-lab,.sb-user,.sb-logout span{display:none}
+  .sidebar{width:78px;padding:14px 12px}
+  .sb-brand{flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:6px 0 12px}
+  .sb-brand .tt,.sb-item .lb,.sb-user{display:none}
+  .sb-collapse{display:none}
   .sb-item{justify-content:center;padding:11px}
+  .sb-foot{justify-content:center}
+  .sb-lab{font-size:0;padding:12px 6px 4px;height:20px}
+  .sb-lab::after{content:'';display:block;height:1px;background:rgba(255,255,255,.09)}
   .topbar,.content{padding-left:20px;padding-right:20px}
   .grid2{grid-template-columns:1fr}
+  .chart-grid{grid-template-columns:1fr}
   .kpi-grid{grid-template-columns:1fr 1fr}
   .grid3{grid-template-columns:1fr}
 }
@@ -287,27 +349,51 @@ textarea{resize:vertical}
 
 <!-- ══ APP ══ -->
 <div class="app hidden" id="app">
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="sb-brand">
       <div class="logo">SP</div>
-      <div>
+      <div class="tt">
         <div class="t">Sistema de Permisos</div>
         <div class="s">Gestión de personal</div>
       </div>
+      <button class="sb-collapse" id="sbCollapse" onclick="toggleSb()" title="Ocultar/mostrar menú" aria-label="Ocultar o mostrar menú">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6 9 12l5.5 6"/></svg>
+      </button>
     </div>
 
     <div class="sb-lab">Panel</div>
-    <button class="sb-item active" onclick="go('home')" id="sb-home"><span class="dot" style="background:currentColor;opacity:.7"></span><span>Panel</span></button>
+    <button class="sb-item active" onclick="go('home')" id="sb-home" title="Panel">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.6V20a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.6"/><path d="M9.8 21v-6h4.4v6"/></svg></span>
+      <span class="lb">Panel</span>
+    </button>
 
     <div class="sb-lab">Solicitudes</div>
-    <button class="sb-item" onclick="setTab(0)" id="sb-f0"><span class="dot" style="background:#8B85F0"></span><span>Día completo</span></button>
-    <button class="sb-item" onclick="setTab(1)" id="sb-f1"><span class="dot" style="background:#3FB37D"></span><span>Media jornada</span></button>
-    <button class="sb-item" onclick="setTab(2)" id="sb-f2"><span class="dot" style="background:#D69A45"></span><span>Vacaciones</span></button>
+    <button class="sb-item" onclick="setTab(0)" id="sb-f0" title="Día completo">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.8" width="17" height="15.7" rx="2.6"/><path d="M3.5 9.3h17M8 3.2v3.4M16 3.2v3.4M8 13h3M8 16.4h6"/></svg></span>
+      <span class="lb">Día completo</span>
+    </button>
+    <button class="sb-item" onclick="setTab(1)" id="sb-f1" title="Media jornada">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.2 2"/></svg></span>
+      <span class="lb">Media jornada</span>
+    </button>
+    <button class="sb-item" onclick="setTab(2)" id="sb-f2" title="Vacaciones">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.1"/><path d="M12 2.6v2.1M12 19.3v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2.6 12h2.1M19.3 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5"/></svg></span>
+      <span class="lb">Vacaciones</span>
+    </button>
 
     <div class="sb-lab">Registros</div>
-    <button class="sb-item" onclick="go('rec');setRecIdx(0)" id="sb-r0"><span class="bar" style="background:#8B85F0"></span><span>Día completo</span></button>
-    <button class="sb-item" onclick="go('rec');setRecIdx(1)" id="sb-r1"><span class="bar" style="background:#3FB37D"></span><span>Media jornada</span></button>
-    <button class="sb-item" onclick="go('rec');setRecIdx(2)" id="sb-r2"><span class="bar" style="background:#D69A45"></span><span>Vacaciones</span></button>
+    <button class="sb-item" onclick="go('rec');setRecIdx(0)" id="sb-r0" title="Registros · Día completo">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 6.2h11.5M8.5 12h11.5M8.5 17.8h11.5"/><path d="M3.6 5.4l1.2 1.2 2-2.2M3.6 11.2l1.2 1.2 2-2.2M3.6 17l1.2 1.2 2-2.2"/></svg></span>
+      <span class="lb">Día completo</span>
+    </button>
+    <button class="sb-item" onclick="go('rec');setRecIdx(1)" id="sb-r1" title="Registros · Media jornada">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.6 4.2v3.6h3.6"/><path d="M12 8.1v4.1l3 1.8"/></svg></span>
+      <span class="lb">Media jornada</span>
+    </button>
+    <button class="sb-item" onclick="go('rec');setRecIdx(2)" id="sb-r2" title="Registros · Vacaciones">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="4.4" width="17.2" height="4.8" rx="1.6"/><path d="M5.2 9.2v9.4a1.4 1.4 0 0 0 1.4 1.4h10.8a1.4 1.4 0 0 0 1.4-1.4V9.2M10 13.2h4"/></svg></span>
+      <span class="lb">Vacaciones</span>
+    </button>
 
     <div class="sb-foot">
       <div class="sb-avatar" id="sbAvatar">…</div>
@@ -483,6 +569,7 @@ function verificarSesion(){
 function mostrarApp(){
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
+  try{ if(localStorage.getItem('friosur_sb')==='mini'){ var _sb=document.getElementById('sidebar'); if(_sb) _sb.classList.add('collapsed'); } }catch(e){}
   var ini=_sesion.nombre||_sesion.email||'Usuario';
   document.getElementById('sbAvatar').textContent=(ini.slice(0,2)).toUpperCase();
   document.getElementById('sbUser').textContent=ini;
@@ -497,13 +584,15 @@ function mostrarApp(){
 // ═══════════════════════════════════════════════════════════════
 async function cargarDatosBase(){
   var d=await dbReady();
-  // Consultas base EN PARALELO
+  // Consultas base EN PARALELO (select(*) para no romper si falta una columna opcional)
   var base=await Promise.all([
-    d.from('empleados').select('codigo,nombre,centro_costo,contrato,turno,fecha_ingreso,dias_base,dias_progresivos,dias_sindicales').eq('activo',true).order('nombre'),
-    d.from('unidades_excluidas').select('codigo,nombre,centro_costo,contrato,fecha_ingreso,dias_base,dias_progresivos,dias_sindicales'),
+    d.from('empleados').select('*').eq('activo',true).order('nombre'),
+    d.from('unidades_excluidas').select('*'),
     d.from('autorizadores').select('*').eq('activo',true).order('nombre')
   ]);
   var empRes=base[0], ueRes=base[1], autRes=base[2];
+  if(empRes.error) console.error('[EMPLEADOS]', empRes.error.message||empRes.error);
+  if(empRes.error) toast('Error al cargar empleados: '+(empRes.error.message||empRes.error),'error',8000);
   function _mapEmp(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO',ing:e.fecha_ingreso||null,baseOverride:(e.dias_base!=null?e.dias_base:null),progOverride:(e.dias_progresivos!=null?e.dias_progresivos:null),sindOverride:(e.dias_sindicales!=null?e.dias_sindicales:null)}; }
   _EMP=(empRes.data||[]).map(_mapEmp);
   _EMP_EXCL=(!ueRes.error&&ueRes.data)?ueRes.data.map(_mapEmp):[];
@@ -529,6 +618,7 @@ async function cargarDatosBase(){
   _persistirStorage();
   if(!window._reconectarLst){ window._reconectarLst=true; document.addEventListener('click', _reconectarCarpetaAlClic, {once:true}); }
   await Promise.all([cargarCarpetaConfig(), cargarDocIds(), cargarSolicitudes()]);
+  if(!_carpetaObligatoriaOk()) _mostrarGateCarpeta();
   render();
 }
 function rolSub(rol){ return {admin:'Administrador',supervisor:'Supervisor',operario:'Operario'}[rol]||rol; }
@@ -649,10 +739,13 @@ function _diasProgresivos(anos){
 // Total de días hábiles de feriado (base + progresivo + sindicales)
 function _diasFeriadoTotal(anos){ return FERIADO_BASE + _diasProgresivos(anos) + DIAS_SINDICALES; }
 
-// Asignación de días de un empleado (con valores negociados si existen)
+// Asignación de días de un empleado.
+//  - Feriado progresivo: es POR LEY (Art. 68) → siempre automático según antigüedad,
+//    no es editable/negociable (aplica desde los 10 años de servicio).
+//  - Base y sindicales: pueden tener valor negociado (override) si existe.
 function _asignacionDias(emp, anos){
   var base=(emp && emp.baseOverride!=null)?emp.baseOverride:FERIADO_BASE;
-  var prog=(emp && emp.progOverride!=null)?emp.progOverride:_diasProgresivos(anos);
+  var prog=_diasProgresivos(anos);   // por ley, no editable
   var sind=(emp && emp.sindOverride!=null)?emp.sindOverride:DIAS_SINDICALES;
   return {base:base, prog:prog, sind:sind};
 }
@@ -723,6 +816,7 @@ function _tablaEmpleado(cod){
 // Guarda un valor negociable (días progresivos/sindicales) para un empleado
 function _campoOverrideKey(campo){ return campo==='dias_base'?'baseOverride':(campo==='dias_progresivos'?'progOverride':'sindOverride'); }
 async function setDiasEmpleado(cod, campo, val){
+  if(campo==='dias_progresivos'){ toast('Los días progresivos son por ley (Art. 68) y se calculan automáticamente','warn',6500); return; }
   var d=await dbReady(); if(!d) return;
   var tabla=_tablaEmpleado(cod);
   var num=(val===''||val==null)?null:Math.max(0,parseInt(val,10)||0);
@@ -751,15 +845,21 @@ function _dispPorBolsa(){
 }
 function _recalcTomar(){
   var disp=_dispPorBolsa(); if(!disp) return;
-  _form.tomarBase=Math.min(_form.tomarBase||0, disp.base);
-  _form.tomarProg=Math.min(_form.tomarProg||0, disp.prog);
-  _form.tomarSind=Math.min(_form.tomarSind||0, disp.sind);
+  _form.tomarProg=Math.min(_form.tomarProg||0, disp.prog);   // progresivo: siempre al saldo legal
+  if(!_editSolId){   // al editar se conservan base/sindicales
+    _form.tomarBase=Math.min(_form.tomarBase||0, disp.base);
+    _form.tomarSind=Math.min(_form.tomarSind||0, disp.sind);
+  }
   _form.dias=(_form.tomarBase||0)+(_form.tomarProg||0)+(_form.tomarSind||0);
   _form.maxDias=disp.base+disp.prog+disp.sind;
 }
 function _setTomar(bucket, val){
   var disp=_dispPorBolsa(); if(!disp) return;
   var max=(bucket==='base')?disp.base:(bucket==='prog'?disp.prog:disp.sind);
+  if(_editSolId && bucket!=='prog'){   // al editar, base/sind nunca quedan por debajo de lo guardado
+    var cur=(bucket==='base')?(_form.tomarBase||0):(_form.tomarSind||0);
+    max=Math.max(max,cur);
+  }
   var n=Math.max(0,Math.min(max,parseInt(val,10)||0));
   if(bucket==='base') _form.tomarBase=n; else if(bucket==='prog') _form.tomarProg=n; else _form.tomarSind=n;
   _form.dias=(_form.tomarBase||0)+(_form.tomarProg||0)+(_form.tomarSind||0);
@@ -838,36 +938,76 @@ function _papeletaBaseMap(f){
     'Fin': finLegal?finLegal.slice(8,10):'', 'F14': finLegal?finLegal.slice(5,7):'', 'F15': finLegal?finLegal.slice(0,4):''
   };
 }
-// Genera las papeletas segun el tipo: NORMALES (legal+progresivo) y/o SINDICALES
+// Genera los .docx (NORMALES y/o SINDICALES) a partir de datos tipo formulario
+async function _generarPapeletasDe(f){
+  var base=f.tomarBase||0, prog=f.tomarProg||0, sind=f.tomarSind||0, legalProg=base+prog;
+  var startIso=String(f.start||'').slice(0,10);
+  if(!startIso) throw new Error('Sin fecha de inicio');
+  if(legalProg+sind<=0) throw new Error('No hay días');
+  var baseMap=_papeletaBaseMap(f);
+  var finLegal = legalProg>0 ? vacEnd(startIso, legalProg) : null;
+  var n=0;
+  if(legalProg>0){
+    var blobN=await _generarDocx('normales', baseMap);
+    _descargarDocx(blobN,'Solicitud Vacaciones - '+f.emp.c+' '+f.emp.n+'.docx'); n++;
+    await new Promise(function(r){ setTimeout(r,700); });
+  }
+  if(sind>0){
+    var sindStart = finLegal ? _siguienteHabil(finLegal, true) : startIso;
+    var sindFin = vacEnd(sindStart, sind, true);
+    var mapS=Object.assign({}, baseMap, {
+      'F16': String(sind),
+      'Inicio1': sindStart.slice(8,10), 'F20': sindStart.slice(5,7), 'F21': sindStart.slice(0,4),
+      'Fin1': sindFin.slice(8,10), 'F23': sindFin.slice(5,7), 'F24': sindFin.slice(0,4)
+    });
+    var blobS=await _generarDocx('sindicales', mapS);
+    _descargarDocx(blobS,'Solicitud Vacaciones SINDICALES - '+f.emp.c+' '+f.emp.n+'.docx'); n++;
+  }
+  return n;
+}
+// Genera las papeletas desde el formulario (avisa/guarda si aún no se envió)
 async function generarPapeletas(){
   var f=_form;
   if(!f.emp){ toast('Selecciona un empleado','warn'); return; }
   if(!f.start){ toast('Selecciona el día de inicio en el calendario','warn'); return; }
-  var base=f.tomarBase||0, prog=f.tomarProg||0, sind=f.tomarSind||0;
-  var legalProg=base+prog;
+  var legalProg=(f.tomarBase||0)+(f.tomarProg||0), sind=f.tomarSind||0;
   if(legalProg+sind<=0){ toast('No hay días solicitados','warn'); return; }
   if(typeof JSZip==='undefined'){ toast('Librería Word no cargada — recarga la página','error',6000); return; }
-  var startIso=String(f.start).slice(0,10);
-  var baseMap=_papeletaBaseMap(f);
-  var finLegal = legalProg>0 ? vacEnd(startIso, legalProg) : null;
+  var _enviadaAhora=false;
+  if(!_editSolId){
+    if(!confirm('⚠️ La solicitud todavía no se ha enviado.\n\nSe recomienda enviarla para que quede guardada. ¿Enviar la solicitud ahora y generar la papeleta?')){
+      toast('Primero envía la solicitud; luego podrás generar la papeleta','warn',6500);
+      return;
+    }
+    var _r=await _guardarSolicitud();
+    if(!_r || !_r.ok) return;
+    _enviadaAhora=true;
+  }
   try{
-    if(legalProg>0){
-      var blobN=await _generarDocx('normales', baseMap);
-      _descargarDocx(blobN,'Solicitud Vacaciones - '+f.emp.c+' '+f.emp.n+'.docx');
-      await new Promise(function(r){ setTimeout(r,700); });
-    }
-    if(sind>0){
-      var sindStart = finLegal ? _siguienteHabil(finLegal, true) : startIso;
-      var sindFin = vacEnd(sindStart, sind, true);
-      var mapS=Object.assign({}, baseMap, {
-        'F16': String(sind),
-        'Inicio1': sindStart.slice(8,10), 'F20': sindStart.slice(5,7), 'F21': sindStart.slice(0,4),
-        'Fin1': sindFin.slice(8,10), 'F23': sindFin.slice(5,7), 'F24': sindFin.slice(0,4)
-      });
-      var blobS=await _generarDocx('sindicales', mapS);
-      _descargarDocx(blobS,'Solicitud Vacaciones SINDICALES - '+f.emp.c+' '+f.emp.n+'.docx');
-    }
-    toast('📄 Papeleta'+(legalProg>0&&sind>0?'s':'')+' generada'+((legalProg>0&&sind>0)?'s':'')+' correctamente','success');
+    var n=await _generarPapeletasDe(f);
+    toast('📄 Papeleta'+(n>1?'s':'')+' generada'+(n>1?'s':'')+' correctamente'+(_enviadaAhora?' · solicitud guardada':''),'success');
+    if(_enviadaAhora){ resetForm(); await cargarSolicitudes(); go('home'); }
+  }catch(e){ toast('Error al generar papeleta: '+e.message,'error',7000); }
+}
+// Convierte un registro de vacaciones guardado en datos tipo formulario (para la papeleta)
+function _papeletaInputDeRegistro(s){
+  s=s||{};
+  var base=parseInt(s.dias_base,10)||0, prog=parseInt(s.dias_progresivo,10)||0, sind=parseInt(s.dias_sindical,10)||0;
+  if(base+prog+sind===0){
+    var dh=parseInt(s.dias_habiles,10)||0, td=String(s.tipo_dias||'BASE').toUpperCase();
+    if(td==='PROGRESIVO'||td==='PROG') prog=dh; else if(td==='SINDICAL'||td==='SIND') sind=dh; else base=dh;
+  }
+  return { emp:{c:s.codigo||'',n:s.nombre||''}, cc:{n:s.centro_costo||''}, start:String(s.inicio||'').slice(0,10),
+           tomarBase:base, tomarProg:prog, tomarSind:sind, dias:base+prog+sind };
+}
+// Genera la papeleta de un registro ya guardado (p. ej. una vacación programada)
+async function generarPapeletaRegistro(id){
+  var s=_buscarRegistro(id); if(!s){ toast('Registro no encontrado','error'); return; }
+  if(typeof JSZip==='undefined'){ toast('Librería Word no cargada — recarga la página','error',6000); return; }
+  var f=_papeletaInputDeRegistro(s);
+  try{
+    var n=await _generarPapeletasDe(f);
+    toast('📄 Papeleta'+(n>1?'s':'')+' generada'+(n>1?'s':'')+' correctamente','success');
   }catch(e){ toast('Error al generar papeleta: '+e.message,'error',7000); }
 }
 // Alias compatible
@@ -891,7 +1031,7 @@ function _diasRow(key,lbl,color,asig,uso,disp,tomar,auto,editable){
 function editarAsignado(bucket){
   if(!_form.emp) return;
   var anos=_anosServicio(_form.emp.ing);
-  if(bucket==='prog' && _diasProgresivos(anos)<=0){ toast('Aún no corresponde feriado progresivo (desde el año '+PROG_DESDE+')','warn',6000); return; }
+  if(bucket==='prog'){ toast('Los días progresivos son por ley (Art. 68) y se calculan automáticamente','warn',6500); return; }
   var campos={base:'dias_base',prog:'dias_progresivos',sind:'dias_sindicales'};
   var lbls={base:'feriados legales',prog:'progresivos',sind:'sindicales'};
   var asig=_asignacionDias(_form.emp,anos);
@@ -1029,7 +1169,7 @@ var _solError=null;
 //  NAVEGACIÓN
 // ═══════════════════════════════════════════════════════════════
 var TB={home:['Panel','Panel'],form:['Solicitud','Nueva solicitud'],rec:['Registros','Registros']};
-function go(p){ _page=p; var s=document.querySelectorAll('.sb-item'); s.forEach(function(x){x.classList.remove('active');});
+function go(p){ _page=p; if(document.body) document.body.setAttribute('data-page', p); var s=document.querySelectorAll('.sb-item'); s.forEach(function(x){x.classList.remove('active');});
   var label=p==='home'?'Panel':p==='form'?'Solicitud':'Registros';
   document.getElementById('tbKicker').textContent=label;
   document.getElementById('tbTitle').textContent=p==='home'?'Panel':'Registros';
@@ -1038,19 +1178,24 @@ function go(p){ _page=p; var s=document.querySelectorAll('.sb-item'); s.forEach(
   // Al entrar a la vista de registros, marcar para hacer scroll al día actual UNA sola vez
   if(p==='rec' && _recIdx===0){ window._scrollARef=true; }
   render();
+  _autoConectarCarpetas();
 }
-function setTab(t){ _tab=t; _editSolId=null; resetForm(); document.body.setAttribute('data-formtab', String(t)); go('form'); }
+function setTab(t){ _tab=t; _editSolId=null; resetForm(); if(document.body) document.body.setAttribute('data-formtab', String(t)); go('form'); }
 function setRecIdx(i){
-  _recIdx=i; go('rec');
-  // Al abrir los registros, filtro por defecto:
-  //  - Día completo / Media jornada: MES ACTUAL + SIGUIENTE
-  //  - Vacaciones: MESES QUE QUEDAN DEL AÑO (mes actual -> diciembre)
-  if(!_recAnio&&!_recMeses.length&&!_recDesde&&!_recHasta){
-    if(i===2) recSetMesesRestantes();
-    else recSetMesActualSiguiente();
-  }
+  _recIdx=i; if(document.body) document.body.setAttribute('data-rec', String(i));
+  // Cada pestaña de Registros parte con su filtro por defecto (no hereda el de la anterior)
+  _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta='';
+  go('rec');
+  // Día completo / Media jornada: MES ACTUAL + SIGUIENTE. Vacaciones: todas (sin filtro).
+  if(i!==2) recSetMesActualSiguiente();
 }
 function goHome(){ go('home'); }
+// Colapsa/expande la barra lateral (rail de íconos) y recuerda la preferencia
+function toggleSb(){
+  var sb=document.getElementById('sidebar'); if(!sb) return;
+  var mini=sb.classList.toggle('collapsed');
+  try{ localStorage.setItem('friosur_sb', mini?'mini':'full'); }catch(e){}
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  CUPOS por día y topes
@@ -1083,15 +1228,23 @@ function render(){
 }
 
 function renderHome(){
-  var mesActual=new Date().getMonth()+1, anioHoja=new Date().getFullYear();
-  var mesPrefix=anioHoja+'-'+String(mesActual).padStart(2,'0');
+  var mesPrefix=hoy().slice(0,7);   // mes presente (YYYY-MM)
   var completos=0, media=0, vac=0, horas=0;
+  var mesComp=[], mesMedia=[];
   _SOLIC.forEach(function(s){
     if(s.estado!=='PENDIENTE'&&s.estado!=='APROBADO') return;
-    if(s.tipo==='COMPLETO') completos++;
-    else if(s.tipo==='MEDIA_JORNADA'){ media++; horas+=parseFloat(s.horas_permiso||0); }
-    else if(s.tipo==='VACACIONES'&&String(s.inicio||'').indexOf(mesPrefix)===0) vac++;
+    var enMes=String(s.inicio||'').slice(0,7)===mesPrefix;
+    if(s.tipo==='COMPLETO'){ if(enMes){ completos++; mesComp.push(s); } }
+    else if(s.tipo==='MEDIA_JORNADA'){ if(enMes){ media++; horas+=parseFloat(calcularHorasPermiso(s))||0; mesMedia.push(s); } }
+    else if(s.tipo==='VACACIONES'){ if(estadoDe(s)==='EN CURSO') vac++; }   // en curso (no por mes)
   });
+  var _mActual=new Date();
+  var _mesNombre=MONTHS[_mActual.getMonth()]+' '+_mActual.getFullYear();
+  var _charts='<div class="section-title">Por responsable · '+_mesNombre+'</div>'+
+    '<div class="chart-grid">'+
+      _chartCard('Permisos día completo por responsable', 'Total: '+_chartVal(completos)+' permiso'+(completos!==1?'s':''), _respAgg(mesComp, function(){ return 1; }))+
+      _chartCard('Horas de media jornada por responsable', 'Total: '+_chartVal(horas)+' h de permiso', _respAgg(mesMedia, function(s){ return parseFloat(calcularHorasPermiso(s))||0; }))+
+    '</div>';
   function newCard(num,color,title,desc,tab){
     return '<button class="card" onclick="goFormTab('+tab+')" style="text-align:left;cursor:pointer;border-radius:18px;padding:24px;transition:border-color .18s,box-shadow .18s;box-shadow:none">'+
       '<div style="display:flex;align-items:center;justify-content:space-between"><div style="width:34px;height:34px;border-radius:11px;background:var(--accent-soft);color:'+color+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">'+num+'</div><span style="color:var(--faint);font-size:17px">→</span></div>'+
@@ -1110,8 +1263,8 @@ function renderHome(){
       '<div class="kpi"><div class="l">Permisos del mes</div><div class="v">'+(completos+media)+'</div></div>'+
       '<div class="kpi"><div class="l">Medias jornadas</div><div class="v">'+media+'</div></div>'+
       '<div class="kpi"><div class="l">Vacaciones en curso</div><div class="v">'+vac+'</div></div>'+
-      '<div class="kpi"><div class="l">Horas de permiso</div><div class="v">'+(horas?horas.toFixed(1).replace('.',','):'0')+'</div></div>'+
-    '</div>'+
+      '<div class="kpi"><div class="l">Horas de permiso</div><div class="v">'+(horas?_fmtHN(horas):'0')+'</div></div>'+
+    '</div>'+_charts+
     '<div class="section-title">Nueva solicitud</div>'+grid3+
     '<div class="section-title">Registros</div>'+
     '<div class="card"><table class="tbl">'+
@@ -1241,6 +1394,7 @@ async function conectarCarpeta(){
     if(!e){ await elegirCarpetaSolicitud(); return; }
     var ok=await _permDir(e.handle);
     e.conectada=ok; if(e.esDefault) _dirConectada=ok;
+    if(ok) cerrarGateCarpeta();
     toast(ok?('✅ Carpeta conectada: '+e.name):'No se concedió permiso a la carpeta','success');
     render();
   }catch(e){ toast('Error: '+((e&&e.message)||e),'error'); }
@@ -1253,6 +1407,7 @@ async function elegirCarpetaSolicitud(){
     var ok=await _permDir(h);
     _dirTabs[String(_tab)]={handle:h,name:h.name||'carpeta',conectada:ok};
     await _persistirDirTabs();
+    cerrarGateCarpeta();
     toast('✅ Carpeta para esta solicitud: '+_dirTabs[String(_tab)].name,'success');
     render();
   }catch(e){ if(!e||e.name!=='AbortError') toast('Error: '+((e&&e.message)||e),'error'); }
@@ -1263,7 +1418,52 @@ function elegirCarpetaDocumentos(){ return elegirCarpetaSolicitud(); }
 function _reconectarCarpetaAlClic(){
   var e=dirDeTab(_tab);
   if(!e || e.conectada) return;
-  _permDir(e.handle).then(function(ok){ if(ok){ e.conectada=true; if(e.esDefault) _dirConectada=true; render(); } }).catch(function(){});
+  _permDir(e.handle).then(function(ok){ if(ok){ e.conectada=true; if(e.esDefault) _dirConectada=true; cerrarGateCarpeta(); render(); } }).catch(function(){});
+}
+// ── Carpeta OBLIGATORIA antes de usar la app ──
+function _carpetaObligatoriaOk(){
+  if(_dirHandle) return true;                        // configurada (aunque requiera reconectar)
+  for(var k in _dirTabs){ if(_dirTabs[k]) return true; }
+  return false;
+}
+// Detecta/reconecta automáticamente las carpetas configuradas al abrir una sección
+async function _autoConectarCarpetas(){
+  try{
+    var e=dirDeTab(_tab);
+    if(e && e.handle && !e.conectada){ if(await _permDir(e.handle)){ e.conectada=true; if(e.esDefault) _dirConectada=true; } }
+    if(_dirHandle && !_dirConectada){ if(await _permDir(_dirHandle)) _dirConectada=true; }
+    if(_carpetaObligatoriaOk()) cerrarGateCarpeta();
+    render();
+  }catch(e){}
+}
+function _mostrarGateCarpeta(){
+  if(document.getElementById('gateCarpeta')) return;
+  var d=document.createElement('div'); d.id='gateCarpeta';
+  d.style.cssText='position:fixed;inset:0;z-index:10000;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px';
+  d.innerHTML='<div class="card" style="max-width:460px;width:100%;text-align:center;padding:32px">'+
+    '<div style="font-size:46px;line-height:1">📁</div>'+
+    '<h2 style="font-size:20px;font-weight:700;margin:16px 0 8px">Selecciona la carpeta de guardado</h2>'+
+    '<p style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:22px">Los documentos que justifican los permisos se guardan de forma local. Para usar la aplicación debes elegir una carpeta donde guardarlos.</p>'+
+    '<button class="btn btn-primary" style="width:100%" onclick="elegirCarpetaObligatoria()">Elegir carpeta</button>'+
+    '<div id="gateCarpetaErr" style="color:var(--red);font-size:12px;margin-top:12px;min-height:16px"></div>'+
+    '</div>';
+  document.body.appendChild(d);
+}
+function cerrarGateCarpeta(){ var el=document.getElementById('gateCarpeta'); if(el && el.remove) el.remove(); }
+async function elegirCarpetaObligatoria(){
+  var err=document.getElementById('gateCarpetaErr');
+  if(!window.showDirectoryPicker){ if(err) err.textContent='Este navegador no permite elegir carpeta (usa Chrome/Edge).'; return; }
+  try{
+    var h=await window.showDirectoryPicker({mode:'readwrite'});
+    var ok=await _permDir(h);
+    if(!ok){ if(err) err.textContent='No se concedió permiso a la carpeta.'; return; }
+    _dirHandle=h; _dirName=h.name||'carpeta'; _dirConectada=true;
+    await docConfigSet('dir',h);
+    _dirTabs[String(_tab)]={handle:h,name:_dirName,conectada:true}; await _persistirDirTabs();
+    cerrarGateCarpeta();
+    toast('✅ Carpeta: '+_dirName,'success');
+    render();
+  }catch(e){ if(err) err.textContent=('Error: '+((e&&e.message)||e)); }
 }
 // Guarda el adjunto: navegador (siempre) + carpeta (si está configurada y permitida)
 async function guardarDocumentoLocal(id, fileObj, cod, nombre, meta, dirHandle){
@@ -1355,6 +1555,7 @@ function resetForm(){
   var autPrev=_form? _form.aut : null;   // conservar autorizador preseleccionado al cambiar de tab
   _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
   if(autPrev) _form.aut=autPrev;
+  _cal={y:new Date().getFullYear(), m:new Date().getMonth()};   // volver al mes actual
 }
 
 function renderForm(){
@@ -1390,13 +1591,18 @@ function renderForm(){
   // Columna derecha
   var horaBox='';
   if(t===1){
+    var inSal = f.reg==='ING' ? '' :
+      '<label style="flex:1"><div class="field-lbl">Hora salida</div><input type="time" value="'+esc(f.hs)+'" onchange="_form.hs=this.value;actualizarHoras()"></label>';
+    var inIng = f.reg==='SIN' ? '' :
+      '<label style="flex:1"><div class="field-lbl">Hora ingreso</div><input type="time" value="'+esc(f.hi)+'" onchange="_form.hi=this.value;actualizarHoras()"></label>';
+    var ht=_horasTrabajadasForm(f);
     horaBox='<div class="card"><div class="card-h">Tipo de regreso</div><div class="seg gr">'+
       segBtnR('CON',f.reg==='CON')+segBtnR('SIN',f.reg==='SIN')+segBtnR('ING',f.reg==='ING')+'</div>'+
-      '<div style="display:flex;gap:10px;margin-top:14px">'+
-        '<label style="flex:1"><div class="field-lbl">Hora salida</div><input type="time" value="'+esc(f.hs)+'" onchange="_form.hs=this.value;this.parentElement.parentElement.parentElement.querySelector(\'.okbak b\').textContent=calcularHoras()"></label>'+
-        (f.reg==='SIN'?'':'<label style="flex:1"><div class="field-lbl">Hora ingreso</div><input type="time" value="'+esc(f.hi)+'" onchange="_form.hi=this.value;this.parentElement.parentElement.parentElement.querySelector(\'.okbak b\').textContent=calcularHoras()"></label>')+
-      '</div>'+
-      '<div class="okbak"><span>Horas de permiso</span><b>'+calcularHoras()+'</b></div></div>';
+      '<div style="display:flex;gap:10px;margin-top:14px">'+inSal+inIng+'</div>'+
+      '<div class="okbak" style="display:block">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between"><span>Horas de permiso</span><b id="ok_hp">'+calcularHoras()+'</b></div>'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px"><span>Horas trabajadas</span><b id="ok_ht">'+(ht==null?'—':_fmtHN(ht)+' h')+'</b></div>'+
+      '</div></div>';
   }
   var vacBox='';
   if(t===2){
@@ -1409,13 +1615,16 @@ function renderForm(){
         if(progAuto<=0) asig.prog=0;   // si no corresponde, no se agrega ni se negocia
         var uso=_usoDias(f.emp.c,_editSolId);
         var dBase=Math.max(0,asig.base-uso.base), dProg=Math.max(0,asig.prog-uso.prog), dSind=Math.max(0,asig.sind-uso.sind);
-        if((f.tomarBase||0)>dBase) f.tomarBase=dBase;
+        // El progresivo es por ley: siempre se ajusta al saldo legal (no editable).
         if((f.tomarProg||0)>dProg) f.tomarProg=dProg;
-        if((f.tomarSind||0)>dSind) f.tomarSind=dSind;
+        if(!_editSolId){   // al editar se conservan base/sindicales aunque el saldo esté sobregirado
+          if((f.tomarBase||0)>dBase) f.tomarBase=dBase;
+          if((f.tomarSind||0)>dSind) f.tomarSind=dSind;
+        }
         f.dias=(f.tomarBase||0)+(f.tomarProg||0)+(f.tomarSind||0);
         f.maxDias=dBase+dProg+dSind;
         fInfo=_diasRow('base','Feriados Legales','#4B44C9',asig.base,uso.base,dBase,f.tomarBase||0,FERIADO_BASE,true)+
-          _diasRow('prog','Progresivo','#16794E',asig.prog,uso.prog,dProg,f.tomarProg||0,progAuto,progAuto>0)+
+          _diasRow('prog','Progresivo','#16794E',asig.prog,uso.prog,dProg,f.tomarProg||0,progAuto,false)+
           _diasRow('sind','Sindicales','#9A6516',asig.sind,uso.sind,dSind,f.tomarSind||0,DIAS_SINDICALES,true);
       } else {
         fInfo='<div class="notice">Sin fecha de ingreso registrada: no se puede calcular el saldo.</div>';
@@ -1428,9 +1637,12 @@ function renderForm(){
       var proxBox='';
       if(proxRec){
         proxBox=filaP('Próximas vacaciones', esc(fmt(String(proxRec.inicio||'').slice(0,10))))+
-          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px">'+
+          '<div style="margin-top:8px">'+
             '<span style="font-size:11px;font-weight:600;color:var(--green);background:var(--green-soft);padding:3px 9px;border-radius:20px">📅 Vacaciones programadas</span>'+
-            '<button class="btn btn-secondary btn-sm" onclick="abrirEditarModal(\''+esc(proxRec.id||'')+'\')">Revisar / editar fecha</button>'+
+          '</div>'+
+          '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'+
+            '<button class="btn btn-primary btn-sm" onclick="generarPapeletaRegistro(\''+esc(proxRec.id||'')+'\')">📄 Generar papeleta</button>'+
+            '<button class="btn btn-secondary btn-sm" onclick="editarRegistroPermiso(\''+esc(proxRec.id||'')+'\')">Editar programada</button>'+
           '</div>';
       }
       perfil='<div class="card" style="background:var(--accent-soft);border-color:transparent">'+
@@ -1453,8 +1665,8 @@ function renderForm(){
       '<div style="font-size:11px;color:var(--hint);margin-top:8px">Lunes a viernes, sin feriados. El día 1 cuenta. El ✎ permite editar los días negociables.</div>'+
       '<button class="btn btn-secondary" style="width:100%;margin-top:10px" onclick="generarPapeletas()">📄 Generar papeleta(s) Word</button>'+
       '</div>'+
-      '<div style="background:#17171A;color:#fff;border-radius:16px;padding:20px 22px">'+
-        '<div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#8E8E98;margin-bottom:14px">Resumen de vacaciones</div>'+
+      '<div class="card" style="background:color-mix(in srgb, var(--acc) 14%, var(--surface));border-color:var(--acc-bd)">'+
+        '<div class="card-h" style="color:var(--acc)">Resumen de vacaciones</div>'+
         resRow('Inicio (día 1)',f.start?fmt(f.start):'—')+resRow('Días hábiles',f.dias+' días')+
         resRow('Último día',end?fmt(end):'—')+
         resRow('Desglose',(f.tomarBase||0)+' legales · '+(f.tomarProg||0)+' prog · '+(f.tomarSind||0)+' sind',true)+'</div>';
@@ -1497,9 +1709,9 @@ function renderForm(){
   var status=formStatus();
 
   return '<div style="position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--border);padding:26px 40px 16px;margin:-26px -40px 0">'+
-    '<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">'+
-    '<div><div style="font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:'+( _editSolId?'var(--oj)':'var(--acc)')+'">'+(_editSolId?'✏️ Edición':'Solicitud 0'+(t+1))+'</div>'+
-    '<h1 style="font-size:23px;font-weight:700;letter-spacing:-.6px;margin-top:5px">'+(_editSolId?'Edición de vacaciones':TITLES[t])+'</h1></div>'+tabSeg+'</div></div>'+
+    '<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;max-width:1080px">'+
+    '<div><div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:'+( _editSolId?'var(--oj)':'var(--acc)')+'">'+(_editSolId?'✏️ Edición':'Solicitud 0'+(t+1))+'</div>'+
+    '<h1 style="font-size:clamp(22px,2.3vw,30px);font-weight:700;letter-spacing:-.025em;line-height:1.08;margin-top:6px">'+(_editSolId?'Edición de vacaciones':TITLES[t])+'</h1></div>'+tabSeg+'</div></div>'+
     '<div style="padding-top:24px">'+
       '<div class="grid2">'+
         '<div style="display:flex;flex-direction:column;gap:16px">'+
@@ -1519,7 +1731,7 @@ function renderForm(){
 function segBtn(lbl,on){ return '<button class="'+(on?'on':'')+'" onclick="_form.turno=\''+(lbl==='Día'?'DIA':lbl.toUpperCase())+'\';render()">'+lbl+'</button>'; }
 function segBtnT(lbl,on){ return '<button class="'+(on?'on':'')+'" onclick="_form.tipo=\''+norm(lbl)+'\';render()">'+lbl+'</button>'; }
 function segBtnR(lbl,on){ return '<button class="'+(on?'on verde':'')+'" onclick="_form.reg=\''+lbl+'\';render()">'+(['CON','SIN','ING'].indexOf(lbl)>=0?({CON:'Con regreso',SIN:'Sin regreso',ING:'Ingreso a planta'})[lbl]:lbl)+'</button>'; }
-function resRow(l,v,hl){ return '<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.09);font-size:13px"><span style="color:#A8A8B2">'+l+'</span><span style="'+(hl?'font-weight:600;color:#B9B4FF':'font-weight:500')+'">'+v+'</span></div>'; }
+function resRow(l,v,hl){ return '<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--muted)">'+l+'</span><span style="'+(hl?'font-weight:600;color:var(--acc)':'font-weight:500;color:var(--text)')+'">'+v+'</span></div>'; }
 
 // Picker de selección (empleado/autorizador/centro)
 function fieldBtn(type,key,ph,obj,sub,prefix,ok){
@@ -1689,7 +1901,7 @@ function renderCalendar(){
     '<span><span class="sw" style="background:var(--red-soft);border-color:#EFCFCD"></span>Feriado</span>'+
     '<span><span class="sw" style="background:var(--red-soft);border-color:#F5E3E2"></span>Domingo</span>'+
     legendExtra+
-    '<span><span class="sw" style="background:var(--surface);box-shadow:0 0 0 2px #17171A"></span>Hoy</span>'+
+    '<button type="button" onclick="_calIrHoy()" title="Ir al mes actual" style="border:none;background:none;padding:0;cursor:pointer;font:inherit;font-size:11.5px;color:var(--hint);display:flex;align-items:center;gap:6px"><span class="sw" style="background:var(--surface);box-shadow:0 0 0 2px #17171A"></span>Hoy</button>'+
     '<span style="margin-left:auto;color:var(--muted);font-weight:500">'+calSelectedNote()+'</span></div>';
   var monthHol=FER.filter(function(k){ return +k.slice(0,4)===_cal.y && +k.slice(5,7)===_cal.m+1; });
   var holBox='';
@@ -1715,6 +1927,7 @@ function calSelectedNote(){
   if(t===1) return f.dates.length?fmt(f.dates[0]):'Selecciona un solo día';
   var n=f.dates.length; return n?(n+(n===1?' día seleccionado':' días seleccionados')):'Selecciona uno o varios días';
 }
+function _calIrHoy(){ _cal={y:new Date().getFullYear(), m:new Date().getMonth()}; render(); }
 function calNav(dir){
   if(_cal.m+dir>11){ _cal.y++; _cal.m=0; }
   else if(_cal.m+dir<0){ _cal.y--; _cal.m=11; }
@@ -1723,12 +1936,14 @@ function calNav(dir){
 }
 function calClick(s){
   var f=_form,t=_tab;
+  var dt=new Date(s+'T12:00:00'), w=dt.getDay();
   if(t===2){
-    var dt=new Date(s+'T12:00:00'), w=dt.getDay();
     // Se permite sábado (los días sindicales cuentan sábados); domingo/feriado no.
     if(FERIADOS[s] || w===0){ toast('No puedes iniciar en domingo o feriado','warn'); return; }
     f.start=s; render(); return;
   }
+  // Día de permiso y media jornada: no se otorgan en domingo ni feriados.
+  if(FERIADOS[s] || w===0){ toast('No se otorgan permisos en domingo ni feriados','warn'); return; }
   if(t===1){ f.dates=f.dates[0]===s?[]:[s]; render(); return; }
   var i=f.dates.indexOf(s);
   if(i>=0) f.dates.splice(i,1);
@@ -1744,26 +1959,65 @@ function calClick(s){
   render();
 }
 
-function calcularHoras(){
-  var f=_form; if(!f.hs||!f.hi||f.reg==='SIN') return '—';
-  var a=f.hs.split(':'), b=f.hi.split(':');
-  var mins=(+b[0]*60 + +b[1])-(+a[0]*60 + +a[1]); if(mins<0) mins+=1440;
-  return (mins/60).toFixed(1).replace('.',',')+' h';
+// Horas de permiso del formulario (media jornada):
+//  - CON regreso:  hora ingreso  − hora salida
+//  - SIN regreso:  fin del turno − hora salida
+//  - INGRESO a planta: hora ingreso − inicio del turno
+function _horasPermisoForm(f){
+  var ho=_TURNOS_H[String(f.turno||'DIA').toUpperCase()]||_TURNOS_H.DIA;
+  var mins;
+  if(f.reg==='SIN'){
+    if(!f.hs) return null;
+    mins=ho[1]-_min(f.hs); if(mins<0) mins+=1440;
+  } else if(f.reg==='ING'){
+    if(!f.hi) return null;
+    mins=_min(f.hi)-ho[0]; if(mins<0) mins+=1440;
+  } else {
+    if(!f.hs||!f.hi) return null;
+    mins=_min(f.hi)-_min(f.hs); if(mins<0) mins+=1440;
+  }
+  return mins/60;
 }
-// Calcula las HORAS DE PERMISO de un registro de media jornada según turno y regreso
-// Día: empezar 08:00 terminar 17:00 · Tarde: 14:00-22:00 · Noche: 22:00-06:00
-var _TURNOS_H={DIA:[8,17],TARDE:[14,22],NOCHE:[22,6]};
+// HORAS TRABAJADAS = SI((9 − sin_trabajo) > 5; 8,5 − sin_trabajo; 9 − sin_trabajo)
+function _horasTrabajadasDe(sinTrabajo){
+  if(sinTrabajo==null) return null;
+  var t=9-sinTrabajo; if(t>5) t=8.5-sinTrabajo;
+  return Math.round(t*100)/100;
+}
+function _horasTrabajadasForm(f){ return _horasTrabajadasDe(_horasPermisoForm(f)); }
+function _fmtHN(n){ return (n==null||isNaN(n))?'—':(Math.round(n*100)/100).toFixed(2).replace('.',','); }
+function calcularHoras(){
+  var h=_horasPermisoForm(_form);
+  if(h==null) return '—';
+  return _fmtHN(h)+' h';
+}
+// Actualiza en vivo las horas del formulario (sin recargar)
+function actualizarHoras(){
+  var h=_horasPermisoForm(_form);
+  var hp=document.getElementById('ok_hp'), ht=document.getElementById('ok_ht');
+  if(hp) hp.textContent=(h==null?'—':_fmtHN(h)+' h');
+  if(ht){ var t=_horasTrabajadasDe(h); ht.textContent=(t==null?'—':_fmtHN(t)+' h'); }
+}
+// HORAS DE PERMISO (equivale a la columna "SIN TRABAJO" del sheet):
+//   CON REGRESO      -> MOD(hora_ingreso − hora_salida, 1)*24
+//   SIN REGRESO      -> MOD(fin_turno   − hora_salida, 1)*24
+//   INGRESO A PLANTA -> MOD(hora_ingreso − inicio_turno, 1)*24
+// Turnos: DIA 08:00–17:00 · TARDE 15:00–01:00 · NOCHE 20:30–05:30
+var _TURNOS_H={DIA:[8*60,17*60], TARDE:[15*60,1*60], NOCHE:[20*60+30,5*60+30]};
 function _min(s){ var p=String(s).split(':'); return (+p[0]||0)*60+(+p[1]||0); }
 function _hm(mins){ var h=Math.floor(mins/60), m=mins%60; return h+':'+String(m).padStart(2,'0'); }
+function _r2(n){ return Math.round(n*100)/100; }
 function calcularHorasPermiso(s){
   if(s.horas_permiso!=null&&s.horas_permiso!=='') return s.horas_permiso;
   var reg=String(s.tipo_regreso||'').toUpperCase();
   var turno=String(s.turno||'DIA').toUpperCase(); var ho=_TURNOS_H[turno]||_TURNOS_H.DIA;
-  if(reg==='CON'){ if(s.hora_salida&&s.hora_ingreso){ var d=_min(s.hora_ingreso)-_min(s.hora_salida); if(d<0)d+=1440; return d/60; } return 0; }
-  if(reg==='SIN'){ if(s.hora_salida){ var fin=ho[1]*60; var d2=fin-_min(s.hora_salida); if(d2<0)d2+=1440; return d2/60; } return 0; }
-  if(reg==='INGRESO'){ if(s.hora_ingreso){ var ini=ho[0]*60; var d3=_min(s.hora_ingreso)-ini; if(d3<0)d3+=1440; return d3/60; } return 0; }
+  if(reg==='CON'){ if(s.hora_salida&&s.hora_ingreso){ var d=_min(s.hora_ingreso)-_min(s.hora_salida); if(d<0)d+=1440; return _r2(d/60); } return 0; }
+  if(reg==='SIN'){ if(s.hora_salida){ var d2=ho[1]-_min(s.hora_salida); if(d2<0)d2+=1440; return _r2(d2/60); } return 0; }
+  if(reg==='INGRESO'){ if(s.hora_ingreso){ var d3=_min(s.hora_ingreso)-ho[0]; if(d3<0)d3+=1440; return _r2(d3/60); } return 0; }
   return 0;
 }
+// Horas trabajadas de un registro = 9 − horas de permiso (con tope de 8,5 al superar 5 h)
+function calcularHorasTrabajadas(s){ return _horasTrabajadasDe(parseFloat(calcularHorasPermiso(s))||0); }
 // Estado de vacaciones según fórmula del sheet:
 //   SI(DIAS_HABILES="";"POR TOMAR"; SI(INICIO>HOY();"POR TOMAR";
 //     SI(TERMINO<HOY();"FINALIZADAS";"EN CURSO")))
@@ -1786,14 +2040,16 @@ function formStatus(){
 }
 
 // ── ENVÍO ───────────────────────────────────────────────────
-async function submitForm(){
+// Guarda (crea o actualiza) la solicitud del formulario SIN resetear ni navegar.
+// Devuelve { ok, id, tipo:'insert'|'update' } o { ok:false }.
+async function _guardarSolicitud(){
   var f=_form,t=_tab, miss=[];
   if(t!==2){ if(!f.turno)miss.push('turno'); if(!f.tipo)miss.push('tipo de permiso'); if(!f.aut)miss.push('autorizador'); }
   if(!f.emp)miss.push('empleado');
   if(!f.cc)miss.push('centro de costo');
   if(t===2){ if(!f.start)miss.push('inicio de vacaciones'); if(!f.dias)miss.push('días hábiles'); }
   else if(!f.dates.length)miss.push(t===1?'día del permiso':'días de permiso');
-  if(miss.length){ toast('Faltan datos obligatorios: '+miss.join(', '),'error'); return; }
+  if(miss.length){ toast('Faltan datos obligatorios: '+miss.join(', '),'error'); return {ok:false}; }
 
   var _buckets=[];
   if(t===2){
@@ -1802,34 +2058,29 @@ async function submitForm(){
     if((f.tomarSind||0)>0)_buckets.push('SINDICAL');
   }
   var _tipoDias=t===2?(_buckets.length>1?'MIXTO':(_buckets[0]||'BASE')):null;
-  // ── Modo EDICIÓN: actualiza el registro existente ──
+  var d=await dbReady();
+
+  // ── Modo EDICIÓN ──
   if(_editSolId){
     try{
-      var dE=await dbReady();
       var updE={
         codigo:f.emp.c, nombre:f.emp.n, centro_costo:f.cc?f.cc.n:null,
         inicio:t===2?f.start:(f.dates[0]||null),
         termino:t===2?_finVacaciones(f):(f.dates.length>1?f.dates[f.dates.length-1]:null),
-        dias_habiles:t===2?f.dias:null,
-        tipo_dias:_tipoDias,
-        dias_base:t===2?(f.tomarBase||0):null,
-        dias_progresivo:t===2?(f.tomarProg||0):null,
-        dias_sindical:t===2?(f.tomarSind||0):null,
-        tipo_regreso:t===1?f.reg:null,
-        hora_salida:t===1?f.hs:null,
+        dias_habiles:t===2?f.dias:null, tipo_dias:_tipoDias,
+        dias_base:t===2?(f.tomarBase||0):null, dias_progresivo:t===2?(f.tomarProg||0):null, dias_sindical:t===2?(f.tomarSind||0):null,
+        tipo_regreso:t===1?f.reg:null, hora_salida:t===1?f.hs:null,
         hora_ingreso:t===1?((f.reg==='SIN')?null:f.hi):null,
-        horas_permiso:t===1?parseFloat(calcularHoras().replace(',','.'))||null:null,
-        comentario:f.com||null
+        horas_permiso:t===1?parseFloat(calcularHoras().replace(',','.'))||null:null, comentario:f.com||null
       };
-      var rE=await dE.from('solicitudes_permiso').update(updE).eq('id',_editSolId);
-      if(rE.error){ toast('Error al guardar: '+(rE.error.message||rE.error),'error'); return; }
-      toast('✅ Cambios guardados','success');
-      _editSolId=null;
-      await cargarSolicitudes();
-      go('rec');
-      return;
-    }catch(e){ toast('Error al guardar: '+e.message,'error'); return; }
+      var rE=await d.from('solicitudes_permiso').update(updE).eq('id',_editSolId);
+      if(rE.error){ toast('Error al guardar: '+(rE.error.message||rE.error),'error'); return {ok:false}; }
+      var idU=_editSolId; _editSolId=null;
+      return {ok:true, id:idU, tipo:'update'};
+    }catch(e){ toast('Error al guardar: '+e.message,'error'); return {ok:false}; }
   }
+
+  // ── Nueva solicitud ──
   var newId=_uuid();
   var payload={
     id: newId,
@@ -1852,10 +2103,8 @@ async function submitForm(){
     archivo:f.file||null, comentario:f.com||null,
     creado_por:_sesion?_sesion.id:null, creado_por_email:_sesion?_sesion.email:null
   };
-  var d=await dbReady();
   var res=await d.from('solicitudes_permiso').insert(payload);
-  if(res.error){ toast('Error al guardar: '+(res.error.message||res.error),'error'); return; }
-  // Guardar el adjunto localmente: navegador (siempre) + carpeta (si está configurada)
+  if(res.error){ toast('Error al guardar: '+(res.error.message||res.error),'error'); return {ok:false}; }
   if(f.fileObj){
     var meta={codigo:f.emp.c,nombre:f.emp.n,centro_costo:f.cc.n,fecha:payload.inicio,tipo:payload.tipo,tipo_permiso:payload.tipo_permiso};
     try{
@@ -1864,6 +2113,13 @@ async function submitForm(){
       if(!g.okNav) toast('Solicitud guardada, pero no se pudo guardar la copia local del documento','warn',7000);
     }catch(e){ console.error('[DOC]',e); }
   }
+  return {ok:true, id:newId, tipo:'insert'};
+}
+
+async function submitForm(){
+  var r=await _guardarSolicitud();
+  if(!r.ok) return;
+  if(r.tipo==='update'){ toast('✅ Cambios guardados','success'); await cargarSolicitudes(); go('rec'); return; }
   toast('✅ Solicitud enviada correctamente','success');
   resetForm();
   await cargarSolicitudes();
@@ -2027,10 +2283,76 @@ function semNum(dk){
 }
 function semNumSem(wk){ return wk.split('-W')[1]; }
 
+// ── Gráfico de torta (donut) por responsable ──
+var _CHART_COLORS=['#14508C','#1F6FB2','#2E8BC0','#37A6D0','#57BEE0','#7CCBEA','#A2DBF2','#C4E7F7','#3C6E9F','#5A8FB8','#86AECB','#B7D3E6'];
+// Agrupa registros por responsable (autorizador) sumando valueFn (1 por defecto)
+function _respAgg(items, valueFn){
+  var map={};
+  (items||[]).forEach(function(s){
+    var k=String(s.autorizador||'').trim()||'Sin responsable';
+    map[k]=(map[k]||0)+(valueFn?valueFn(s):1);
+  });
+  return Object.keys(map).map(function(k){ return {label:k, value:map[k]}; })
+    .sort(function(a,b){ return b.value-a.value; });
+}
+function _arcSlice(cx,cy,R,r,a0,a1){
+  var large=(a1-a0)>Math.PI?1:0;
+  var x0=cx+R*Math.cos(a0), y0=cy+R*Math.sin(a0);
+  var x1=cx+R*Math.cos(a1), y1=cy+R*Math.sin(a1);
+  var x2=cx+r*Math.cos(a1), y2=cy+r*Math.sin(a1);
+  var x3=cx+r*Math.cos(a0), y3=cy+r*Math.sin(a0);
+  return 'M'+x0.toFixed(2)+' '+y0.toFixed(2)+' A'+R+' '+R+' 0 '+large+' 1 '+x1.toFixed(2)+' '+y1.toFixed(2)+
+         ' L'+x2.toFixed(2)+' '+y2.toFixed(2)+' A'+r+' '+r+' 0 '+large+' 0 '+x3.toFixed(2)+' '+y3.toFixed(2)+' Z';
+}
+function _chartVal(v){ var n=Math.round(v*100)/100; return n.toLocaleString('es-CL',{maximumFractionDigits:2}); }
+// Donut SVG + leyenda con % por responsable
+function _donutSVG(pairs, size){
+  size=size||216;
+  var cx=size/2, cy=size/2, R=size/2-6, r=R*0.58;
+  var total=(pairs||[]).reduce(function(a,p){ return a+p.value; },0);
+  if(!total) return '<div class="dn-empty">Sin datos para graficar</div>';
+  var a0=-Math.PI/2, paths='';
+  if(pairs.length===1){
+    paths='<circle cx="'+cx+'" cy="'+cy+'" r="'+((R+r)/2).toFixed(2)+'" fill="none" stroke="'+_CHART_COLORS[0]+'" stroke-width="'+(R-r).toFixed(2)+'"/>';
+  } else {
+    pairs.forEach(function(p,i){
+      var a1=a0+(p.value/total)*Math.PI*2;
+      paths+='<path d="'+_arcSlice(cx,cy,R,r,a0,a1)+'" fill="'+_CHART_COLORS[i%_CHART_COLORS.length]+'" stroke="var(--surface)" stroke-width="1.5"/>';
+      a0=a1;
+    });
+  }
+  var legend=pairs.map(function(p,i){
+    var pct=(p.value/total*100).toFixed(1).replace('.',',')+'%';
+    return '<div class="dn-it"><span class="sw" style="background:'+_CHART_COLORS[i%_CHART_COLORS.length]+'"></span>'+
+      '<span class="nm" title="'+esc(p.label)+'">'+esc(p.label)+'</span>'+
+      '<span class="pc">'+pct+'</span><span class="vl">'+_chartVal(p.value)+'</span></div>';
+  }).join('');
+  return '<div class="dn-wrap"><svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'" class="dn-svg" role="img">'+paths+'</svg>'+
+    '<div class="dn-legend">'+legend+'</div></div>';
+}
+function _chartCard(title, sub, pairs){
+  return '<div class="card chart-card"><div class="chart-head"><div class="chart-title">'+esc(title)+'</div>'+
+    (sub?'<div class="chart-sub">'+esc(sub)+'</div>':'')+'</div>'+_donutSVG(pairs)+'</div>';
+}
+// Celda de acciones (ver documento · editar · eliminar) para una fila de registro
+function _accRow(s){
+  var tieneDoc=!!_docIds[s.id], tieneArchivo=!!s.archivo;
+  var docBtn=(tieneDoc||tieneArchivo) ? '<button class="btn-icon" onclick="verDocumento(\''+esc(s.id||'')+'\')" title="'+(tieneDoc?'Ver documento adjunto':'Documento registrado (no guardado localmente)')+'"'+(tieneDoc?'':' style="opacity:.5"')+'>📎</button>' : '';
+  return '<td style="white-space:nowrap"><div style="display:flex;gap:6px;justify-content:flex-end">'+docBtn+
+    '<button class="btn-icon" title="Editar" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')">✏️</button>'+
+    '<button class="btn-icon danger" title="Eliminar" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')">🗑</button>'+
+    '</div></td>';
+}
+
 // ── Vista DÍA COMPLETO y MEDIA JORNADA: unificada, estilo Friosur por día ──
 // tipo: 'COMPLETO' | 'MEDIA_JORNADA' · recIdx: 0 o 1 · accColor: color del título
 function renderPorDia(tipo, titulo, accColor, recIdx){
-  var cols0=['TURNO','DIA PERMISO','CÓDIGO NOMBRE','TIPO DE PERMISO','REGRESO','HORA SALIDA','HORA INGRESO','HORAS DE PERMISO'];
+  var esMJ=(tipo==='MEDIA_JORNADA');
+  var cols0=['TURNO','DIA PERMISO'];
+  if(esMJ) cols0.push('RESPONSABLE');
+  cols0=cols0.concat(['CÓDIGO NOMBRE','TIPO DE PERMISO','REGRESO','HORA SALIDA','HORA INGRESO','HORAS DE PERMISO']);
+  if(esMJ) cols0.push('HORAS TRABAJADAS');
+  if(esMJ) cols0.push('');
   var q=(recQ||'').toLowerCase();
   function hit(s){ return (((s.nombre||'')+' '+(s.codigo||'')+' '+(s.centro_costo||'')+' '+(s.autorizador||'')).toLowerCase().indexOf(q)>=0); }
   function fechaOk(s){
@@ -2065,14 +2387,16 @@ function renderPorDia(tipo, titulo, accColor, recIdx){
   dias.forEach(function(g){ if(g.k!=='__sin__' && _diaExpand[g.k]!==true && _diaExpand[g.k]!==false){ _diaExpand[g.k]=true; } });
 
   var totDia=0, totTarde=0, totNoche=0, body='';
+  var totT=0, tDiaT=0, tTardeT=0, tNocheT=0;
+  var hayDia=false, hayTarde=false, hayNoche=false;
   var hoyS=hoy(), dkRef=_calcularDkRef();
-  function acumTurno(s,hN){ var turno=String((s.turno||'DIA')).toUpperCase(); if(turno==='TARDE'){totTarde+=hN;}else if(turno==='NOCHE'){totNoche+=hN;}else{totDia+=hN;} }
+  function acumTurno(s,hN,hT){ var turno=String((s.turno||'DIA')).toUpperCase(); if(turno==='TARDE'){totTarde+=hN;tTardeT+=hT;hayTarde=true;}else if(turno==='NOCHE'){totNoche+=hN;tNocheT+=hT;hayNoche=true;}else{totDia+=hN;tDiaT+=hT;hayDia=true;} }
 
   dias.forEach(function(g){
     var fechas=g.k.split('-');
     var fechaLbl=g.k==='__sin__' ? '—' : ((fechas[2]+'-'+fechas[1]+'-'+fechas[0])+(_diaSemana(g.k)?' · '+_diaSemana(g.k):''));
-    var sumaDia=0;
-    g.items.forEach(function(s){ var hN=parseFloat(calcularHorasPermiso(s))||0; sumaDia+=hN; acumTurno(s,hN); });
+    var sumaDia=0, sumaTrab=0;
+    g.items.forEach(function(s){ var hN=parseFloat(calcularHorasPermiso(s))||0; var hT=esMJ?(parseFloat(calcularHorasTrabajadas(s))||0):0; sumaDia+=hN; sumaTrab+=hT; totT+=hT; acumTurno(s,hN,hT); });
     var diaExp=_diaExpand[g.k]===true;
     var isRef=g.k===dkRef, gStyle=isRef?'background:rgba(0,152,212,.12)':'';
     var refTag=g.k===hoyS?' <span style="color:var(--accent);font-size:9px">HOY</span>':(isRef?' <span style="color:var(--accent);font-size:9px">PRÓXIMA</span>':'');
@@ -2081,8 +2405,9 @@ function renderPorDia(tipo, titulo, accColor, recIdx){
     body+='<tr class="mes-total" id="fechaRef" style="cursor:pointer;'+gStyle+'" onclick="toggleDia(\''+esc(g.k)+'\')">'+
       '<td></td>'+
       '<td style="padding-left:6px"><span style="display:inline-block;width:12px">'+diaFlecha+'</span> <b>Total '+fechaLbl+'</b>'+refTag+'</td>'+
+      (esMJ?'<td></td>':'')+
       '<td colspan="5" style="font-size:10px;color:var(--hint)"></td>'+
-      '<td style="text-align:right;font-weight:700">'+fmtHoras(sumaDia)+'</td></tr>';
+      '<td style="text-align:right;font-weight:700">'+fmtHoras(sumaDia)+'</td>'+(esMJ?'<td style="text-align:right;font-weight:700">'+fmtHoras(sumaTrab)+'</td>':'')+(esMJ?'<td></td>':'')+'</tr>';
     // Filas del día
     if(diaExp) g.items.forEach(function(s){
       var hN=parseFloat(calcularHorasPermiso(s))||0;
@@ -2091,37 +2416,52 @@ function renderPorDia(tipo, titulo, accColor, recIdx){
       body+='<tr>'+
         '<td style="font-size:11px;color:var(--muted)">'+esc(s.turno||'—')+'</td>'+
         '<td style="color:var(--muted);white-space:nowrap;font-size:11.5px">'+fechaLbl+'</td>'+
+        (esMJ?'<td style="font-size:12px;white-space:nowrap;color:var(--muted)">'+esc(s.autorizador||'—')+'</td>':'')+
         '<td style="font-size:12px">'+codNom+'</td>'+
         '<td style="font-size:12px;white-space:nowrap">'+tLbl(s.tipo_permiso)+'</td>'+
         '<td style="font-size:12px;white-space:nowrap">'+regTxt(s.tipo_regreso)+'</td>'+
         '<td style="white-space:nowrap;font-size:12px">'+fmtHora(s.hora_salida)+'</td>'+
         '<td style="white-space:nowrap;font-size:12px">'+fmtHora(s.hora_ingreso)+'</td>'+
         '<td style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums">'+fmtHoras(hN)+'</td>'+
+        (esMJ?'<td style="text-align:right;color:var(--muted);font-variant-numeric:tabular-nums">'+fmtHoras(calcularHorasTrabajadas(s))+'</td>':'')+
+        (esMJ?_accRow(s):'')+
         '</tr>';
     });
   });
 
   // Totales por turno + suma total
-  body+='<tr class="mes-total"><td><b>Total DIA</b></td><td colspan="6"></td><td style="text-align:right;font-weight:700">'+fmtHoras(totDia)+'</td></tr>';
-  body+='<tr class="mes-total"><td><b>Total TARDE</b></td><td colspan="6"></td><td style="text-align:right;font-weight:700">'+fmtHoras(totTarde)+'</td></tr>';
-  body+='<tr class="mes-total"><td><b>Total NOCHE</b></td><td colspan="6"></td><td style="text-align:right;font-weight:700">'+fmtHoras(totNoche)+'</td></tr>';
-  body+='<tr class="mes-total"><td><b>Suma total</b></td><td colspan="6"></td><td style="text-align:right;font-weight:800">'+fmtHoras(totDia+totTarde+totNoche)+'</td></tr>';
+  var _midRow=function(lbl,vPerm,vTrab,strong){
+    return '<tr class="mes-total" style="cursor:default"><td></td><td><b>'+lbl+'</b></td>'+
+      '<td colspan="'+(esMJ?6:5)+'"></td>'+
+      '<td style="text-align:right;font-weight:'+strong+'">'+fmtHoras(vPerm)+'</td>'+
+      (esMJ?'<td style="text-align:right;color:var(--hint);font-weight:'+strong+'">'+fmtHoras(vTrab)+'</td>':'')+
+      (esMJ?'<td></td>':'')+'</tr>';
+  };
+  // Subtotales por turno (solo si hay más de un turno) + subtotal general siempre
+  if((hayDia?1:0)+(hayTarde?1:0)+(hayNoche?1:0) > 1){
+    if(hayTarde) body+=_midRow('Total TARDE', totTarde, tTardeT, 700);
+    if(hayNoche) body+=_midRow('Total NOCHE', totNoche, tNocheT, 700);
+    if(hayDia) body+=_midRow('Total DIA', totDia, tDiaT, 700);
+  }
+  body+=_midRow(esMJ?'Subtotal HORAS DE PERMISO':'Suma total', totDia+totTarde+totNoche, totT, 800);
 
   var header=cols0.map(function(c){return '<th>'+c+'</th>';}).join('');
   var acc=accColor;
+  var footTot= esMJ ? ('Total horas: '+fmtHoras(items.reduce(function(a,s){return a+(parseFloat(calcularHorasPermiso(s))||0);},0))+' h')
+                    : ('Total: '+items.length+' permiso'+(items.length!==1?'s':''));
   return '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
-    '<h1 style="font-size:23px;font-weight:700;letter-spacing:-.6px">'+titulo+'</h1>'+
+    '<h1 style="font-size:clamp(22px,2.2vw,28px);font-weight:700;letter-spacing:-.025em;line-height:1.1">'+titulo+'</h1>'+
     '<span style="font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:20px;background:var(--accent-soft);color:'+acc+'">'+items.length+'</span>'+
     '<span style="font-size:12.5px;color:var(--hint)">'+periodoLabel()+'</span>'+
     '</div>'+recFilterBar(recIdx)+
-    '<div class="table-card"><div class="tbl-scroll"><table class="tbl" style="min-width:1120px"><thead><tr>'+header+'</tr></thead>'+
-    '<tbody>'+(body||'<tr><td colspan="8" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>')+'</tbody></table></div>'+
-    '<div class="tbl-foot"><span>Mostrando '+items.length+' registros</span><span>'+recTotal(recIdx)+'</span></div></div>';
+    '<div class="table-card"><div class="tbl-scroll"><table class="tbl tbl-compact" style="min-width:1180px"><thead><tr>'+header+'</tr></thead>'+
+      '<tbody>'+(body||'<tr><td colspan="'+(esMJ?11:8)+'" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>')+'</tbody></table></div>'+
+    '<div class="tbl-foot"><span>Mostrando '+items.length+' registros</span><span>'+footTot+'</span></div></div>';
 }
 
 // ── Vista VACACIONES: agrupada por mes con totales por mes y suma total ──
 function renderVacaciones(hit, fechaOk){
-  var cols0=[{t:'AÑO / MES'},{t:'NOMBRE / CENTRO DE COSTO'},{t:'INICIO DE VACACIONES'},{t:'TÉRMINO DE VACACIONES'},{t:'DÍAS HÁBILES',c:'center'},{t:'ESTADO'},{t:''}];
+  var cols0=[{t:'AÑO',c:'center'},{t:'MES',c:'center'},{t:'CENTRO DE COSTO'},{t:'NOMBRE'},{t:'INICIO DE VACACIONES'},{t:'TÉRMINO DE VACACIONES'},{t:'DÍAS HÁBILES',c:'center'},{t:'ESTADO VACACIONES',c:'center'},{t:''}];
   var q=(recQ||'').toLowerCase();
   function hitS(s){ var n=(s.nombre||'')+' '+(s.codigo||'')+' '+(s.centro_costo||'')+' '+(s.autorizador||''); return n.toLowerCase().indexOf(q)>=0; }
   function fechaOkS(s){
@@ -2153,45 +2493,56 @@ function renderVacaciones(hit, fechaOk){
   });
   meses.sort(function(a,b){ if(a.k==='__sin__')return 1; if(b.k==='__sin__')return -1; return a.k.localeCompare(b.k); });
 
-  var sumaTotal=0, body='';
+  var body='';
   meses.forEach(function(m){
     var p=m.k.split('-');
     var anioLbl=p[0]||'—', mesLbl=p[1]?MONTHS[+p[1]-1].slice(0,3):'—';
-    var sumaMes=0;
-    // Ordenar por inicio
-    m.items.sort(function(a,b){ return String(a.inicio||'').localeCompare(String(b.inicio||'')); });
-    var rowsHtml=m.items.map(function(s){
-      var dias=parseInt(s.dias_habiles)||0; sumaMes+=dias; sumaTotal+=dias;
-      var codNom='<b style="color:var(--text)">'+esc(s.codigo||'')+'</b> <span>'+esc(s.nombre||'')+'</span>';
-      if(s.centro_costo) codNom+=' <span style="color:var(--hint);margin-left:8px">'+esc(s.centro_costo)+'</span>';
-      return '<tr>'+
-        '<td style="white-space:nowrap;font-size:11.5px;color:var(--muted)">'+anioLbl+' · '+mesLbl+'</td>'+
-        '<td>'+codNom+'</td>'+
-        '<td style="font-size:11px;color:var(--hint)">'+dLbl(s.inicio)+'</td>'+
-        '<td style="font-size:11px;color:var(--hint)">'+dLbl(s.termino)+'</td>'+
-        '<td style="text-align:center;font-variant-numeric:tabular-nums">'+dias+'</td>'+
-        '<td style="white-space:nowrap;font-size:11.5px">'+estadoDe(s)+'</td>'+
-        '<td style="white-space:nowrap"><div style="display:flex;gap:6px;justify-content:flex-end">'+
-        '<button class="btn-icon" title="Editar" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')">✏️</button>'+
-        '<button class="btn-icon danger" title="Eliminar" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')">🗑</button></div></td>'+
-        '</tr>';
-    }).join('');
-    // Total del mes
-    body+='<tr class="mes-total"><td colspan="4"><b>Total '+mesLbl+'</b></td><td style="text-align:right;font-weight:700">'+sumaMes+'</td><td></td><td></td></tr>'+
-      rowsHtml;
+    m.items.sort(function(a,b){ return String(a.inicio||'').localeCompare(String(b.inicio||'')) || String(a.nombre||'').localeCompare(String(b.nombre||''),'es'); });
+    // Agrupar por CENTRO DE COSTO (la etiqueta se muestra UNA sola vez)
+    var cks=[], cm={};
+    m.items.forEach(function(s){ var cc=s.centro_costo||'—'; if(!cm[cc]){ cm[cc]={cc:cc,items:[]}; cks.push(cm[cc]); } cm[cc].items.push(s); });
+    cks.sort(function(a,b){ return a.cc.localeCompare(b.cc); });
+    var firstMonth=true;
+    cks.forEach(function(c){
+      var cnt=c.items.length;
+      c.items.forEach(function(s, idx){
+        var dias=parseInt(s.dias_habiles)||0;
+        var codNom='<b style="color:var(--text)">'+esc(s.codigo||'')+'</b> <span>'+esc(s.nombre||'')+'</span>';
+        var celA=(idx===0 && firstMonth)?'<td style="text-align:center;font-size:11px;color:var(--hint);font-weight:700">'+esc(anioLbl)+'</td>':'<td></td>';
+        var celM=(idx===0 && firstMonth)?'<td style="text-align:center;font-size:11px;color:var(--hint);font-weight:700">'+esc(mesLbl)+'</td>':'<td></td>';
+        var celC=(idx===0)?'<td style="font-weight:700;color:var(--text)">'+esc(c.cc)+'</td>':'<td></td>';
+        body+='<tr>'+
+          celA+celM+celC+
+          '<td>'+codNom+'</td>'+
+          '<td style="font-size:11px;color:var(--hint)">'+dLbl(s.inicio)+'</td>'+
+          '<td style="font-size:11px;color:var(--hint)">'+dLbl(s.termino)+'</td>'+
+          '<td style="text-align:center;font-variant-numeric:tabular-nums">'+dias+'</td>'+
+          '<td style="white-space:nowrap;font-size:11.5px;text-align:center">'+estadoDe(s)+'</td>'+
+          '<td style="white-space:nowrap"><div style="display:flex;gap:6px;justify-content:flex-end">'+
+          '<button class="btn-icon" title="Editar" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')">✏️</button>'+
+          '<button class="btn-icon danger" title="Eliminar" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')">🗑</button></div></td>'+
+          '</tr>';
+      });
+      // Subtotal del centro de costo
+      body+='<tr class="mes-total"><td colspan="2"></td><td colspan="5" style="font-weight:700">Total '+esc(c.cc)+'</td><td style="text-align:center;font-weight:700">'+cnt+'</td><td></td></tr>';
+      firstMonth=false;
+    });
+    // Subtotal del mes (cantidad de personas)
+    var nP=m.items.length;
+    body+='<tr class="mes-total"><td colspan="2"></td><td colspan="5"><b>Total '+mesLbl+'</b></td><td style="text-align:center;font-weight:800">'+nP+'</td><td></td></tr>';
   });
 
-  body+='<tr class="mes-total"><td colspan="4"><b>Suma total</b></td><td style="text-align:right;font-weight:800">'+sumaTotal+'</td><td></td><td></td></tr>';
+  body+='<tr class="mes-total"><td colspan="2"></td><td colspan="5"><b>Suma total</b></td><td style="text-align:center;font-weight:800">'+items.length+'</td><td></td></tr>';
 
   var header=cols0.map(function(c){ return '<th'+(c.c?' style="text-align:'+c.c+'"':'')+'>'+c.t+'</th>'; }).join('');
   var acc='#B0711C';
   return '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
-    '<h1 style="font-size:23px;font-weight:700;letter-spacing:-.6px">Registros vacaciones</h1>'+
+    '<h1 style="font-size:clamp(22px,2.2vw,28px);font-weight:700;letter-spacing:-.025em;line-height:1.1">Registros vacaciones</h1>'+
     '<span style="font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:20px;background:var(--accent-soft);color:'+acc+'">'+items.length+'</span>'+
     '<span style="font-size:12.5px;color:var(--hint)">'+periodoLabel()+'</span>'+
     '</div>'+recFilterBar(2)+
-    '<div class="table-card"><div class="tbl-scroll"><table class="tbl" style="min-width:1000px"><thead><tr>'+header+'</tr></thead>'+
-    '<tbody>'+(body||'<tr><td colspan="7" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>')+'</tbody></table></div>'+
+    '<div class="table-card"><div class="tbl-scroll"><table class="tbl" style="min-width:1120px"><thead><tr>'+header+'</tr></thead>'+
+    '<tbody>'+(body||'<tr><td colspan="9" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>')+'</tbody></table></div>'+
     '<div class="tbl-foot"><span>Mostrando '+items.length+' registros</span><span>'+recTotal(2)+'</span></div></div>'+
     // El resumen usa TODAS las vacaciones (no las filtradas por la tabla) y aplica su propio filtro de años
     resumenVacaciones(_SOLIC.filter(function(s){ return s.tipo==='VACACIONES'; }));
@@ -2214,7 +2565,7 @@ function resumenVacaciones(items){
   if(!items||!items.length) return '';
   var MONTHS3=['ene','feb','mar','abr','may','jun','jul','ago','sept','oct','nov','dic'];
   // Por defecto, el año actual (solo la primera vez)
-  if(!_resInit){ _resInit=true; var _ya=new Date().getFullYear(); if(resAniosDisponibles().indexOf(String(_ya))>=0) _resAnios=[String(_ya)]; }
+  if(!_resInit){ _resInit=true; _resAnios=resAniosDisponibles().slice(); }   // todos los años (incluye el próximo)
   // Filtro de años + centros de costo EXCLUSIVOS del resumen
   var itemsFilt=items.filter(function(s){
     if(_resAnios.length && _resAnios.indexOf(String(s.inicio||'').slice(0,4))<0) return false;
@@ -2343,7 +2694,7 @@ function _cuerpoCompletoHTML(){
   // Filtrar y agrupar POR FECHA (formato de la imagen: fecha una vez arriba, nombres debajo, total al final)
   var items=_SOLIC.filter(function(s){return s.tipo==='COMPLETO'&&hit(s)&&fechaOk(s);});
   var rows=items.map(function(s){ return {fechaRaw:String(s.inicio||'').slice(0,10), raw:s}; });
-  if(!rows.length) return '<tr><td colspan="6" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>';
+  if(!rows.length) return '<tr><td colspan="7" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>';
 
   // Agrupar por fecha (clave YYYY-MM-DD), orden ascendente
   var dias=[]; var dk={};
@@ -2377,6 +2728,7 @@ function _cuerpoCompletoHTML(){
       '</div></td>';
     return '<tr'+(conRef?' id="fechaRef"':'')+' style="'+(gStyle||'')+'">'+
       '<td style="color:var(--hint);font-size:11px;white-space:nowrap">'+(fechaCell||'')+'</td>'+
+      '<td style="font-size:12px;white-space:nowrap;color:var(--muted)">'+esc(s.autorizador||'—')+'</td>'+
       '<td>'+codNom+'</td>'+
       celTipo(esTipo(s,'PERSONAL'))+
       celTipo(esTipo(s,'MEDICO'))+
@@ -2399,6 +2751,7 @@ function _cuerpoCompletoHTML(){
       var diaExp=_diaExpandC[g.k]===true;
       body+='<tr class="fecha-head" style="cursor:pointer;'+(isRef?gStyle:'')+'" onclick="toggleDiaC(\''+g.k+'\')">'+
         '<td style="font-weight:700;color:var(--text)"><span style="display:inline-block;width:14px">'+(diaExp?'▼':'▶')+'</span> '+fechaLbl+'</td>'+
+        '<td></td>'+
         '<td style="font-size:10px;color:var(--hint)">'+g.items.length+' registro'+(g.items.length!==1?'s':'')+'</td>'+
         celTipo(dt.p)+celTipo(dt.m)+celTipo(dt.j)+'<td></td></tr>';
       if(diaExp){
@@ -2409,6 +2762,7 @@ function _cuerpoCompletoHTML(){
         });
         body+='<tr class="fecha-total">'+
           '<td style="padding-left:26px"><b>Total '+fechaLbl+'</b></td>'+
+          '<td></td>'+
           '<td style="font-size:10px;color:var(--hint)">'+g.items.length+' registro'+(g.items.length!==1?'s':'')+'</td>'+
           celTipo(dt.p)+celTipo(dt.m)+celTipo(dt.j)+'<td></td></tr>';
       }
@@ -2423,27 +2777,28 @@ function _cuerpoCompletoHTML(){
       // Subtotal del día (la fecha ya se mostró una vez arriba)
       body+='<tr class="fecha-total" style="'+gStyle+'">'+
         '<td style="padding-left:10px"><b>Total</b></td>'+
+        '<td></td>'+
         '<td style="font-size:10px;color:var(--hint)">'+g.items.length+' registro'+(g.items.length!==1?'s':'')+'</td>'+
         celTipo(dt.p)+celTipo(dt.m)+celTipo(dt.j)+'<td></td></tr>';
     }
   });
 
-  return body||'<tr><td colspan="6" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>';
+  return body||'<tr><td colspan="7" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>';
 }
 
 // Vista DÍA COMPLETO (formato original: código nombre + PERSONAL/MÉDICO/JUDICIAL, agrupado por día)
 function renderDiaCompletoVista(){
   var body=_cuerpoCompletoHTML();
-  var cols0=['FECHA PERMISO','CÓDIGO NOMBRE','PERSONAL','MÉDICO','JUDICIAL',''];
+  var cols0=['FECHA PERMISO','RESPONSABLE','CÓDIGO NOMBRE','PERSONAL','MÉDICO','JUDICIAL',''];
   var total=_SOLIC.filter(function(s){ return s.tipo==='COMPLETO'; }).length;
   var header=cols0.map(function(c){return '<th>'+c+'</th>';}).join('');
   var acc='#5B54D6';
   return '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
-    '<h1 style="font-size:23px;font-weight:700;letter-spacing:-.6px">Registros día completo</h1>'+
+    '<h1 style="font-size:clamp(22px,2.2vw,28px);font-weight:700;letter-spacing:-.025em;line-height:1.1">Registros día completo</h1>'+
     '<span style="font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:20px;background:var(--accent-soft);color:'+acc+'">'+total+'</span>'+
     '<span style="font-size:12.5px;color:var(--hint)">'+periodoLabel()+'</span>'+
     '</div>'+recFilterBar(0)+
-    '<div class="table-card"><div class="tbl-scroll"><table class="tbl tbl-compact" style="min-width:760px"><thead><tr>'+header+'</tr></thead>'+
+    '<div class="table-card"><div class="tbl-scroll"><table class="tbl tbl-compact" style="min-width:900px"><thead><tr>'+header+'</tr></thead>'+
     '<tbody id="tbodyCompleto">'+body+'</tbody></table></div>'+
     '<div class="tbl-foot"><span>Mostrando '+total+' registros</span><span>'+recTotal(0)+'</span></div></div>';
 }
@@ -2547,7 +2902,7 @@ function renderRec(){
   }).join('');
 
   return '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
-    '<h1 style="font-size:23px;font-weight:700;letter-spacing:-.6px">'+TITLES[t]+'</h1>'+
+    '<h1 style="font-size:clamp(22px,2.2vw,28px);font-weight:700;letter-spacing:-.025em;line-height:1.1">'+TITLES[t]+'</h1>'+
     '<span style="font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:20px;background:var(--accent-soft);color:'+acc+'">'+rows.length+'</span>'+
     '<span style="font-size:12.5px;color:var(--hint)">'+PERIOD+'</span>'+
     '<div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+recFilterBar(t)+
@@ -2562,8 +2917,8 @@ function estBadge(est){
 }
 function recTotal(t){
   if(t===0) return 'Total: '+_SOLIC.filter(function(s){return s.tipo==='COMPLETO';}).length+' permisos';
-  if(t===1){ var h=0; _SOLIC.forEach(function(s){if(s.tipo==='MEDIA_JORNADA')h+=parseFloat(s.horas_permiso||0);}); return 'Total horas: '+(h.toFixed(1).replace('.',','))+' h'; }
-  var d=0; _SOLIC.forEach(function(s){if(s.tipo==='VACACIONES')d+=+(s.dias_habiles||0);}); return 'Total días hábiles: '+d;
+  if(t===1){ var h=0; _SOLIC.forEach(function(s){if(s.tipo==='MEDIA_JORNADA')h+=parseFloat(calcularHorasPermiso(s))||0;}); return 'Total horas: '+(h.toFixed(2).replace('.',','))+' h'; }
+  var n=0; _SOLIC.forEach(function(s){if(s.tipo==='VACACIONES')n++;}); return 'Total: '+n+' vacaciones';
 }
 var recQ='';
 // Filtros de fecha en registros
@@ -2637,7 +2992,7 @@ function exportRec(t){
   };
   var fil=function(tipo){ return _SOLIC.filter(function(s){return s.tipo===tipo&&hit(s)&&fechaOk(s);}); };
   var rows=t===0?fil('COMPLETO').map(function(s){return {Estado:s.estado,Fecha:s.inicio,Nombre:s.nombre,Centro:s.centro_costo,Turno:s.turno,Tipo:s.tipo_permiso,Autorizador:s.autorizador};})
-    :t===1?fil('MEDIA_JORNADA').map(function(s){return {Estado:s.estado,Dia:s.inicio,Nombre:s.nombre,Tipo:s.tipo_permiso,Regreso:regTxt(s.tipo_regreso),Salida:s.hora_salida,Ingreso:s.hora_ingreso,Horas:s.horas_permiso};})
+    :t===1?fil('MEDIA_JORNADA').map(function(s){return {Estado:s.estado,Dia:s.inicio,Nombre:s.nombre,Tipo:s.tipo_permiso,Regreso:regTxt(s.tipo_regreso),'Hora salida':s.hora_salida,'Hora ingreso':s.hora_ingreso,'Sin trabajo':calcularHorasPermiso(s),'Horas trabajadas':calcularHorasTrabajadas(s)};})
     :fil('VACACIONES').map(function(s){return {Estado:s.estado,Centro:s.centro_costo,Nombre:s.nombre,Inicio:s.inicio,Termino:s.termino,Dias:s.dias_habiles};});
   if(!rows.length){ toast('⚠️ Sin datos para exportar con los filtros actuales','error'); return; }
   var ws=XLSX.utils.json_to_sheet(rows), wb=XLSX.utils.book_new();
@@ -2777,19 +3132,28 @@ function iniciarEdicionVacacion(s){
   }
   var emp=_empDeCodigo(s.codigo); if(!emp.n) emp.n=s.nombre||'';
   var cc=s.centro_costo?{c:String(s.centro_costo).slice(0,4),n:s.centro_costo}:null;
+  var startIso=s.inicio?String(s.inicio).slice(0,10):null;
   var base=parseInt(s.dias_base,10)||0, prog=parseInt(s.dias_progresivo,10)||0, sind=parseInt(s.dias_sindical,10)||0;
   if(base+prog+sind===0){
     var dh=parseInt(s.dias_habiles,10)||0, td=String(s.tipo_dias||'BASE').toUpperCase();
     if(td==='PROGRESIVO'||td==='PROG') prog=dh; else if(td==='SINDICAL'||td==='SIND') sind=dh; else base=dh;
   }
+  if(base+prog+sind===0 && startIso && s.termino){
+    try{ base=contarHabiles(startIso,String(s.termino).slice(0,10))||0; }catch(e){}
+  }
   setTab(2);
   _editSolId=s.id;
   _form.emp=emp; _form.cc=cc;
-  _form.start=s.inicio?String(s.inicio).slice(0,10):null;
+  _form.start=startIso;
   _form.com=s.comentario||'';
   _form.tomarBase=base; _form.tomarProg=prog; _form.tomarSind=sind;
   _form.dias=base+prog+sind;
   _form.tipoDias=(s.tipo_dias||'BASE');
+  // Mapear el calendario al mes de la vacación programada
+  if(startIso){
+    var _cy=parseInt(startIso.slice(0,4),10), _cm=parseInt(startIso.slice(5,7),10)-1;
+    if(_cy>=1900 && _cm>=0 && _cm<12) _cal={y:_cy, m:_cm};
+  }
   render();
 }
 function _tipoTexto(t){ return {PERSONAL:'Permiso Personal',MEDICO:'Permiso Medico',JUDICIAL:'Permiso Judicial'}[t]||'Permiso Personal'; }
