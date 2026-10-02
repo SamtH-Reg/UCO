@@ -129,6 +129,12 @@ h1,h2,h3{font-weight:700;letter-spacing:-0.02em;line-height:1.15}
 .topbar .kicker{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--acc)}
 .topbar h1{font-size:clamp(22px,2.1vw,28px);font-weight:700;letter-spacing:-.025em;line-height:1.08;margin-top:5px}
 .topbar-actions{display:flex;gap:10px;align-items:center}
+.folder-badge{display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid transparent;font-family:inherit;cursor:default}
+.folder-badge.ok{background:var(--green-soft);color:var(--green);border-color:rgba(28,138,91,.22)}
+.folder-badge.warn{background:var(--oj-soft);color:var(--oj);border-color:rgba(176,113,28,.28);cursor:pointer;transition:background .15s}
+.folder-badge.warn:hover{background:color-mix(in srgb,var(--oj) 18%,transparent)}
+.folder-badge .fb-nm{color:var(--hint);font-weight:500;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.folder-badge svg{width:15px;height:15px;flex-shrink:0}
 
 .content{flex:1;padding:26px 40px 56px}
 .content-box{max-width:1600px;animation:fade .24s var(--ease-out)}
@@ -749,31 +755,98 @@ function _asignacionDias(emp, anos){
   var sind=(emp && emp.sindOverride!=null)?emp.sindOverride:DIAS_SINDICALES;
   return {base:base, prog:prog, sind:sind};
 }
-// Días usados de un empleado por bolsa, según las vacaciones registradas
+// Días usados de un empleado por bolsa, según las vacaciones registradas.
+// Las vacaciones a caballo de año se REPARTEN: se imputan a cada año los días
+// hábiles que caen dentro de él (prorrateando el desglose por bolsa).
 function _usoDias(codigo, excluirId, anio){
   anio=String(anio||new Date().getFullYear());
   var u={base:0,prog:0,sind:0};
   var k=String(codigo||'').trim().toUpperCase();
+  var y0=anio+'-01-01', y1=anio+'-12-31';
   (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
     if(s.tipo!=='VACACIONES') return;
     if(s.id && excluirId && s.id===excluirId) return;
     if(String(s.codigo||'').trim().toUpperCase()!==k) return;
-    if(String(s.inicio||'').slice(0,4)!==anio) return;   // solo el año en curso
     var est=String(s.estado||'').toUpperCase();
     if(est==='RECHAZADO'||est==='ANULADO') return;
-    if(s.dias_base!=null || s.dias_progresivo!=null || s.dias_sindical!=null){
-      u.base+=parseFloat(s.dias_base||0)||0;
-      u.prog+=parseFloat(s.dias_progresivo||0)||0;
-      u.sind+=parseFloat(s.dias_sindical||0)||0;
-    } else {
-      var d=parseFloat(s.dias_habiles||0)||0;
+    var ini=String(s.inicio||'').slice(0,10);
+    if(!ini) return;
+    var fin=String(s.termino||'').slice(0,10);
+    var b0=parseFloat(s.dias_base||0)||0, p0=parseFloat(s.dias_progresivo||0)||0, s0=parseFloat(s.dias_sindical||0)||0;
+    function sumarBolsa(cant){                  // asigna 'cant' días a su bolsa (o desglose directo)
+      if(b0||p0||s0){ u.base+=b0; u.prog+=p0; u.sind+=s0; return; }
       var td=String(s.tipo_dias||'BASE').toUpperCase();
+      if(td==='PROGRESIVO'||td==='PROG') u.prog+=cant;
+      else if(td==='SINDICAL'||td==='SIND') u.sind+=cant;
+      else u.base+=cant;
+    }
+    if(!fin || fin===ini){                      // sin rango: se imputa al año del inicio
+      if(ini.slice(0,4)!==anio) return;
+      sumarBolsa(parseFloat(s.dias_habiles||0)||b0+p0+s0||1);
+      return;
+    }
+    // Con rango: reparte los días hábiles que caen dentro de este año
+    var a=(ini>y0?ini:y0), b=(fin<y1?fin:y1);
+    if(a>b) return;                             // no cae en el año
+    var enAnio=contarHabiles(a,b); if(!enAnio) return;
+    var totalHab=contarHabiles(ini,fin);
+    if(totalHab==null || totalHab<=0) totalHab=parseFloat(s.dias_habiles||0)||enAnio;
+    if(b0||p0||s0){                             // reparte el desglose proporcionalmente
+      var rx=enAnio/totalHab;
+      u.base+=b0*rx; u.prog+=p0*rx; u.sind+=s0*rx;
+    } else {                                    // sin desglose: todo a su bolsa por tipo_dias
+      var td=String(s.tipo_dias||'BASE').toUpperCase();
+      if(td==='PROGRESIVO'||td==='PROG') u.prog+=enAnio;
+      else if(td==='SINDICAL'||td==='SIND') u.sind+=enAnio;
+      else u.base+=enAnio;
+    }
+  });
+  u.base=Math.round(u.base*100)/100; u.prog=Math.round(u.prog*100)/100; u.sind=Math.round(u.sind*100)/100;
+  return u;
+}
+// Días de vacaciones PROGRAMADAS (futuras) por bolsa, de un empleado en un año
+function _diasProgramadosPorBolsa(codigo, anio){
+  anio=String(anio||new Date().getFullYear());
+  var h=hoy(), u={base:0,prog:0,sind:0};
+  var k=String(codigo||'').trim().toUpperCase();
+  (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
+    if(s.tipo!=='VACACIONES') return;
+    if(String(s.codigo||'').trim().toUpperCase()!==k) return;
+    var est=String(s.estado||'').toUpperCase(); if(est==='RECHAZADO'||est==='ANULADO') return;
+    var ini=String(s.inicio||'').slice(0,10); if(!ini || ini<=h) return;   // solo futuras
+    if(ini.slice(0,4)!==anio) return;
+    var b=parseFloat(s.dias_base||0)||0, p=parseFloat(s.dias_progresivo||0)||0, si=parseFloat(s.dias_sindical||0)||0;
+    if(b||p||si){ u.base+=b; u.prog+=p; u.sind+=si; }
+    else {
+      var d=parseFloat(s.dias_habiles||0)||0, td=String(s.tipo_dias||'BASE').toUpperCase();
       if(td==='PROGRESIVO'||td==='PROG') u.prog+=d;
       else if(td==='SINDICAL'||td==='SIND') u.sind+=d;
       else u.base+=d;
     }
   });
+  u.base=Math.round(u.base*100)/100; u.prog=Math.round(u.prog*100)/100; u.sind=Math.round(u.sind*100)/100;
   return u;
+}
+// Días devengados PROPORCIONALMENTE en el período en curso (aniversario -> hoy).
+// Ley chilena: Art. 67 (feriado legal; 20 días hábiles en Aysén por Ley 20.058)
+//   + Art. 68 (progresivo). Se devengan de forma proporcional al tiempo trabajado.
+function _diasProporcionales(emp){
+  if(!emp || !emp.ing) return null;
+  var ing=String(emp.ing).slice(0,10);
+  var N=_anosServicio(ing); if(N==null) return null;
+  var iniPer=_addAnios(ing,N), finPer=_addAnios(ing,N+1);
+  var asig=_asignacionDias(emp,N);
+  var progAuto=_diasProgresivos(N);
+  var total=(asig.base||0)+((progAuto>0)?(asig.prog||0):0);
+  var d1=new Date(iniPer+'T12:00:00'), d2=new Date(finPer+'T12:00:00'), dh=new Date(hoy()+'T12:00:00');
+  if(isNaN(d1.getTime())||isNaN(d2.getTime())) return null;
+  var totDias=Math.round((d2-d1)/86400000)||365;
+  var trans=Math.max(0,Math.min(totDias,Math.round((dh-d1)/86400000)));
+  var r=function(x){ return Math.round(x*100)/100; };
+  var baseProp=(asig.base||0)*trans/totDias;
+  var progProp=((progAuto>0)?(asig.prog||0):0)*trans/totDias;
+  var prop=baseProp+progProp;
+  return { dias:r(prop), base:r(baseProp), prog:r(progProp), ini:iniPer, fin:finPer, total:total, transcurridos:trans, delPeriodo:totDias };
 }
 // Fecha de la última vacación YA tomada (<= hoy) de un trabajador (YYYY-MM-DD o null)
 function _ultimaVacacion(codigo){
@@ -851,7 +924,7 @@ function _recalcTomar(){
     _form.tomarSind=Math.min(_form.tomarSind||0, disp.sind);
   }
   _form.dias=(_form.tomarBase||0)+(_form.tomarProg||0)+(_form.tomarSind||0);
-  _form.maxDias=disp.base+disp.prog+disp.sind;
+  _form.maxDias=disp.base+disp.prog;   // el saldo no incluye sindicales
 }
 function _setTomar(bucket, val){
   var disp=_dispPorBolsa(); if(!disp) return;
@@ -890,6 +963,86 @@ function _finVacaciones(f){
   }
   return fin;
 }
+// ── Períodos de vacaciones por aniversario de ingreso ──────────
+// Años completos entre dos fechas
+function _anosEntre(a,b){
+  var d1=new Date(String(a).slice(0,10)+'T12:00:00'), d2=new Date(String(b).slice(0,10)+'T12:00:00');
+  if(isNaN(d1.getTime())||isNaN(d2.getTime())) return null;
+  var y=d2.getFullYear()-d1.getFullYear(), m=d2.getMonth()-d1.getMonth();
+  if(m<0 || (m===0 && d2.getDate()<d1.getDate())) y--;
+  return y;
+}
+function _addAnios(isoStr,n){
+  var p=String(isoStr).slice(0,10).split('-');
+  return ((+p[0]+n)) + '-' + p[1] + '-' + p[2];
+}
+// Ledger de períodos de un empleado (devengado / tomado / saldo) y próximo aniversario
+function _periodosVacaciones(emp){
+  if(!emp || !emp.ing) return null;
+  var ing=String(emp.ing).slice(0,10);
+  var N=_anosServicio(ing); if(N==null) return null;
+  var hoyIso=hoy(), k=String(emp.c||'').trim().toUpperCase();
+  var vac=(typeof _SOLIC!=='undefined'?_SOLIC:[]).filter(function(s){
+    if(s.tipo!=='VACACIONES') return false;
+    if(String(s.codigo||'').trim().toUpperCase()!==k) return false;
+    var est=String(s.estado||'').toUpperCase();
+    return est!=='ANULADO' && est!=='RECHAZADO';
+  });
+  var periodos=[], saldoDisp=0, totalTom=0, totalDer=0;
+  for(var i=0;i<=N;i++){
+    var desde=_addAnios(ing,i), hasta=_addAnios(ing,i+1);
+    var asig=_asignacionDias(emp,i);
+    var derecho=(asig.base||0)+(asig.prog||0)+(asig.sind||0);
+    var tomados=0;
+    vac.forEach(function(s){
+      var ini=String(s.inicio||'').slice(0,10); if(!ini) return;
+      var a=_anosEntre(ing,ini); if(a==null) return;
+      var kk=Math.max(0,a-1);            // los días del año i se usan desde el aniversario i+1
+      if(kk===i) tomados+=parseFloat(s.dias_habiles||0)||0;
+    });
+    var disponibleEn=_addAnios(ing,i+1);
+    var usable=disponibleEn<=hoyIso;
+    var saldo=derecho-tomados;
+    periodos.push({i:i, desde:desde, hasta:hasta, derecho:derecho, tomados:tomados, saldo:saldo, disponibleEn:disponibleEn, usable:usable, actual:(i===N)});
+    totalDer+=derecho; totalTom+=tomados;
+    if(usable) saldoDisp+=saldo;
+  }
+  return { periodos:periodos, saldoDisponible:saldoDisp, proximo:_addAnios(ing,N+1), anosHoy:N, totalDerecho:totalDer, totalTomado:totalTom };
+}
+function _fmtCorto(isoStr){ var p=String(isoStr||'').split('-'); return p.length===3?(p[2]+'-'+p[1]+'-'+p[0]):'—'; }
+function verPeriodosVacaciones(){
+  if(!_form.emp){ toast('Selecciona un empleado','warn'); return; }
+  var d=_periodosVacaciones(_form.emp);
+  if(!d){ toast('El empleado no tiene fecha de ingreso registrada','warn',6000); return; }
+  var filas=d.periodos.map(function(p){
+    var est=p.actual?('<span class="badge purp">En curso</span>'):(p.usable?('<span class="badge green">Disponible</span>'):('<span class="badge gray">—</span>'));
+    return '<tr'+(p.actual?' style="background:var(--accent-soft)"':'')+'>'+
+      '<td style="padding:8px 12px;white-space:nowrap">'+_fmtCorto(p.desde)+' → '+_fmtCorto(p.hasta)+'</td>'+
+      '<td style="padding:8px 12px;text-align:center">'+p.i+'</td>'+
+      '<td style="padding:8px 12px;text-align:right">'+p.derecho+'</td>'+
+      '<td style="padding:8px 12px;text-align:right">'+p.tomados+'</td>'+
+      '<td style="padding:8px 12px;text-align:right;font-weight:700">'+(p.usable?p.saldo:'—')+'</td>'+
+      '<td style="padding:8px 12px;text-align:center">'+est+'</td></tr>';
+  }).join('');
+  var html='<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">'+
+      '<div><div style="font-size:17px;font-weight:700">Períodos de vacaciones</div>'+
+      '<div style="font-size:12.5px;color:var(--muted);margin-top:2px">'+esc(_form.emp.n||'')+' · '+esc(_form.emp.c||'')+' · ingreso '+_fmtCorto(_form.emp.ing)+'</div></div>'+
+      '<button class="btn-icon" onclick="cerrarPeriodos()" title="Cerrar">✕</button></div>'+
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0">'+
+      '<div class="kpi" style="padding:14px"><div class="l">Saldo disponible</div><div class="v" style="font-size:24px">'+d.saldoDisponible+'</div></div>'+
+      '<div class="kpi" style="padding:14px"><div class="l">Días tomados</div><div class="v" style="font-size:24px">'+d.totalTomado+'</div></div>'+
+      '<div class="kpi" style="padding:14px"><div class="l">Próximo período</div><div class="v" style="font-size:16px;letter-spacing:0">'+_fmtCorto(d.proximo)+'</div><div style="font-size:11px;color:var(--hint);margin-top:2px">cumple '+(d.anosHoy+1)+' año'+(d.anosHoy+1!==1?'s':'')+'</div></div>'+
+    '</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Período actual (devengando): <b>'+_fmtCorto(_addAnios(_form.emp.ing,d.anosHoy))+' → '+_fmtCorto(d.proximo)+'</b>. Los días de cada período quedan disponibles al cumplir el aniversario.</div>'+
+    '<div class="table-card" style="margin-top:0"><div class="tbl-scroll" style="max-height:46vh"><table class="tbl tbl-compact"><thead><tr>'+
+      '<th>Período</th><th style="text-align:center">Año</th><th style="text-align:right">Derecho</th><th style="text-align:right">Tomado</th><th style="text-align:right">Saldo</th><th style="text-align:center">Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div></div>';
+  var el=document.createElement('div'); el.id='perModal';
+  el.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(23,23,26,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+  el.onclick=function(ev){ if(ev.target===el) cerrarPeriodos(); };
+  el.innerHTML='<div style="background:var(--surface);border-radius:18px;max-width:760px;width:100%;max-height:88vh;overflow:auto;padding:24px;box-shadow:var(--shadow)">'+html+'</div>';
+  document.body.appendChild(el);
+}
+function cerrarPeriodos(){ var e=document.getElementById('perModal'); if(e&&e.remove) e.remove(); }
 // Nombre del día de la semana (español) para una fecha YYYY-MM-DD
 function _diaSemana(isoStr){
   var d=new Date(String(isoStr||'').slice(0,10)+'T12:00:00');
@@ -1014,13 +1167,14 @@ async function generarPapeletaRegistro(id){
 function generarPapeleta(){ return generarPapeletas(); }
 // Fila compacta de una bolsa (con stepper para tomar y ✎ para editar el asignado)
 function _diasRow(key,lbl,color,asig,uso,disp,tomar,auto,editable){
-  var autoHint=(auto!=null && asig!==auto) ? ' · automático '+auto : '';
+  var fD=function(n){ return (n==null||isNaN(n))?'—':String(Math.round(n*100)/100).replace('.',','); };
+  var autoHint=(auto!=null && asig!==auto) ? ' · automático '+fD(auto) : '';
   var editBtn=(editable===false)?'' : ' <button class="btn btn-ghost btn-sm" style="padding:0 5px;font-size:11px;color:'+color+'" onclick="editarAsignado(\''+key+'\')" title="Editar días asignados (negociable; vacío = automático)">✎</button>';
   return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border)">'+
     '<span style="width:9px;height:9px;border-radius:50%;background:'+color+';flex-shrink:0"></span>'+
     '<div style="flex:1;min-width:0">'+
       '<div style="font-size:13px;font-weight:600;color:'+color+'">'+lbl+'</div>'+
-      '<div style="font-size:11px;color:var(--hint)">Disponible '+disp+' de '+asig+' · usado '+uso+autoHint+editBtn+'</div>'+
+      '<div style="font-size:11px;color:var(--hint)">Disponible '+fD(disp)+' de '+fD(asig)+' · usado '+fD(uso)+autoHint+editBtn+'</div>'+
     '</div>'+
     '<div style="display:flex;align-items:center;gap:2px;background:var(--surface3);border-radius:10px;padding:2px">'+
       '<button class="btn-ghost" style="width:30px;height:30px;padding:0;border-radius:8px;font-size:16px" onclick="_setTomar(\''+key+'\',Math.max(0,('+tomar+')-1))">−</button>'+
@@ -1046,9 +1200,12 @@ function segBtnDias(val,lbl,on,disp){
 }
 
 // Cuenta días hábiles (L-V, sin feriados chilenos) entre dos fechas YYYY-MM-DD
+// (tolera timestamps: usa solo los primeros 10 caracteres)
 function contarHabiles(inicio, fin){
   if(!inicio||!fin) return null;
-  var d=new Date(inicio+'T12:00:00'), f=new Date(fin+'T12:00:00');
+  var a=String(inicio).slice(0,10), b=String(fin).slice(0,10);
+  var d=new Date(a+'T12:00:00'), f=new Date(b+'T12:00:00');
+  if(isNaN(d.getTime())||isNaN(f.getTime())) return null;
   if(d>f) return 0;
   var n=0;
   while(d<=f){
@@ -1088,14 +1245,15 @@ async function _fetchAll(d, table, cols, pageSize){
 async function cargarSolicitudes(){
   var d=await dbReady();
   var todo=[];
-  // 1) solicitudes de la app, 2) permisos, 3) vacaciones, 4) empleados: EN PARALELO
+  // 1) solicitudes de la app, 2) permisos, 3) empleados: EN PARALELO
+  // NOTA: ya NO se lee la tabla `vacaciones` (origen formulario Google Sheets).
+  //       Sus datos se migraron a `solicitudes_permiso` (ver vacaciones_migracion.sql).
   var out=await Promise.all([
     d.from('solicitudes_permiso').select('*').order('created_at',{ascending:false}).limit(1000),
     _fetchAll(d,'permisos','*'),
-    d.from('vacaciones').select('*'),
-    _fetchAll(d,'empleados','codigo,centro_costo,turno,fecha_ingreso')
+    _fetchAll(d,'empleados','codigo,nombre,centro_costo,turno,fecha_ingreso')
   ]);
-  var res=out[0], permAll=(out[1]&&out[1].data)||[], vr=out[2], empAll=(out[3]&&out[3].data)||[];
+  var res=out[0], permAll=(out[1]&&out[1].data)||[], empAll=(out[2]&&out[2].data)||[];
 
   if(res.error){ console.error('[SOLIC]',res.error.message||res.error); }
   else { (res.data||[]).forEach(function(s){ todo.push(s); }); }
@@ -1123,40 +1281,26 @@ async function cargarSolicitudes(){
   });
   if(duplicados) console.log('[SOLIC] '+duplicados+' permisos ya estaban en solicitudes_permiso (omitidos)');
 
-  // 3) Vacaciones (tabla simple) — se mapean a VACACIONES (deduplicadas por codigo+inicio)
-  try{
-    if(!vr.error&&vr.data&&vr.data.length){
-      vr.data.forEach(function(v){
-        var clave=String(v.codigo||'').toLowerCase()+'|'+String(v.fecha_inicio||'').slice(0,10);
-        if(vistos[clave]) return;
-        vistos[clave]=1;
-        var vIni=v.fecha_inicio||null, vFin=v.fecha_fin||null, vDias=null;
-        // Calcular días hábiles si la tabla no los trae
-        if(vIni&&vFin){ try{ vDias=contarHabiles(vIni,vFin); }catch(e){ vDias=null; } }
-        todo.push({
-          id:'vac_'+v.id, origen:'vacaciones',
-          tipo:'VACACIONES', estado:'APROBADO',
-          codigo:v.codigo, nombre:v.nombre||null,
-          centro_costo:null, turno:null, tipo_permiso:null,
-          inicio:vIni, termino:vFin,
-          dias_habiles:vDias, tipo_regreso:null, hora_salida:null, hora_ingreso:null, horas_permiso:null,
-          autorizador:null, autorizador_sub:null, archivo:null, comentario:null,
-          created_at:null
-        });
-      });
-    }
-  }catch(e){ /* tabla no existe, ignorar */ }
+  // 3) Vacaciones: ya no se leen de la tabla `vacaciones` (formulario Google).
+  //    Se trabaja de forma autónoma con las solicitudes propias de la app
+  //    (incluye las migradas/importadas en `solicitudes_permiso`).
 
   // 4) Completar centro de costo y turno desde empleados (TODOS, incluidos inactivos)
   var empMap={};
-  _EMP.forEach(function(e){ if(e.c) empMap[String(e.c).trim().toUpperCase()]={cc:e.cc, turno:e.turno, ing:e.ing||null}; });
-  empAll.forEach(function(e){ if(e.codigo){ var k=String(e.codigo).trim().toUpperCase(); if(!empMap[k]) empMap[k]={cc:e.centro_costo, turno:e.turno, ing:e.fecha_ingreso||null}; } });
+  _EMP.forEach(function(e){ if(e.c) empMap[String(e.c).trim().toUpperCase()]={cc:e.cc, turno:e.turno, ing:e.ing||null, n:e.n||null}; });
+  empAll.forEach(function(e){ if(e.codigo){ var k=String(e.codigo).trim().toUpperCase(); if(!empMap[k]) empMap[k]={cc:e.centro_costo, turno:e.turno, ing:e.fecha_ingreso||null, n:e.nombre||null}; else if(!empMap[k].n) empMap[k].n=e.nombre||null; } });
   todo.forEach(function(s){
     var k=String(s.codigo||'').trim().toUpperCase();
     if(k && empMap[k]){
       if(!s.centro_costo) s.centro_costo=empMap[k].cc||null;
       if(!s.turno) s.turno=empMap[k].turno||null;
       if(!s.fecha_ingreso) s.fecha_ingreso=empMap[k].ing||null;
+      if(!s.nombre) s.nombre=empMap[k].n||null;
+    }
+    // Si una vacación no trae días, calcularlos por rango (L-V, sin feriados)
+    if(s.tipo==='VACACIONES' && !parseInt(s.dias_habiles,10) && s.inicio && s.termino){
+      var cd=contarHabiles(s.inicio, s.termino);
+      if(cd!=null && cd>0) s.dias_habiles=cd;
     }
   });
 
@@ -1185,6 +1329,7 @@ function setRecIdx(i){
   _recIdx=i; if(document.body) document.body.setAttribute('data-rec', String(i));
   // Cada pestaña de Registros parte con su filtro por defecto (no hereda el de la anterior)
   _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta='';
+  _recEstados=['EN CURSO','POR TOMAR'];
   go('rec');
   // Día completo / Media jornada: MES ACTUAL + SIGUIENTE. Vacaciones: todas (sin filtro).
   if(i!==2) recSetMesActualSiguiente();
@@ -1225,6 +1370,7 @@ function render(){
     box.innerHTML=renderRec();
     if(_recIdx===0 && window._scrollARef){ window._scrollARef=false; scrollAReferencia(); }
   }
+  actualizarFolderBadge();
 }
 
 function renderHome(){
@@ -1436,6 +1582,31 @@ async function _autoConectarCarpetas(){
     render();
   }catch(e){}
 }
+// ── Indicador de carpeta conectada (badge en el encabezado) ──
+function _carpetaActual(){
+  if(_page==='form'){ var e=dirDeTab(_tab); if(e) return e; }
+  if(_dirHandle) return {handle:_dirHandle,name:_dirName,conectada:_dirConectada,esDefault:true};
+  for(var k in _dirTabs){ if(_dirTabs[k]) return _dirTabs[k]; }
+  return null;
+}
+function _icoFolderCheck(){
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5a2 2 0 0 1 2-2h4l2 2.2h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8.6 12.7l2.1 2.1 4.2-4.4"/></svg>';
+}
+function _icoFolderWarn(){
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5a2 2 0 0 1 2-2h4l2 2.2h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10.6v3.1M12 16.4h.01"/></svg>';
+}
+function actualizarFolderBadge(){
+  var el=document.getElementById('tbActions'); if(!el) return;
+  var e=_carpetaActual(), name=e?(e.name||'carpeta'):'', html;
+  if(e && e.conectada){
+    html='<span class="folder-badge ok" title="Los documentos se guardan en: '+_attr(name)+'">'+_icoFolderCheck()+'<span>Carpeta conectada</span><span class="fb-nm">'+esc(name)+'</span></span>';
+  } else if(e){
+    html='<button class="folder-badge warn" onclick="conectarCarpeta()" title="Reconecta la carpeta '+_attr(name)+'">'+_icoFolderWarn()+'<span>Reconectar carpeta</span><span class="fb-nm">'+esc(name)+'</span></button>';
+  } else {
+    html='<button class="folder-badge warn" onclick="elegirCarpetaSolicitud()" title="Elige la carpeta donde se guardan los documentos">'+_icoFolderWarn()+'<span>Sin carpeta de guardado</span></button>';
+  }
+  el.innerHTML=html;
+}
 function _mostrarGateCarpeta(){
   if(document.getElementById('gateCarpeta')) return;
   var d=document.createElement('div'); d.id='gateCarpeta';
@@ -1607,6 +1778,7 @@ function renderForm(){
   var vacBox='';
   if(t===2){
     var fInfo='', anioSaldo=new Date().getFullYear();
+    var _progd=0, _saldoReal=null, _prop=null;
     if(f.emp){
       var anos=_anosServicio(f.emp.ing);
       if(anos!=null){
@@ -1614,7 +1786,16 @@ function renderForm(){
         var progAuto=_diasProgresivos(anos);
         if(progAuto<=0) asig.prog=0;   // si no corresponde, no se agrega ni se negocia
         var uso=_usoDias(f.emp.c,_editSolId);
-        var dBase=Math.max(0,asig.base-uso.base), dProg=Math.max(0,asig.prog-uso.prog), dSind=Math.max(0,asig.sind-uso.sind);
+        _prop=_diasProporcionales(f.emp);
+        // Feriados Legales: el DISPONIBLE es el devengo proporcional REDONDEADO del período en curso
+        var baseAsig=(_prop && _prop.base!=null) ? Math.round(_prop.base) : asig.base;
+        var dBase=baseAsig, dProg=Math.max(0,asig.prog-uso.prog), dSind=Math.max(0,asig.sind-uso.sind);
+        // Programadas (futuras) + saldo real (sin descontar lo programado)
+        var uFut=_diasProgramadosPorBolsa(f.emp.c,anioSaldo);
+        _progd=Math.round((uFut.base+uFut.prog+uFut.sind)*100)/100;
+        var urP=Math.max(0,uso.prog-uFut.prog), urS=Math.max(0,uso.sind-uFut.sind);
+        // Los días sindicales NO se consideran saldo (solo legal + progresivo)
+        _saldoReal=Math.round((baseAsig+Math.max(0,asig.prog-urP))*100)/100;
         // El progresivo es por ley: siempre se ajusta al saldo legal (no editable).
         if((f.tomarProg||0)>dProg) f.tomarProg=dProg;
         if(!_editSolId){   // al editar se conservan base/sindicales aunque el saldo esté sobregirado
@@ -1622,7 +1803,7 @@ function renderForm(){
           if((f.tomarSind||0)>dSind) f.tomarSind=dSind;
         }
         f.dias=(f.tomarBase||0)+(f.tomarProg||0)+(f.tomarSind||0);
-        f.maxDias=dBase+dProg+dSind;
+        f.maxDias=dBase+dProg;   // el saldo no incluye sindicales
         fInfo=_diasRow('base','Feriados Legales','#4B44C9',asig.base,uso.base,dBase,f.tomarBase||0,FERIADO_BASE,true)+
           _diasRow('prog','Progresivo','#16794E',asig.prog,uso.prog,dProg,f.tomarProg||0,progAuto,false)+
           _diasRow('sind','Sindicales','#9A6516',asig.sind,uso.sind,dSind,f.tomarSind||0,DIAS_SINDICALES,true);
@@ -1645,6 +1826,25 @@ function renderForm(){
             '<button class="btn btn-secondary btn-sm" onclick="editarRegistroPermiso(\''+esc(proxRec.id||'')+'\')">Editar programada</button>'+
           '</div>';
       }
+      // Registro de las últimas vacaciones (más recientes primero)
+      var _kEmp=String(f.emp.c||'').trim().toUpperCase(), _hoyIso=hoy();
+      var recientes=(typeof _SOLIC!=='undefined'?_SOLIC:[]).filter(function(s){
+        if(s.tipo!=='VACACIONES') return false;
+        if(String(s.codigo||'').trim().toUpperCase()!==_kEmp) return false;
+        var est=String(s.estado||'').toUpperCase(); return est!=='ANULADO' && est!=='RECHAZADO';
+      }).sort(function(a,b){ return String(b.inicio||'').localeCompare(String(a.inicio||'')); }).slice(0,5);
+      var ultList='';
+      if(recientes.length){
+        ultList='<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:9px">'+
+          '<div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--hint);margin-bottom:6px">Últimas vacaciones</div>'+
+          recientes.map(function(s){
+            var ini=String(s.inicio||'').slice(0,10), fin=String(s.termino||'').slice(0,10), fut=ini>_hoyIso;
+            var dias=parseFloat(s.dias_habiles||0)||0;
+            return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:11.5px;padding:3px 0">'+
+              '<span style="color:var(--muted)">'+_fmtCorto(ini)+(fin&&fin!==ini?' → '+_fmtCorto(fin):'')+'</span>'+
+              '<span style="font-weight:600;color:'+(fut?'var(--oj)':'var(--text)')+';white-space:nowrap">'+_chartVal(dias)+' d'+(fut?' · prog':'')+'</span></div>';
+          }).join('')+'</div>';
+      }
       perfil='<div class="card" style="background:var(--accent-soft);border-color:transparent">'+
         '<div style="font-size:14px;font-weight:700;letter-spacing:-.2px">'+esc(f.emp.n)+'</div>'+
         '<div style="font-size:11.5px;color:var(--hint);margin-bottom:8px">'+esc(f.emp.c)+' · '+esc(f.emp.tipo||'')+'</div>'+
@@ -1652,6 +1852,8 @@ function renderForm(){
         filaP('Fecha de ingreso', f.emp.ing?esc(fmt(f.emp.ing)):'—')+
         filaP('Última vacaciones tomada', ult?esc(fmt(ult)):'Sin registros')+
         proxBox+
+        ultList+
+        '<button class="btn btn-secondary btn-sm" style="width:100%;margin-top:10px" onclick="verPeriodosVacaciones()">📅 Períodos de vacaciones</button>'+
         '</div>';
     }
     var end=_finVacaciones(f);
@@ -1662,6 +1864,12 @@ function renderForm(){
       '<div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;margin-top:4px;border-top:2px solid var(--border)"><span style="font-size:13.5px;font-weight:600">Total solicitado</span>'+
         '<span style="font-size:26px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums">'+f.dias+'</span></div>'+
       (f.maxDias!=null?'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px"><span style="font-size:11.5px;color:var(--hint)">Disponible total: <b style="color:var(--accent)">'+f.maxDias+' días</b></span><button class="btn btn-ghost btn-sm" onclick="_tomarTodo()">Tomar todo</button></div>':'')+
+      ((_saldoReal!=null)?('<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px">'+
+        '<div style="background:var(--oj-soft);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--oj)">Programadas</div><div style="font-size:19px;font-weight:700;color:var(--oj);font-variant-numeric:tabular-nums">'+_chartVal(_progd)+'</div></div>'+
+        '<div style="background:var(--surface3);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--hint)">Proporcional</div><div style="font-size:19px;font-weight:700;font-variant-numeric:tabular-nums">'+(_prop?_chartVal(Math.round(_prop.dias)):'—')+'</div></div>'+
+        '<div style="background:var(--surface3);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--hint)">Saldo real</div><div style="font-size:19px;font-weight:700;font-variant-numeric:tabular-nums">'+_chartVal(_saldoReal)+'</div></div>'+
+        '<div style="background:var(--green-soft);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--green)">Quedan</div><div style="font-size:19px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums">'+_chartVal(f.maxDias)+'</div></div>'+
+      '</div><div style="font-size:10.5px;color:var(--hint);margin-top:6px">Programadas = vacaciones futuras · Proporcional = devengado del período en curso (Art. 67/68) · Saldo real = sin descontar lo programado · Quedan = disponible actual</div>'):'')+
       '<div style="font-size:11px;color:var(--hint);margin-top:8px">Lunes a viernes, sin feriados. El día 1 cuenta. El ✎ permite editar los días negociables.</div>'+
       '<button class="btn btn-secondary" style="width:100%;margin-top:10px" onclick="generarPapeletas()">📄 Generar papeleta(s) Word</button>'+
       '</div>'+
@@ -2231,7 +2439,7 @@ function recSetTodosEstados(){ var all=['EN CURSO','POR TOMAR','FINALIZADAS']; i
 function recEstadosLbl(){ if(!_recEstados.length) return 'Estado'; return _recEstados.length===1?_recEstados[0]:(_recEstados.length+' estados'); }
 var _recTipo='';   // '' | PERSONAL | MEDICO | JUDICIAL
 var _recTurno='';  // '' | DIA | TARDE | NOCHE (filtro de turno, solo media jornada)
-var _recEstados=['EN CURSO','POR TOMAR']; // multiselección de estados (solo vacaciones)
+var _recEstados=['EN CURSO','POR TOMAR']; // multiselección de estados (solo vacaciones; FINALIZADAS desmarcadas)
 // Atajos de rango
 function recSetMesActual(){
   var d=new Date(), a=d.getFullYear(), m=d.getMonth();
@@ -2554,7 +2762,7 @@ var _resAnios=[];   // filtro de años EXCLUSIVO del resumen
 var _resCC=[];      // filtro de centros de costo EXCLUSIVO del resumen
 var _resInit=false; // inicializa el año por defecto una sola vez
 function resToggleAnio(a){ a=String(a); var i=_resAnios.indexOf(a); if(i>=0) _resAnios.splice(i,1); else _resAnios.push(a); _resAnios.sort(); render(); }
-function resAniosDisponibles(){ var y={}; _SOLIC.forEach(function(s){ if(s.tipo==='VACACIONES'&&s.inicio){ var a=String(s.inicio).slice(0,4); if(a) y[a]=1; } }); return Object.keys(y).sort().reverse(); }
+function resAniosDisponibles(){ var y={}, h=new Date().getFullYear(); _SOLIC.forEach(function(s){ if(s.tipo==='VACACIONES'&&s.inicio){ var a=String(s.inicio).slice(0,4); if(a) y[a]=1; } }); y[h]=1; y[h+1]=1; return Object.keys(y).sort().reverse(); }
 function resSetTodosAnios(){ var all=resAniosDisponibles(); if(_resAnios.length===all.length){ _resAnios=[]; } else { _resAnios=all.slice(); } render(); }
 function resAniosLbl(){ if(!_resAnios.length) return 'Todos los años'; return _resAnios.join(', '); }
 function resToggleCC(cc){ cc=String(cc); var i=_resCC.indexOf(cc); if(i>=0) _resCC.splice(i,1); else _resCC.push(cc); render(); }
@@ -2968,10 +3176,10 @@ function recMesesLbl(){
   var l=_recMeses.map(function(m){return (MONTHS[m-1]||'').slice(0,3);}).join(', ');
   return l.length>18 ? l.slice(0,16)+'…' : l;
 }
-function _recFilterAnios(){ // años disponibles para el filtro (2024..3120 desde datos reales)
+function _recFilterAnios(){ // años disponibles para el filtro (datos reales + actual y próximo)
   var anios={}, hoyA=new Date().getFullYear();
   _SOLIC.forEach(function(s){ if(s.inicio){ var y=String(s.inicio).slice(0,4); if(y) anios[y]=1; } });
-  anios[hoyA]=1;
+  anios[hoyA]=1; anios[hoyA+1]=1;   // incluye el año próximo (p. ej. 2027) aunque aún no tenga registros
   return Object.keys(anios).sort().reverse();
 }
 function exportRec(t){

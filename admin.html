@@ -5558,12 +5558,12 @@ async function calcularRanking(){
   });
 
   // 4. Vacaciones (justifican)
-  var { data: vacData } = await db.from('vacaciones').select('codigo,fecha_inicio,fecha_fin');
+  var { data: vacData } = await db.from('solicitudes_permiso').select('codigo,inicio,termino').eq('tipo','VACACIONES');
   var vacPorCod = {};
   (vacData||[]).forEach(function(v){
     var c = (v.codigo||'').trim().toLowerCase();
     if(!vacPorCod[c]) vacPorCod[c] = [];
-    vacPorCod[c].push({ ini:v.fecha_inicio||'', fin:v.fecha_fin||'9999-12-31' });
+    vacPorCod[c].push({ ini:v.inicio||'', fin:v.termino||'9999-12-31' });
   });
 
   // 5. Permisos del período (justifican)
@@ -6361,9 +6361,9 @@ async function cargarRevision() {
   regs = regs || [];
 
   // 2. Traer vacaciones del empleado
-  var { data: vacData } = await db.from('vacaciones')
-    .select('fecha_inicio,fecha_fin').eq('codigo', codigo);
-  var vacPeriodos = vacData || [];
+  var { data: vacData } = await db.from('solicitudes_permiso')
+    .select('inicio,termino').eq('codigo', codigo).eq('tipo','VACACIONES');
+  var vacPeriodos = (vacData||[]).map(function(v){ return { fecha_inicio:v.inicio, fecha_fin:v.termino }; });
 
   // 3. Traer permisos del empleado en el período
   var { data: permData } = await db.from('permisos')
@@ -7079,11 +7079,12 @@ async function loadAusentesAdmin() {
   }
   var conReg = new Set(regsAll.map(function(r){ return (r.codigo||'').trim().toLowerCase(); }));
 
-  // 4. Vacaciones activas en la fecha
-  var { data: vacData } = await db.from('vacaciones')
-    .select('codigo,estado').or('estado.eq.EN CURSO,estado.eq.POR TOMAR');
+  // 4. Vacaciones activas en la fecha (desde solicitudes_permiso)
+  var { data: vacData } = await db.from('solicitudes_permiso')
+    .select('codigo,inicio,termino').eq('tipo','VACACIONES');
   var enVac = new Set((vacData||[]).filter(function(v){
-    return v.estado === 'EN CURSO';
+    var ini=(v.inicio||'').substring(0,10), fin=(v.termino||v.inicio||'').substring(0,10);
+    return ini && fecha >= ini && fecha <= fin;
   }).map(function(v){ return (v.codigo||'').trim().toLowerCase(); }));
 
   // 5. Permisos del día

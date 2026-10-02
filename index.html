@@ -464,12 +464,12 @@ async function obtenerAusentesDia(fechaStr, turnoFiltro){
     try{
       const esFechaVal = v => v && /^\d{4}-\d{2}-\d{2}/.test(String(v).trim());
       // Traer todas las vacaciones y filtrar en JS por rango de fechas
-      const {data:vacData}=await db.from('vacaciones')
-        .select('codigo,fecha_inicio,fecha_fin');
+      const {data:vacData}=await db.from('solicitudes_permiso')
+        .select('codigo,inicio,termino').eq('tipo','VACACIONES');
       console.log('[VAC] Total registros en tabla:', (vacData||[]).length);
       (vacData||[]).forEach(r=>{
-        const ini = esFechaVal(r.fecha_inicio) ? r.fecha_inicio : '';
-        const fin = esFechaVal(r.fecha_fin)    ? r.fecha_fin    : '';
+        const ini = esFechaVal(r.inicio)  ? r.inicio  : '';
+        const fin = esFechaVal(r.termino) ? r.termino : '';
         if(!ini && !fin) return;
         const enVac = (!ini || fechaStr >= ini) && (!fin || fechaStr <= fin);
         if(enVac){
@@ -4881,12 +4881,12 @@ async function _cargarAusenciasMap(fechaStr) {
 
     // 1. Vacaciones EN CURSO — siempre leer directo con fechas
     // Traer todas las vacaciones y filtrar en JS por rango de fechas
-    var { data: vacData } = await db.from('vacaciones')
-      .select('codigo,fecha_inicio,fecha_fin');
+    var { data: vacData } = await db.from('solicitudes_permiso')
+      .select('codigo,inicio,termino').eq('tipo','VACACIONES');
     var vacSet = new Set();
     (vacData||[]).forEach(function(r) {
-      var ini = (r.fecha_inicio||'').substring(0,10);
-      var fin = (r.fecha_fin||'').substring(0,10);
+      var ini = (r.inicio||'').substring(0,10);
+      var fin = (r.termino||'').substring(0,10);
       if(!ini && !fin) return; // sin fechas → no incluir
       var enVac = (!ini || fechaStr >= ini) && (!fin || fechaStr <= fin);
       if(enVac) vacSet.add(String(r.codigo||'').trim());
@@ -6261,11 +6261,11 @@ async function descartarConflicto(codigo, fecha){
     let tieneVacacion = false;
     let vacInfo = null;
     try{
-      const {data: vacs} = await db.from('vacaciones')
-        .select('id,fecha_inicio,fecha_fin').eq('codigo', codigo);
+      const {data: vacs} = await db.from('solicitudes_permiso')
+        .select('id,inicio,termino').eq('codigo', codigo).eq('tipo','VACACIONES');
       (vacs||[]).forEach(v=>{
-        const ini = v.fecha_inicio || '';
-        const fin = v.fecha_fin || '';
+        const ini = v.inicio || '';
+        const fin = v.termino || '';
         const enRango = (!ini || fecha >= ini) && (!fin || fecha <= fin);
         if(enRango){ tieneVacacion = true; vacInfo = v; }
       });
