@@ -741,6 +741,17 @@ t('registros media jornada: acciones editar/eliminar por fila', () => {
   var ok=h.indexOf("editarRegistroPermiso('x1')")>=0 && h.indexOf("eliminarRegistroPermiso('x1')")>=0;
   _SOLIC=[]; return ok;
 });
+t('_docBtn: siempre visible (deshabilitado sin documento)', () => {
+  _docIds={};
+  var a=_docBtn({id:'x1'});
+  _docIds={'x2':true};
+  var b=_docBtn({id:'x2'});
+  var c=_docBtn({id:'x3',archivo:'http://x'});
+  var ok=a.indexOf('disabled')>=0 && a.indexOf('Sin documento')>=0
+    && b.indexOf("verDocumento('x2')")>=0 && b.indexOf('disabled')<0
+    && c.indexOf("verDocumento('x3')")>=0;
+  _docIds={}; return ok;
+});
 t('registros media jornada: columna RESPONSABLE', () => {
   _SOLIC=[{tipo:'MEDIA_JORNADA',codigo:'M1',nombre:'X',inicio:'2026-10-01',turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20',autorizador:'ANA PEREZ',estado:'APROBADO'}];
   _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpand={};
