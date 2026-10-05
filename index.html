@@ -44,6 +44,19 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 })();
 const SHEETS_API_VACACIONES = 'https://script.google.com/macros/s/AKfycbw2meDcRnusRCJmI-IzBmPfk7CWgigQzp_Uy2Dt7KmLB4u_CZ6mvLa1-ihFQjvvABhm4g/exec?tipo=vacaciones';
 const SHEETS_API_PERMISOS   = 'https://script.google.com/macros/s/AKfycbwMnLr8CmkQVw4oS2Myct7njFQjAfbWZLBUn6uR8mL96lslWNdUy04GheM9dgapiOh5/exec?tipo=permisos';
+
+// Permisos del día EN VIVO desde el Apps Script (refleja borrados de la planilla al instante).
+// Si falla (CORS/offline), devuelve null y la app usa la base de datos como respaldo.
+async function _apiPermsDia(fecha){
+  try{
+    var url = SHEETS_API_PERMISOS + (SHEETS_API_PERMISOS.indexOf('?')>=0 ? '&' : '?') + 'fecha=' + encodeURIComponent(fecha);
+    var res = await fetch(url, { cache:'no-store' });
+    if(!res.ok) return null;
+    var j = await res.json();
+    if(j && (j.personal || j.medico || j.judicial)) return { personal:(j.personal||[]), medico:(j.medico||[]), judicial:(j.judicial||[]) };
+    return null;
+  }catch(e){ console.warn('[API permisos]', e && e.message); return null; }
+}
 // ────────────────────────────────────────────────────────────────
 
 const _SB_CONFIG = { VERSION:'3.1', MAX_BUSQUEDA:20, CACHE_TTL:300, CACHE_EMP:600, CACHE_EXT:600 };
@@ -485,8 +498,13 @@ async function obtenerAusentesDia(fechaStr, turnoFiltro){
     let permP=new Set(), permM=new Set(), permJ=new Set();
     try{
       const permCacheKey='ext_perm_'+fechaStr;
-      const permCached=_cGet(permCacheKey);
-      if(permCached){
+      const permLive=await _apiPermsDia(fechaStr);
+      const permCached=permLive?null:_cGet(permCacheKey);
+      if(permLive){
+        permLive.personal.forEach(c=>permP.add(String(c).trim()));
+        permLive.medico.forEach(c=>permM.add(String(c).trim()));
+        permLive.judicial.forEach(c=>permJ.add(String(c).trim()));
+      } else if(permCached){
         permP=new Set(permCached.personal||[]);
         permM=new Set(permCached.medico||[]);
         permJ=new Set(permCached.judicial||[]);
@@ -4893,9 +4911,17 @@ async function _cargarAusenciasMap(fechaStr) {
     });
 
     // 2. Permisos del día — siempre leer directo
-    var { data: permData } = await db.from('permisos')
-      .select('codigo,tipo').eq('fecha', fechaStr);
     var permP = new Set(), permM = new Set(), permJ = new Set();
+    var _liveP = await _apiPermsDia(fechaStr);
+    var permData = null;
+    if(_liveP){
+      _liveP.personal.forEach(function(c){ permP.add(String(c).trim()); });
+      _liveP.medico.forEach(function(c){ permM.add(String(c).trim()); });
+      _liveP.judicial.forEach(function(c){ permJ.add(String(c).trim()); });
+    } else {
+      var _qP = await db.from('permisos').select('codigo,tipo').eq('fecha', fechaStr);
+      permData = _qP.data;
+    }
     (permData||[]).forEach(function(r) {
       var t = (r.tipo||'').toLowerCase();
       var cod = String(r.codigo||'').trim();
@@ -6273,9 +6299,15 @@ async function descartarConflicto(codigo, fecha){
 
     let tienePermiso = false;
     try{
-      const {data: perms} = await db.from('permisos')
-        .select('id').eq('codigo', codigo).eq('fecha', fecha).limit(1);
-      tienePermiso = perms && perms.length > 0;
+      const _live = await _apiPermsDia(fecha);
+      const _c = String(codigo||'').trim();
+      if(_live){
+        tienePermiso = _live.personal.concat(_live.medico, _live.judicial).some(function(x){ return String(x).trim()===_c; });
+      } else {
+        const {data: perms} = await db.from('permisos')
+          .select('id').eq('codigo', codigo).eq('fecha', fecha).limit(1);
+        tienePermiso = perms && perms.length > 0;
+      }
     }catch(e){}
 
     // Diagnóstico según los cuatro estados posibles
