@@ -84,7 +84,7 @@ function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
       { tipo:'COMPLETO', estado:'APROBADO', codigo:'H2', nombre:'ALVAREZ', centro_costo:'1110', inicio:'2026-05-11', tipo_permiso:'MEDICO' },
     ];
     _recIdx=0; recQ=''; _recAnio=''; _recMes=''; _recDesde=''; _recHasta='';
-    _diaExpand={}; _diaExpandC={}; _scrollRefIntentos=0; win.__scrollCount=0; win.__scrolledTo=null;
+    _diaExpand={}; _diaExpandC={}; _diaExpandMes={'2026-05':true}; _scrollRefIntentos=0; win.__scrollCount=0; win.__scrolledTo=null;
     win.pageYOffset = 0;   // resetear scroll de la ventana entre iteraciones
     // Fecha de referencia MUY abajo en el documento (2000px) para que nunca esté "ya visible"
     topMap['fechaRef'] && (topMap['fechaRef'].offsetTop = 2000);

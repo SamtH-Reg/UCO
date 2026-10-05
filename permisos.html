@@ -64,6 +64,27 @@ body{
   font-size:14px;line-height:1.5;
 }
 h1,h2,h3{font-weight:700;letter-spacing:-0.02em;line-height:1.15}
+/* ── Pulido: superficies del navegador (selección, cursor, scrollbar, subrayado) ── */
+::selection{background:color-mix(in srgb,var(--accent) 26%, transparent);color:var(--text)}
+input,textarea,select,[contenteditable]{caret-color:var(--accent)}
+a{text-underline-offset:3px;text-decoration-thickness:1.5px}
+*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--text) 20%, transparent) transparent}
+::-webkit-scrollbar{width:12px;height:12px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--text) 16%, transparent);border-radius:20px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--text) 30%, transparent);background-clip:content-box}
+::-webkit-scrollbar-corner{background:transparent}
+:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%, transparent),0 0 0 1.5px var(--accent)}
+/* ── Material de modales: entran con escala + opacidad (ease-out exponencial) ── */
+@keyframes _modalIn{from{opacity:0;transform:translateY(6px) scale(.975)}to{opacity:1;transform:none}}
+@keyframes _backIn{from{opacity:0}to{opacity:1}}
+#perModal>div,#gateCarpeta>div{animation:_modalIn .3s var(--ease) both}
+.pick-pop{animation:_modalIn .16s var(--ease) both;transform-origin:top center}
+.btn svg,.btn-icon svg{width:15px;height:15px;display:block;flex-shrink:0}
+/* Profundidad premium en botones principales */
+.btn-primary{box-shadow:0 1px 2px rgba(23,23,26,.10),0 7px 18px color-mix(in srgb,var(--accent) 26%, transparent)}
+.btn-dark{box-shadow:0 1px 2px rgba(23,23,26,.16),0 8px 22px rgba(23,23,26,.20)}
+[data-theme="oscuro"] .btn-primary{box-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px color-mix(in srgb,var(--accent) 40%, transparent)}
 .hidden{display:none!important}
 
 /* ══ LOGIN ══ */
@@ -175,6 +196,20 @@ h1,h2,h3{font-weight:700;letter-spacing:-0.02em;line-height:1.15}
 .kpi{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:var(--shadow-sm);transition:background .3s var(--ease-out),box-shadow .3s var(--ease-out)}
 .kpi .l{font-size:11px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;color:var(--hint)}
 .kpi .v{font-size:30px;font-weight:700;letter-spacing:-1px;margin-top:10px;font-variant-numeric:tabular-nums}
+/* Color por KPI (tinte suave + valor/etiqueta a color) */
+.kpi.k1{background:color-mix(in srgb,var(--accent) 7%,var(--surface));border-color:color-mix(in srgb,var(--accent) 22%,var(--border))}
+.kpi.k1 .l{color:color-mix(in srgb,var(--accent) 72%,var(--muted))}
+.kpi.k1 .v{color:var(--accent)}
+.kpi.k2{background:color-mix(in srgb,var(--green) 8%,var(--surface));border-color:color-mix(in srgb,var(--green) 24%,var(--border))}
+.kpi.k2 .l{color:color-mix(in srgb,var(--green) 72%,var(--muted))}
+.kpi.k2 .v{color:var(--green)}
+.kpi.k3{background:color-mix(in srgb,var(--oj) 9%,var(--surface));border-color:color-mix(in srgb,var(--oj) 26%,var(--border))}
+.kpi.k3 .l{color:color-mix(in srgb,var(--oj) 72%,var(--muted))}
+.kpi.k3 .v{color:var(--oj)}
+.kpi.k4{background:color-mix(in srgb,#2E7EA8 9%,var(--surface));border-color:color-mix(in srgb,#2E7EA8 24%,var(--border))}
+.kpi.k4 .l{color:color-mix(in srgb,#2E7EA8 70%,var(--muted))}
+.kpi.k4 .v{color:#2E7EA8}
+[data-theme="oscuro"] .kpi.k1,[data-theme="oscuro"] .kpi.k2,[data-theme="oscuro"] .kpi.k3,[data-theme="oscuro"] .kpi.k4{background:var(--surface)}
 
 /* ══ FORM / CABECERAS ══ */
 .section-title{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--hint);margin:38px 0 14px}
@@ -261,12 +296,17 @@ textarea{resize:vertical}
 /* Contenedor con scroll y encabezado de tabla fijo */
 .tbl-scroll{overflow:auto;max-height:calc(100vh - 250px)}
 .tbl-scroll thead th{position:sticky;top:0;z-index:3;box-shadow:inset 0 -1px 0 var(--border)}
-.tbl tbody td{padding:8px 18px;border-bottom:1px solid var(--border);white-space:nowrap;font-variant-numeric:tabular-nums}
+.tbl tbody td{padding:6px 16px;border-bottom:1px solid var(--border);white-space:nowrap;font-variant-numeric:tabular-nums}
+.tbl .btn-icon{width:24px;height:24px;border-radius:7px;font-size:11px;padding:0}
 .tbl tbody tr:hover td{background:var(--surface2)}
 .tbl tbody tr.fecha-head td{background:#EAEAEE;font-weight:800;font-size:12.5px;color:#17171A;border-top:2px solid #D3D3DA;border-bottom:1px solid #D3D3DA;cursor:pointer;padding:6px 18px}
 .tbl tbody tr.fecha-head:hover td{background:#DFDFE5}
 [data-theme="oscuro"] .tbl tbody tr.fecha-head td{background:#3A3A45;color:#EDEDF0;border-top-color:#2A2A33;border-bottom-color:#2A2A33}
 [data-theme="oscuro"] .tbl tbody tr.fecha-head:hover td{background:#44444F}
+.tbl tbody tr.res-anio td{background:#DEDEE4;font-weight:800;font-size:12.5px;color:#17171A;border-top:2px solid #C7C7CF;border-bottom:1px solid #C7C7CF;cursor:pointer;padding:8px 18px}
+.tbl tbody tr.res-anio:hover td{background:#D3D3DB}
+[data-theme="oscuro"] .tbl tbody tr.res-anio td{background:#33333F;color:#EDEDF0;border-top-color:#2A2A33;border-bottom-color:#2A2A33}
+[data-theme="oscuro"] .tbl tbody tr.res-anio:hover td{background:#3D3D4A}
 .tbl tbody tr.mes-total td{background:#EAEAEE;font-weight:800;font-size:11px;color:#17171A;border-top:2px solid #D3D3DA;cursor:pointer;padding:5px 18px;line-height:1.25}
 .tbl tbody tr.mes-total:hover td{background:#DFDFE5}
 .tbl tbody tr.semana-total td{background:#EFEFF2;font-weight:700;font-size:11px;color:#17171A;border-top:2px solid #D3D3DA;padding:4px 18px;line-height:1.2}
@@ -679,8 +719,8 @@ function pintarListaResponsables(){
         (a.sub?'<span style="font-size:11px;color:var(--hint)">'+esc(a.sub)+'</span>':'')+
       '</div>'+
       '<div style="display:flex;gap:6px;flex-shrink:0">'+
-        (a.id?'<button class="btn btn-ghost btn-sm" title="Editar" onclick="editarResponsable(\''+esc(a.id)+'\')">✏️</button>':'')+
-        (a.id?'<button class="btn btn-danger btn-sm" onclick="quitarResponsable(\''+esc(a.id)+'\')">🗑</button>':'')+
+        (a.id?'<button class="btn btn-ghost btn-sm" title="Editar" onclick="editarResponsable(\''+esc(a.id)+'\')">'+_icoEdit()+'</button>':'')+
+        (a.id?'<button class="btn btn-danger btn-sm" title="Quitar" onclick="quitarResponsable(\''+esc(a.id)+'\')">'+_icoDel()+'</button>':'')+
       '</div>'+
       '</div>';
   }).join('')+'</div>';
@@ -1379,14 +1419,18 @@ function render(){
 }
 
 function renderHome(){
-  var mesPrefix=hoy().slice(0,7);   // mes presente (YYYY-MM)
+  var hoyIso=hoy();
+  var mesPrefix=hoyIso.slice(0,7);   // mes presente (YYYY-MM)
   var completos=0, media=0, vac=0, horas=0;
+  var dCompletos=0, dMedia=0, dHoras=0;   // resumen de HOY
   var mesComp=[], mesMedia=[];
   _SOLIC.forEach(function(s){
     if(s.estado!=='PENDIENTE'&&s.estado!=='APROBADO') return;
-    var enMes=String(s.inicio||'').slice(0,7)===mesPrefix;
-    if(s.tipo==='COMPLETO'){ if(enMes){ completos++; mesComp.push(s); } }
-    else if(s.tipo==='MEDIA_JORNADA'){ if(enMes){ media++; horas+=parseFloat(calcularHorasPermiso(s))||0; mesMedia.push(s); } }
+    var ini=String(s.inicio||'').slice(0,10);
+    var enMes=ini.slice(0,7)===mesPrefix;
+    var enHoy=ini===hoyIso;
+    if(s.tipo==='COMPLETO'){ if(enMes){ completos++; mesComp.push(s); } if(enHoy) dCompletos++; }
+    else if(s.tipo==='MEDIA_JORNADA'){ if(enMes){ media++; horas+=parseFloat(calcularHorasPermiso(s))||0; mesMedia.push(s); } if(enHoy){ dMedia++; dHoras+=parseFloat(calcularHorasPermiso(s))||0; } }
     else if(s.tipo==='VACACIONES'){ if(estadoDe(s)==='EN CURSO') vac++; }   // en curso (no por mes)
   });
   var _mActual=new Date();
@@ -1410,11 +1454,19 @@ function renderHome(){
   return '<div class="kicker" style="font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--accent);margin-bottom:10px">Panel</div>'+
     '<h1 style="font-size:32px;font-weight:700;letter-spacing:-1px;line-height:1.1">Solicitudes de permiso</h1>'+
     '<p style="font-size:14.5px;color:var(--muted);margin-top:8px;max-width:56ch">Registra permisos de jornada, salidas parciales y vacaciones. Los feriados chilenos se descuentan automáticamente.</p>'+
-    '<div class="kpi-grid">'+
-      '<div class="kpi"><div class="l">Permisos del mes</div><div class="v">'+(completos+media)+'</div></div>'+
-      '<div class="kpi"><div class="l">Medias jornadas</div><div class="v">'+media+'</div></div>'+
-      '<div class="kpi"><div class="l">Vacaciones en curso</div><div class="v">'+vac+'</div></div>'+
-      '<div class="kpi"><div class="l">Horas de permiso</div><div class="v">'+(horas?_fmtHN(horas):'0')+'</div></div>'+
+    '<div class="section-title" style="margin:22px 0 12px">Resumen del mes · '+_mesNombre+'</div>'+
+    '<div class="kpi-grid" style="margin-top:0">'+
+      '<div class="kpi k1"><div class="l">Permisos del mes</div><div class="v">'+(completos+media)+'</div></div>'+
+      '<div class="kpi k2"><div class="l">Medias jornadas</div><div class="v">'+media+'</div></div>'+
+      '<div class="kpi k3"><div class="l">Vacaciones en curso</div><div class="v">'+vac+'</div></div>'+
+      '<div class="kpi k4"><div class="l">Horas de permiso</div><div class="v">'+(horas?_fmtHN(horas):'0')+'</div></div>'+
+    '</div>'+
+    '<div class="section-title" style="margin:18px 0 12px">Resumen de hoy · '+_fmtCorto(hoyIso)+'</div>'+
+    '<div class="kpi-grid" style="margin-top:0">'+
+      '<div class="kpi k1"><div class="l">Permisos del día</div><div class="v">'+(dCompletos+dMedia)+'</div></div>'+
+      '<div class="kpi k2"><div class="l">Medias jornadas</div><div class="v">'+dMedia+'</div></div>'+
+      '<div class="kpi k3"><div class="l">Vacaciones en curso</div><div class="v">'+vac+'</div></div>'+
+      '<div class="kpi k4"><div class="l">Horas de permiso</div><div class="v">'+(dHoras?_fmtHN(dHoras):'0')+'</div></div>'+
     '</div>'+_charts+
     '<div class="section-title">Nueva solicitud</div>'+grid3+
     '<div class="section-title">Registros</div>'+
@@ -2479,7 +2531,9 @@ var _diaExpand = {};
 function toggleDia(dk){ _diaExpand[dk]=!_diaExpand[dk]; render(); }
 // Estado de colapso (solo fechas pasadas) de la vista Día completo
 var _diaExpandC = {};
+var _diaExpandMes = {};   // colapso por MES en Registros · Día completo
 function toggleDiaC(dk){ _diaExpandC[dk]=!_diaExpandC[dk]; render(); }
+function toggleDiaMes(k){ k=String(k); _diaExpandMes[k]=(_diaExpandMes[k]===true)?false:true; render(); }
 // Estado de colapso por fecha en vista Media jornada
 var _diaExpandMJ = {};
 function toggleDiaMJ(dk){ _diaExpandMJ[dk]=!_diaExpandMJ[dk]; render(); }
@@ -2548,12 +2602,16 @@ function _chartCard(title, sub, pairs){
     (sub?'<div class="chart-sub">'+esc(sub)+'</div>':'')+'</div>'+_donutSVG(pairs)+'</div>';
 }
 // Celda de acciones (ver documento · editar · eliminar) para una fila de registro
+// Íconos SVG (trazo consistente) para las acciones de tabla
+function _icoDoc(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 16.5h4"/></svg>'; }
+function _icoEdit(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 6.5l3 3"/></svg>'; }
+function _icoDel(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M6.5 7l1 12.5A1.5 1.5 0 0 0 9 21h6a1.5 1.5 0 0 0 1.5-1.5L17.5 7"/><path d="M10 11v6M14 11v6"/></svg>'; }
 function _accRow(s){
   var tieneDoc=!!_docIds[s.id], tieneArchivo=!!s.archivo;
-  var docBtn=(tieneDoc||tieneArchivo) ? '<button class="btn-icon" onclick="verDocumento(\''+esc(s.id||'')+'\')" title="'+(tieneDoc?'Ver documento adjunto':'Documento registrado (no guardado localmente)')+'"'+(tieneDoc?'':' style="opacity:.5"')+'>📎</button>' : '';
+  var docBtn=(tieneDoc||tieneArchivo) ? '<button class="btn-icon" onclick="verDocumento(\''+esc(s.id||'')+'\')" title="'+(tieneDoc?'Ver documento adjunto':'Documento registrado (no guardado localmente)')+'"'+(tieneDoc?'':' style="opacity:.5"')+'>'+_icoDoc()+'</button>' : '';
   return '<td style="white-space:nowrap"><div style="display:flex;gap:6px;justify-content:flex-end">'+docBtn+
-    '<button class="btn-icon" title="Editar" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')">✏️</button>'+
-    '<button class="btn-icon danger" title="Eliminar" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')">🗑</button>'+
+    '<button class="btn-icon" title="Editar" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')">'+_icoEdit()+'</button>'+
+    '<button class="btn-icon danger" title="Eliminar" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')">'+_icoDel()+'</button>'+
     '</div></td>';
 }
 
@@ -2710,6 +2768,7 @@ function renderVacaciones(hit, fechaOk){
   meses.forEach(function(m){
     var p=m.k.split('-');
     var anioLbl=p[0]||'—', mesLbl=p[1]?MONTHS[+p[1]-1].slice(0,3):'—';
+    var mesFull=p[1]?(MONTHS[+p[1]-1]+' '+anioLbl):'Sin fecha';
     m.items.sort(function(a,b){ return String(a.inicio||'').localeCompare(String(b.inicio||'')) || String(a.nombre||'').localeCompare(String(b.nombre||''),'es'); });
     // Agrupar por CENTRO DE COSTO (la etiqueta se muestra UNA sola vez)
     var cks=[], cm={};
@@ -2732,8 +2791,8 @@ function renderVacaciones(hit, fechaOk){
           '<td style="text-align:center;font-variant-numeric:tabular-nums">'+dias+'</td>'+
           '<td style="white-space:nowrap;font-size:11.5px;text-align:center">'+estadoDe(s)+'</td>'+
           '<td style="white-space:nowrap"><div style="display:flex;gap:6px;justify-content:flex-end">'+
-          '<button class="btn-icon" title="Editar" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')">✏️</button>'+
-          '<button class="btn-icon danger" title="Eliminar" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')">🗑</button></div></td>'+
+          '<button class="btn-icon" title="Editar" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')">'+_icoEdit()+'</button>'+
+          '<button class="btn-icon danger" title="Eliminar" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')">'+_icoDel()+'</button></div></td>'+
           '</tr>';
       });
       // Subtotal del centro de costo
@@ -2754,7 +2813,7 @@ function renderVacaciones(hit, fechaOk){
     '<span style="font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:20px;background:var(--accent-soft);color:'+acc+'">'+items.length+'</span>'+
     '<span style="font-size:12.5px;color:var(--hint)">'+periodoLabel()+'</span>'+
     '</div>'+recFilterBar(2)+
-    '<div class="table-card"><div class="tbl-scroll"><table class="tbl" style="min-width:1120px"><thead><tr>'+header+'</tr></thead>'+
+    '<div class="table-card"><div class="tbl-scroll"><table class="tbl tbl-compact" style="min-width:1040px"><thead><tr>'+header+'</tr></thead>'+
     '<tbody>'+(body||'<tr><td colspan="9" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>')+'</tbody></table></div>'+
     '<div class="tbl-foot"><span>Mostrando '+items.length+' registros</span><span>'+recTotal(2)+'</span></div></div>'+
     // El resumen usa TODAS las vacaciones (no las filtradas por la tabla) y aplica su propio filtro de años
@@ -2762,6 +2821,7 @@ function renderVacaciones(hit, fechaOk){
 }
 
 // ── RESUMEN de vacaciones: Año-mes → Centro de costo → Estado, con totales ──
+var _resAnioExpand={};   // colapso por AÑO
 var _resVacExpand={};
 var _resAnios=[];   // filtro de años EXCLUSIVO del resumen
 var _resCC=[];      // filtro de centros de costo EXCLUSIVO del resumen
@@ -2807,6 +2867,22 @@ function resumenVacaciones(items){
   var aniosMostrar=(_resAnios.length?_resAnios.slice():resAniosDisponibles()).filter(Boolean).sort();
   var body='';
   aniosMostrar.forEach(function(anio){
+    // Total del AÑO
+    var yN=0, yD=0, mesesConDatos=0;
+    for(var mm=1; mm<=12; mm++){
+      var mA=res[anio+'|'+mm];
+      if(!mA) continue;
+      var hubo=false;
+      Object.keys(mA.centros).forEach(function(ck){ var c=mA.centros[ck]; Object.keys(c.estado).forEach(function(k){ yN+=c.estado[k].n; yD+=c.estado[k].d; if(c.estado[k].n) hubo=true; }); });
+      if(hubo) mesesConDatos++;
+    }
+    var eAnio=_resAnioExpand[anio]===true;
+    // Fila del AÑO (colapsable) — nivel resumen
+    body+='<tr class="res-anio" style="cursor:pointer" onclick="toggleResAnio(\''+esc(anio)+'\')">'+
+      '<td><span style="display:inline-block;width:16px">'+(eAnio?'▼':'▶')+'</span> <b>Año '+esc(anio)+'</b></td>'+
+      '<td style="font-size:11px;color:var(--hint)">'+mesesConDatos+' mes'+(mesesConDatos!==1?'es':'')+'</td>'+celVac()+
+      celNum(yN,'font-weight:800;')+celNum(yD,'font-weight:800;')+'</tr>';
+    if(!eAnio) return;   // colapsado: solo el total del año
     for(var mes=1; mes<=12; mes++){
       var key=anio+'|'+mes;
       var m=res[key]||{anio:anio,mes:mes,Lbl:anio+'-'+MONTHS3[mes-1],centros:{}};
@@ -2815,6 +2891,7 @@ function resumenVacaciones(items){
       var flecha=exp?'▼':'▶';
       var totN=0, totD=0;
       centroKeys.forEach(function(ck){ var c=m.centros[ck]; Object.keys(c.estado).forEach(function(k){ totN+=c.estado[k].n; totD+=c.estado[k].d; }); });
+      if(!totN) continue;   // no mostrar meses sin registros
       // Fila del mes (colapsable) con el subtotal del mes
       body+='<tr class="fecha-head" style="cursor:pointer" onclick="toggleResVac(\''+key+'\')">'+
         '<td><span style="display:inline-block;width:14px">'+flecha+'</span> <b>'+esc(m.Lbl)+'</b></td><td></td>'+celVac()+
@@ -2860,9 +2937,10 @@ function resumenVacaciones(items){
     '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap">'+
       '<div class="card-h" style="margin:0">📊 RESUMEN DE VACACIONES</div>'+
       '<div style="display:flex;gap:8px;align-items:center">'+ccResDrop+anioDrop+'</div></div>'+
-    '<div class="tbl-scroll"><table class="tbl" style="min-width:700px"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div></div>';
+    '<div class="tbl-scroll"><table class="tbl tbl-compact" style="min-width:680px"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div></div>';
 }
 function toggleResVac(key){ _resVacExpand[key]=!_resVacExpand[key]; render(); }
+function toggleResAnio(a){ a=String(a); _resAnioExpand[a]=!_resAnioExpand[a]; render(); }
 
 // Calcula la fecha de referencia (hoy si hay datos; si no, la próxima; si no, la última)
 function _calcularDkRef(){
@@ -2934,10 +3012,10 @@ function _cuerpoCompletoHTML(){
     var codNom='<b style="color:var(--text)">'+esc(s.codigo||'')+'</b> <span style="color:var(--text)">'+esc(s.nombre||'')+'</span>'+
       (s.centro_costo?' <span style="color:var(--hint);margin-left:8px">'+esc(s.centro_costo)+'</span>':'');
     var tieneDoc=!!_docIds[s.id], tieneArchivo=!!s.archivo;
-    var docBtn=(tieneDoc||tieneArchivo) ? '<button class="btn-icon" onclick="verDocumento(\''+esc(s.id||'')+'\')" title="'+(tieneDoc?'Ver documento adjunto':'Documento registrado (no guardado localmente)')+'"'+(tieneDoc?'':' style="opacity:.5"')+'>📎</button>' : '';
+    var docBtn=(tieneDoc||tieneArchivo) ? '<button class="btn-icon" onclick="verDocumento(\''+esc(s.id||'')+'\')" title="'+(tieneDoc?'Ver documento adjunto':'Documento registrado (no guardado localmente)')+'"'+(tieneDoc?'':' style="opacity:.5"')+'>'+_icoDoc()+'</button>' : '';
     var acc='<td style="white-space:nowrap"><div style="display:flex;gap:6px;justify-content:flex-end">'+docBtn+
-      '<button class="btn-icon" title="Editar" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')">✏️</button>'+
-      '<button class="btn-icon danger" title="Eliminar" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')">🗑</button>'+
+      '<button class="btn-icon" title="Editar" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')">'+_icoEdit()+'</button>'+
+      '<button class="btn-icon danger" title="Eliminar" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')">'+_icoDel()+'</button>'+
       '</div></td>';
     return '<tr'+(conRef?' id="fechaRef"':'')+' style="'+(gStyle||'')+'">'+
       '<td style="color:var(--hint);font-size:11px;white-space:nowrap">'+(fechaCell||'')+'</td>'+
@@ -2950,7 +3028,28 @@ function _cuerpoCompletoHTML(){
   }
 
   var body='';
+  // Agrupar días por MES (colapsable) → dentro, los días
+  var meses=[]; var mkk={};
   dias.forEach(function(g){
+    var mk=(g.k!=='__sin__')? g.k.slice(0,7) : '__sin__';
+    if(!mkk[mk]){ mkk[mk]={k:mk, dias:[]}; meses.push(mkk[mk]); }
+    mkk[mk].dias.push(g);
+  });
+  meses.sort(function(a,b){ if(a.k==='__sin__')return 1; if(b.k==='__sin__')return -1; return a.k.localeCompare(b.k); });
+  var mesActual=hoyS.slice(0,7);
+  meses.forEach(function(mg){
+    var mP=0,mM=0,mJ=0;
+    mg.dias.forEach(function(g){ var dt=totales(g.items); mP+=dt.p; mM+=dt.m; mJ+=dt.j; });
+    if(_diaExpandMes[mg.k]===undefined) _diaExpandMes[mg.k]=(mg.k===mesActual);
+    var mExp=_diaExpandMes[mg.k]===true;
+    var mesLbl=(mg.k==='__sin__')?'Sin fecha':(MONTHS[parseInt(mg.k.slice(5,7),10)-1]+' '+mg.k.slice(0,4));
+    body+='<tr class="res-anio" style="cursor:pointer" onclick="toggleDiaMes(\''+esc(mg.k)+'\')">'+
+      '<td><span style="display:inline-block;width:16px">'+(mExp?'▼':'▶')+'</span> <b>'+esc(mesLbl)+'</b></td>'+
+      '<td></td>'+
+      '<td style="font-size:10px;color:var(--hint)">'+mg.dias.length+' día'+(mg.dias.length!==1?'s':'')+'</td>'+
+      celTipo(mP)+celTipo(mM)+celTipo(mJ)+'<td></td></tr>';
+    if(!mExp) return;
+  mg.dias.forEach(function(g){
     var fechaLbl=fechaLblDe(g.k);
     var dt=totales(g.items);
     var isRef=g.k===dkRef;
@@ -2994,6 +3093,7 @@ function _cuerpoCompletoHTML(){
         '<td style="font-size:10px;color:var(--hint)">'+g.items.length+' registro'+(g.items.length!==1?'s':'')+'</td>'+
         celTipo(dt.p)+celTipo(dt.m)+celTipo(dt.j)+'<td></td></tr>';
     }
+  });
   });
 
   return body||'<tr><td colspan="7" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>';

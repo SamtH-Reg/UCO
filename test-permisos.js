@@ -386,12 +386,15 @@ t('generarPapeletas/_generarDocx/_papeletaBaseMap definidos', () => typeof gener
 t('_guardarSolicitud definido', () => typeof _guardarSolicitud==='function');
 t('iniciarEdicionVacacion/_empDeCodigo definidos', () => typeof iniciarEdicionVacacion==='function' && typeof _empDeCodigo==='function');
 t('_empDeCodigo encuentra por código', () => { _EMP=[{c:'M1',n:'A',ing:'2000-01-01'}]; var e=_empDeCodigo('m1'); var ok=!!e&&e.c==='M1'; _EMP=[]; return ok; });
-t('resumenVacaciones: año completo (12 meses) + días', () => {
-  _resInit=true; _resAnios=['2026']; _resCC=[]; _resVacExpand={};
+t('resumenVacaciones: agrupado por AÑO (colapsable) + meses al expandir', () => {
+  _resInit=true; _resAnios=['2026']; _resCC=[]; _resVacExpand={}; _resAnioExpand={};
   var items=[{tipo:'VACACIONES',inicio:'2026-03-10',termino:'2026-03-15',dias_habiles:5,centro_costo:'1110',nombre:'X',codigo:'M1'}];
-  var h=resumenVacaciones(items);
-  var ok=h.indexOf('2026-ene')>=0 && h.indexOf('2026-dic')>=0 && h.indexOf('2026-mar')>=0 && h.indexOf('días')>=0 && h.indexOf('registros')>=0;
-  _resAnios=[]; _resCC=[]; _resInit=false;
+  var colapsado=resumenVacaciones(items);
+  _resAnioExpand={ '2026': true };
+  var expandido=resumenVacaciones(items);
+  var ok = colapsado.indexOf('Año 2026')>=0 && colapsado.indexOf('2026-mar')<0
+        && expandido.indexOf('2026-mar')>=0 && expandido.indexOf('días')>=0 && expandido.indexOf('registros')>=0;
+  _resAnios=[]; _resCC=[]; _resInit=false; _resAnioExpand={}; _resVacExpand={};
   return ok;
 });
 t('recTotal(2): cuenta vacaciones (no días)', () => {
@@ -714,6 +717,16 @@ t('panel: incluye los dos gráficos por responsable', () => {
   var ok=h.indexOf('Permisos día completo por responsable')>=0 && h.indexOf('Horas de media jornada por responsable')>=0 && h.indexOf('class="dn-svg"')>=0;
   _SOLIC=[]; return ok;
 });
+t('registros día completo: agrupa por MES (colapsable)', () => {
+  _SOLIC=[{tipo:'COMPLETO',id:'c1',codigo:'H1',nombre:'X',inicio:'2026-05-11',tipo_permiso:'PERSONAL',autorizador:'A',estado:'APROBADO'}];
+  _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpandC={}; _diaExpandMes={};
+  var hCol=renderDiaCompletoVista();
+  var okCol=hCol.indexOf('Mayo 2026')>=0 && hCol.indexOf("toggleDiaC('2026-05-11')")<0;
+  _diaExpandMes={'2026-05':true};
+  var hExp=renderDiaCompletoVista();
+  var okExp=hExp.indexOf('Mayo 2026')>=0 && hExp.indexOf("toggleDiaC('2026-05-11')")>=0;
+  _SOLIC=[]; _diaExpandMes={}; return okCol && okExp;
+});
 t('registros día completo: columna RESPONSABLE (autorizador)', () => {
   _SOLIC=[{tipo:'COMPLETO',codigo:'C1',nombre:'PEREZ',inicio:'2026-10-01',tipo_permiso:'PERSONAL',autorizador:'HUGO MILLANERI',estado:'APROBADO'}];
   _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpandC={}; _docIds={};
@@ -777,6 +790,17 @@ t('verPeriodosVacaciones definido', () => typeof verPeriodosVacaciones==='functi
 t('contarHabiles: tolera timestamps', () => contarHabiles('2025-02-03T00:00:00','2025-02-17T00:00:00')===11);
 t('estadoDe: vacación pasada -> FINALIZADAS', () => estadoDe({inicio:'2025-03-03',termino:'2025-03-17',dias_habiles:11})==='FINALIZADAS');
 t('estadoDe: sin días -> POR TOMAR', () => estadoDe({inicio:'2025-03-03',termino:'2025-03-17',dias_habiles:0})==='POR TOMAR');
+t('panel: dos filas de KPIs (resumen del mes y del día)', () => {
+  _SOLIC=[
+    {tipo:'COMPLETO',estado:'APROBADO',inicio:hoy()},
+    {tipo:'MEDIA_JORNADA',estado:'APROBADO',inicio:hoy(),turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20'}
+  ];
+  var h=renderHome();
+  var ok=h.indexOf('Resumen del mes')>=0 && h.indexOf('Resumen de hoy')>=0
+      && h.indexOf('Permisos del día')>=0 && h.indexOf('Permisos del mes')>=0
+      && h.indexOf('<div class="l">Permisos del día</div><div class="v">2</div>')>=0;
+  _SOLIC=[]; return ok;
+});
 t('panel: KPIs del mes presente + vacaciones EN CURSO', () => {
   var y=new Date().getFullYear(), m=String(new Date().getMonth()+1).padStart(2,'0');
   var other=(m==='01'?'02':'01');
