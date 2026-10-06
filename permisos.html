@@ -3037,9 +3037,9 @@ function renderPorDia(tipo, titulo, accColor, recIdx){
     var diaFlecha=diaExp?'▼':'▶';
     body+='<tr class="mes-total" id="fechaRef" style="cursor:pointer;'+gStyle+'" onclick="toggleDia(\''+esc(g.k)+'\')">'+
       '<td></td>'+
-      '<td style="padding-left:6px"><span style="display:inline-block;width:12px">'+diaFlecha+'</span> <b>Total '+fechaLbl+'</b>'+refTag+'</td>'+
+      '<td style="padding-left:6px"><span style="display:inline-block;width:12px">'+diaFlecha+'</span> <b>'+fechaLbl+'</b>'+refTag+'</td>'+
       (esMJ?'<td></td>':'')+
-      '<td colspan="5" style="font-size:10px;color:var(--hint)"></td>'+
+      '<td colspan="5" style="font-size:10px;color:var(--hint)">'+g.items.length+' registro'+(g.items.length!==1?'s':'')+'</td>'+
       '<td style="text-align:right;font-weight:700">'+fmtHoras(sumaDia)+'</td>'+(esMJ?'<td style="text-align:right;font-weight:700">'+fmtHoras(sumaTrab)+'</td>':'')+(esMJ?'<td></td>':'')+'</tr>';
     // Filas del día
     if(diaExp) g.items.forEach(function(s){
@@ -3060,6 +3060,15 @@ function renderPorDia(tipo, titulo, accColor, recIdx){
         (esMJ?_accRow(s):'')+
         '</tr>';
     });
+    // Subtotal del día, ABAJO (como en Registros · Día completo)
+    if(diaExp) body+='<tr class="mes-total" style="cursor:default;'+gStyle+'">'+
+      '<td></td>'+
+      '<td style="padding-left:6px"><b>Total '+fechaLbl+'</b></td>'+
+      (esMJ?'<td></td>':'')+
+      '<td colspan="5" style="font-size:10px;color:var(--hint)">'+g.items.length+' registro'+(g.items.length!==1?'s':'')+'</td>'+
+      '<td style="text-align:right;font-weight:700">'+fmtHoras(sumaDia)+'</td>'+
+      (esMJ?'<td style="text-align:right;font-weight:700">'+fmtHoras(sumaTrab)+'</td>':'')+
+      (esMJ?'<td></td>':'')+'</tr>';
   });
 
   // Totales por turno + suma total

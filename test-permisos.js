@@ -1111,6 +1111,20 @@ t('formulario: el botón de envío tiene id propio y su rótulo', () => {
   return h.indexOf('id="btnEnviar"')>=0 && h.indexOf('Enviar solicitud')>=0 && h2.indexOf('Guardar cambios')>=0;
 });
 
+t('media jornada: el subtotal del día va DEBAJO de sus registros', () => {
+  _SOLIC=[
+    {tipo:'MEDIA_JORNADA',id:'m1',codigo:'M1',nombre:'UNO PEREZ',inicio:'2026-10-01',turno:'DIA',tipo_regreso:'SIN',hora_salida:'16:00',horas_permiso:1,autorizador:'ANA',estado:'APROBADO'},
+    {tipo:'MEDIA_JORNADA',id:'m2',codigo:'M2',nombre:'DOS SOTO',inicio:'2026-10-01',turno:'DIA',tipo_regreso:'CON',hora_salida:'11:00',hora_ingreso:'12:00',horas_permiso:1,autorizador:'LUIS',estado:'APROBADO'}
+  ];
+  _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpand={}; _docIds={};
+  var h=renderPorDia('MEDIA_JORNADA','Registros media jornada','#1C8A5B',1);
+  var iEnc=h.indexOf('01-10-2026 · jueves');        // encabezado del día (arriba)
+  var iUlt=h.lastIndexOf('M2');                     // último registro del día
+  var iTot=h.lastIndexOf('Total 01-10-2026');       // subtotal del día (abajo)
+  var sinTotalArriba=h.indexOf('Total 01-10-2026 ') > iEnc;   // el encabezado ya no dice "Total"
+  return iEnc>=0 && iUlt>=0 && iTot>iUlt && sinTotalArriba;
+});
+
 // 5. Reporte
 console.log('\n— Resumen —');
 let pass = 0, fail = 0;
