@@ -1086,6 +1086,31 @@ t('día completo: los totales del mes siguen sumando los días plegados', () => 
   return plegado && celdas.length===2 && celdas[0]==='1' && celdas[1]==='1';
 });
 
+t('día completo: el mes siguiente se lista desagrupado (sin subtotales por día)', () => {
+  var hoyS=hoy();
+  var y=parseInt(hoyS.slice(0,4),10), m=parseInt(hoyS.slice(5,7),10);
+  var mesSig=String(m===12? y+1 : y)+'-'+String(m===12? 1 : m+1).padStart(2,'0');
+  _prepRec([
+    {tipo:'COMPLETO',estado:'APROBADO',codigo:'M0086',nombre:'VARGAS VARGAS ROSA CRITIA',centro_costo:'1110',inicio:mesSig+'-03',tipo_permiso:'PERSONAL',autorizador:'ANDRES CONTRERAS'},
+    {tipo:'COMPLETO',estado:'APROBADO',codigo:'M0086',nombre:'VARGAS VARGAS ROSA CRITIA',centro_costo:'1110',inicio:mesSig+'-04',tipo_permiso:'PERSONAL',autorizador:'ANDRES CONTRERAS'},
+    {tipo:'COMPLETO',estado:'APROBADO',codigo:'M1050',nombre:'OTRO TRABAJADOR',centro_costo:'1110',inicio:mesSig+'-05',tipo_permiso:'MEDICO',autorizador:'EVA NAVARRO'}
+  ]);
+  var html=_cuerpoCompletoHTML();
+  var sinSubtotales=html.indexOf('fecha-total')<0 && html.indexOf("toggleDiaC('")<0;
+  var conFechas=html.indexOf('03-')>=0 && html.indexOf('04-')>=0 && html.indexOf('05-')>=0;
+  var conResponsables=html.indexOf('ANDRES CONTRERAS')>=0 && html.indexOf('EVA NAVARRO')>=0;
+  return sinSubtotales && conFechas && conResponsables;
+});
+t('formulario: el botón de envío tiene id propio y su rótulo', () => {
+  _tab=0; _editSolId=null;
+  _form={turno:'DIA',tipo:'PERSONAL',emp:{c:'M1',n:'X',ing:'2015-01-01'},aut:{n:'A'},cc:{c:'1110',n:'X'},dates:[hoy()],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
+  var h=renderForm();
+  _editSolId='abc';
+  var h2=renderForm();
+  _editSolId=null;
+  return h.indexOf('id="btnEnviar"')>=0 && h.indexOf('Enviar solicitud')>=0 && h2.indexOf('Guardar cambios')>=0;
+});
+
 // 5. Reporte
 console.log('\n— Resumen —');
 let pass = 0, fail = 0;

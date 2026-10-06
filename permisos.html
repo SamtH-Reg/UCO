@@ -172,6 +172,9 @@ a{text-underline-offset:3px;text-decoration-thickness:1.5px}
 .btn-secondary:hover{background:var(--surface3)}
 .btn-dark{background:#17171A;color:#fff}
 .btn-dark:hover{background:#2C2C33}
+.btn-dark.enviando,.btn-primary.enviando{opacity:.72;cursor:progress}
+.btn-dark.enviando::after,.btn-primary.enviando::after{content:'';display:inline-block;width:11px;height:11px;margin-left:8px;border-radius:50%;border:2px solid color-mix(in srgb,currentColor 45%,transparent);border-top-color:currentColor;animation:girando .7s linear infinite;vertical-align:-1px}
+@keyframes girando{to{transform:rotate(360deg)}}
 .btn-ghost{background:var(--surface);border:1px solid var(--border2);color:var(--muted)}
 .btn-ghost:hover{background:var(--surface3)}
 .btn-ghost.btn-active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
@@ -2291,7 +2294,7 @@ function renderForm(){
     '<div style="position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--border);padding:14px 0;display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:14px">'+
       '<span style="margin-right:auto;font-size:12.5px;color:var(--hint)">'+status+notaCupo+(avisoCupo||'')+'</span>'+
       '<button class="btn btn-ghost" onclick="_editSolId=null;resetForm();render();toast(\'Formulario limpiado\',\'\')">'+(_editSolId?'Cancelar edición':'Limpiar')+'</button>'+
-      '<button class="btn btn-dark" onclick="submitForm()">'+(_editSolId?'Guardar cambios':'Enviar solicitud')+'</button>'+
+      '<button class="btn btn-dark" id="btnEnviar" onclick="submitForm()">'+(_editSolId?'Guardar cambios':'Enviar solicitud')+'</button>'+
     '</div>';
 }
 function segBtn(lbl,on){ return '<button class="'+(on?'on':'')+'" onclick="_form.turno=\''+(lbl==='Día'?'DIA':lbl.toUpperCase())+'\';render()">'+lbl+'</button>'; }
@@ -2715,13 +2718,28 @@ async function _guardarSolicitud(){
 }
 
 async function submitForm(){
-  var r=await _guardarSolicitud();
-  if(!r.ok) return;
-  if(r.tipo==='update'){ toast('✅ Cambios guardados','success'); await cargarSolicitudes(); go('rec'); return; }
-  toast('✅ Solicitud enviada correctamente','success');
-  resetForm();
-  await cargarSolicitudes();
-  go('home');
+  // El botón avisa mientras se envía y SIEMPRE vuelve a su texto: si la red o la base
+  // fallan, el formulario no queda a medias ni el botón en blanco.
+  var btn=document.getElementById('btnEnviar') || document.querySelector('button[onclick*="submitForm"]');
+  var rotulo=btn? btn.innerHTML : '';
+  if(btn){ btn.disabled=true; btn.classList.add('enviando'); btn.innerHTML='Enviando…'; }
+  try{
+    var r=await _guardarSolicitud();
+    if(!r || !r.ok) return;                       // _guardarSolicitud ya avisó el motivo
+    if(r.tipo==='update'){
+      toast('✅ Cambios guardados','success');
+      try{ await cargarSolicitudes(); }catch(e){ console.warn('[SOLIC]',e); }
+      go('rec'); return;
+    }
+    toast('✅ Solicitud enviada correctamente','success');
+    resetForm();
+    try{ await cargarSolicitudes(); }catch(e){ console.warn('[SOLIC]',e); }
+    go('home');
+  }catch(e){
+    toast('Error al enviar: '+((e&&e.message)||e),'error',7000);
+  }finally{
+    if(btn && btn.isConnected){ btn.disabled=false; btn.classList.remove('enviando'); btn.innerHTML=rotulo; }
+  }
 }
 
 // ── REGISTROS ───────────────────────────────────────────────
@@ -3380,10 +3398,13 @@ function _cuerpoCompletoHTML(){
   });
   meses.sort(function(a,b){ if(a.k==='__sin__')return 1; if(b.k==='__sin__')return -1; return a.k.localeCompare(b.k); });
   var mesActual=hoyS.slice(0,7);
+  var _y=parseInt(mesActual.slice(0,4),10), _m=parseInt(mesActual.slice(5,7),10);
+  var mesSiguiente=String(_m===12? _y+1 : _y)+'-'+String(_m===12? 1 : _m+1).padStart(2,'0');
+  // El mes en curso y el SIGUIENTE parten abiertos: los permisos que vienen se ven de entrada.
   meses.forEach(function(mg){
     var mP=0,mM=0,mJ=0;
     mg.dias.forEach(function(g){ var dt=totales(g.items); mP+=dt.p; mM+=dt.m; mJ+=dt.j; });
-    if(_diaExpandMes[mg.k]===undefined) _diaExpandMes[mg.k]=(mg.k===mesActual);
+    if(_diaExpandMes[mg.k]===undefined) _diaExpandMes[mg.k]=(mg.k===mesActual || mg.k===mesSiguiente);
     var mExp=_diaExpandMes[mg.k]===true;
     var mesLbl=(mg.k==='__sin__')?'Sin fecha':(MONTHS[parseInt(mg.k.slice(5,7),10)-1]+' '+mg.k.slice(0,4));
     // Los DÍAS ANTERIORES a hoy del mes en curso se pueden plegar para dejar la vista
@@ -3402,6 +3423,26 @@ function _cuerpoCompletoHTML(){
       '<td style="font-size:10px;color:var(--hint)">'+mg.dias.length+' día'+(mg.dias.length!==1?'s':'')+btnPrev+'</td>'+
       celTipo(mP)+celTipo(mM)+celTipo(mJ)+'<td></td></tr>';
     if(!mExp) return;
+  // ── Meses SIGUIENTES: se listan DESAGRUPADOS (una fila por permiso con su fecha),
+  //    sin cabeceras ni subtotales por día, para ver de un vistazo quién tiene permiso
+  //    más adelante. Los meses pasados conservan el agrupado plegable por día.
+  if(mg.k!=='__sin__' && mg.k>mesActual){
+    var planos=[];
+    mg.dias.forEach(function(g){ planos=planos.concat(g.items); });
+    planos.sort(function(a,b){
+      var fa=String((a.raw&&a.raw.inicio)||'').slice(0,10), fb=String((b.raw&&b.raw.inicio)||'').slice(0,10);
+      if(fa!==fb) return fa.localeCompare(fb);
+      var na=(a.raw&&a.raw.nombre)||'', nb=(b.raw&&b.raw.nombre)||'';
+      return na.localeCompare(nb,'es');
+    });
+    var yaRef=false;
+    planos.forEach(function(r){
+      var esRef=(r.fechaRaw===dkRef), refAqui=(esRef&&!yaRef);
+      if(refAqui) yaRef=true;
+      body+=filaHTML(r.raw, '<b>'+fechaLblDe(r.fechaRaw)+'</b>', refAqui, (esRef?'background:var(--ref-bg)':''), '');
+    });
+    return;
+  }
   mg.dias.forEach(function(g){
     var fechaLbl=fechaLblDe(g.k);
     var dt=totales(g.items);
