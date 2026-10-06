@@ -329,12 +329,19 @@ t('_fetchAll definido', () => typeof _fetchAll==='function');
 t('_anosServicio: null sin fecha', () => _anosServicio(null)===null);
 t('_anosServicio: fecha futura -> 0', () => _anosServicio('2999-01-01')===0);
 t('_anosServicio: >=25 para 2000', () => _anosServicio('2000-01-01')>=25);
-t('_diasProgresivos Art.68', () => _diasProgresivos(9)===0 && _diasProgresivos(10)===1 && _diasProgresivos(13)===2 && _diasProgresivos(16)===3 && _diasProgresivos(19)===4 && _diasProgresivos(22)===5 && _diasProgresivos(30)===5);
-t('_diasFeriadoTotal base(20 Aysén)+prog+sindicales(5)', () => _diasFeriadoTotal(5)===25 && _diasFeriadoTotal(10)===26 && _diasFeriadoTotal(22)===30);
+t('_diasProgresivos Art.68: base 10 años, primer día adicional a los 13', () => _diasProgresivos(9)===0 && _diasProgresivos(10)===0 && _diasProgresivos(12)===0 && _diasProgresivos(13)===1 && _diasProgresivos(16)===2 && _diasProgresivos(19)===3 && _diasProgresivos(22)===4 && _diasProgresivos(25)===5 && _diasProgresivos(30)===5);
+t('_diasFeriadoTotal base(20 Aysén)+prog+sindicales(5)', () => _diasFeriadoTotal(5)===25 && _diasFeriadoTotal(12)===25 && _diasFeriadoTotal(13)===26 && _diasFeriadoTotal(25)===30);
 t('DIAS_SINDICALES = 5', () => DIAS_SINDICALES===5);
-t('_asignacionDias: base/sind usan override, pero prog es por ley (ignora override)', () => { var a=_asignacionDias({baseOverride:18,progOverride:7,sindOverride:3},16); return a.base===18 && a.prog===_diasProgresivos(16) && a.prog!==7 && a.sind===3; });
+t('_asignacionDias: base/sind usan override; prog por ley salvo acreditado > 0', () => {
+  var a=_asignacionDias({baseOverride:18,progOverride:7,sindOverride:3},16);
+  var b=_asignacionDias({progOverride:0},16);      // 0 = usar el automático
+  var c=_asignacionDias({},16);
+  return a.base===18 && a.prog===7 && a.sind===3 && b.prog===_diasProgresivos(16) && c.prog===_diasProgresivos(16);
+});
 t('_asignacionDias: sin overrides usa ley/referencia', () => { var a=_asignacionDias({},16); return a.base===20&&a.prog===_diasProgresivos(16)&&a.sind===5; });
-t('_asignacionDias: 2 años -> progresivo 0 (por ley)', () => { var a=_asignacionDias({progOverride:9},2); return a.prog===0; });
+t('_asignacionDias: 2 años -> progresivo 0 por ley (o el acreditado si es > 0)', () => {
+  return _asignacionDias({progOverride:9},2).prog===9 && _asignacionDias({progOverride:0},2).prog===0 && _asignacionDias({},2).prog===0;
+});
 t('_usoDias: suma por bolsa del año en curso e ignora otros años', () => {
   var y=String(new Date().getFullYear());
   _SOLIC=[
@@ -507,11 +514,16 @@ t('_diasRow: sin ✎ cuando no es editable', () => {
   var h=_diasRow('prog','Progresivo','#16794E',0,0,0,0,0,false);
   return h.indexOf('editarAsignado')<0 && h.indexOf('✎')<0;
 });
-t('renderForm Vacaciones: progresivo no editable si no corresponde', () => {
+t('renderForm Vacaciones: progresivo en 0 si no corresponde, y respeta el acreditado', () => {
   _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _SOLIC=[];
-  _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2024-01-02',baseOverride:null,progOverride:2,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
-  var h=renderForm();
-  var ok=h.indexOf("editarAsignado('prog')")<0 && h.indexOf('de 0 · usado')>=0;
+  var base={turno:'',tipo:'',aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
+  var fD=function(n){ return String(Math.round(n*100)/100).replace('.',','); };
+  _form=Object.assign({},base,{emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2024-01-02',baseOverride:null,progOverride:null,sindOverride:null}});
+  var hSin=renderForm(), dSin=_dispPorBolsa();
+  _form=Object.assign({},base,{emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2024-01-02',baseOverride:null,progOverride:3,sindOverride:null}});
+  var hCon=renderForm(), dCon=_dispPorBolsa();
+  var ok=dSin.prog===0 && hSin.indexOf('Disponible 0 de 0')>=0
+      && dCon.prog>0 && hCon.indexOf('Disponible '+fD(dCon.prog)+' de '+fD(dCon.prog))>=0;
   _tab=0; _form={tipoDias:'BASE'};
   return ok;
 });
@@ -537,11 +549,13 @@ t('_proximaVacacion: la futura más cercana (ignora pasadas y anuladas)', () => 
   _SOLIC=[];
   return ok;
 });
-t('_tomarTodo: llena todas las bolsas', () => {
-  _tab=2; _SOLIC=[];
+t('_tomarTodo: llena todas las bolsas con el saldo del ledger', () => {
+  _tab=2; _SOLIC=[]; _editSolId=null;
   _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},tomarBase:0,tomarProg:0,tomarSind:0,dias:0};
+  var d=_dispPorBolsa();
   _tomarTodo();
-  var ok=_form.dias===(20+_diasProgresivos(_anosServicio('2000-01-01'))+5);
+  var ok=_form.tomarBase===d.base && _form.tomarProg===d.prog && _form.tomarSind===d.sind && _form.dias===d.base+d.prog+d.sind
+    && Math.abs(_form.dias-_periodosVacaciones(_form.emp).saldoDisponible)<0.011;
   _tab=0; _form={}; return ok;
 });
 t('renderCalendar: colorea días de vacaciones por bolsa', () => {
@@ -570,13 +584,18 @@ t('_empListaPicker no-vacaciones usa solo empleados', () => {
   return ok;
 });
 // ——— Lógica del formulario de Vacaciones ———
-t('_dispPorBolsa: descuenta lo usado por bolsa del año', () => {
+t('_dispPorBolsa: descuenta lo usado y coincide con el ledger', () => {
   var y=String(new Date().getFullYear());
   _tab=2; _editSolId=null;
   _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null}};
+  _SOLIC=[];
+  var sin=_dispPorBolsa();
   _SOLIC=[{id:'u1',tipo:'VACACIONES',codigo:'M1',dias_base:2,estado:'APROBADO',inicio:y+'-02-01'}];
-  var d=_dispPorBolsa(), anos=_anosServicio('2000-01-01');
-  var ok=!!d && d.base===FERIADO_BASE-2 && d.prog===_diasProgresivos(anos) && d.sind===DIAS_SINDICALES;
+  var con=_dispPorBolsa();
+  var led=_periodosVacaciones(_form.emp);
+  var ok=!!con && Math.abs((sin.base-con.base)-2)<0.01
+    && Math.abs((sin.base+sin.prog+sin.sind)-(con.base+con.prog+con.sind)-2)<0.01
+    && Math.round((con.base+con.prog+con.sind)*100)/100===led.saldoDisponible;   // el formulario y el modal muestran el mismo número
   _form={}; _SOLIC=[]; _tab=0; return ok;
 });
 t('_dispPorBolsa: null sin fecha de ingreso', () => {
@@ -584,13 +603,16 @@ t('_dispPorBolsa: null sin fecha de ingreso', () => {
   var ok=_dispPorBolsa()===null;
   _form={}; _tab=0; return ok;
 });
-t('_dispPorBolsa: no baja de 0 con sobreuso', () => {
+t('_dispPorBolsa: nunca devuelve días negativos, ni con sobreuso enorme', () => {
   var y=String(new Date().getFullYear());
   _tab=2; _editSolId=null;
-  _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:2,progOverride:0,sindOverride:0}};
-  _SOLIC=[{id:'u1',tipo:'VACACIONES',codigo:'M1',dias_base:9,estado:'APROBADO',inicio:y+'-02-01'}];
-  var d=_dispPorBolsa();
-  var ok=!!d && d.base===0 && d.prog===_diasProgresivos(_anosServicio('2000-01-01')) && d.sind===0;
+  _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:2,progOverride:null,sindOverride:null}};
+  _SOLIC=[];
+  var sin=_dispPorBolsa();
+  _SOLIC=[{id:'u1',tipo:'VACACIONES',codigo:'M1',dias_base:9999,estado:'APROBADO',inicio:y+'-02-01'}];
+  var con=_dispPorBolsa();
+  var ok=!!con && con.base>=0 && con.prog>=0 && con.sind>=0 && con.base<sin.base
+    && con.prog===sin.prog && con.sind===sin.sind;   // el sobreuso de BASE no toca las otras bolsas
   _form={}; _SOLIC=[]; _tab=0; return ok;
 });
 t('_recalcTomar: recorta a lo disponible y fija maxDias', () => {
@@ -603,23 +625,27 @@ t('_recalcTomar: recorta a lo disponible y fija maxDias', () => {
   var ok=_form.tomarBase===d.base && _form.tomarProg===d.prog && _form.tomarSind===d.sind && _form.maxDias===d.base+d.prog && _form.dias===d.base+d.prog+d.sind;
   _form={}; _SOLIC=[]; _tab=0; return ok;
 });
-t('_setTomar: recorta negativos y excedentes (prog por ley)', () => {
+t('_setTomar: recorta negativos y excedentes al saldo disponible', () => {
   _tab=2; _editSolId=null; _SOLIC=[];
-  var progLaw=_diasProgresivos(_anosServicio('2000-01-01'));
   _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:2,progOverride:1,sindOverride:0},tomarBase:0,tomarProg:0,tomarSind:0,dias:0};
+  var d=_dispPorBolsa();
   _setTomar('base',-5); var ok=_form.tomarBase===0;
-  _setTomar('base',99); ok=ok && _form.tomarBase===2;
-  _setTomar('prog',99); ok=ok && _form.tomarProg===progLaw;
-  _setTomar('sind',1);  ok=ok && _form.tomarSind===0 && _form.dias===2+progLaw;
+  _setTomar('base',99); ok=ok && _form.tomarBase===d.base;
+  _setTomar('prog',99); ok=ok && _form.tomarProg===d.prog;
+  _setTomar('sind',99); ok=ok && _form.tomarSind===d.sind;
+  ok=ok && _form.dias===d.base+d.prog+d.sind && d.sind===0;
   _form={}; _tab=0; return ok;
 });
 t('_tomarTodo: llena lo disponible (descontando lo usado)', () => {
   var y=String(new Date().getFullYear());
   _tab=2; _editSolId=null;
   _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},tomarBase:0,tomarProg:0,tomarSind:0,dias:0};
+  _SOLIC=[];
+  var sinBase=_dispPorBolsa().base;
   _SOLIC=[{id:'u1',tipo:'VACACIONES',codigo:'M1',dias_base:5,estado:'APROBADO',inicio:y+'-02-01'}];
+  var d=_dispPorBolsa();
   _tomarTodo();
-  var ok=_form.tomarBase===FERIADO_BASE-5 && _form.dias===(FERIADO_BASE-5)+_diasProgresivos(_anosServicio('2000-01-01'))+DIAS_SINDICALES;
+  var ok=_form.tomarBase===d.base && _form.dias===d.base+d.prog+d.sind && Math.abs((sinBase-d.base)-5)<0.01;
   _form={}; _SOLIC=[]; _tab=0; return ok;
 });
 t('_papeletaInputDeRegistro: usa el desglose guardado', () => {
@@ -669,21 +695,32 @@ t('edición: conserva los días guardados aunque el saldo esté sobregirado', ()
   var ok=_form.tomarBase===8 && _form.dias===8 && h.indexOf('Falta inicio')<0;
   _editSolId=null; _tab=0; _form={}; _SOLIC=[]; return ok;
 });
-t('_setTomar: al editar no baja del valor guardado', () => {
+t('_setTomar: al editar nunca baja del valor guardado', () => {
   var y=String(new Date().getFullYear());
   _tab=2; _editSolId='s1';
   _SOLIC=[{id:'o1',tipo:'VACACIONES',codigo:'M1',dias_base:30,estado:'APROBADO',inicio:y+'-01-05'}];
-  _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},tomarBase:8,tomarProg:0,tomarSind:0,dias:8};
+  // sin saldo disponible (base negociada 0) el valor guardado se conserva y no se puede subir
+  _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:0,progOverride:0,sindOverride:0},tomarBase:8,tomarProg:0,tomarSind:0,dias:8};
   _setTomar('base',8); var ok=_form.tomarBase===8;
   _setTomar('base',99); ok=ok && _form.tomarBase===8;
   _setTomar('base',3);  ok=ok && _form.tomarBase===3;
+  // con saldo de sobra: sube hasta el disponible y puede bajar
+  _form={emp:{c:'M1',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},tomarBase:8,tomarProg:0,tomarSind:0,dias:8};
+  var d=_dispPorBolsa();
+  _setTomar('base',99); ok=ok && _form.tomarBase===99;                      // 99 cabe en el saldo
+  _setTomar('base',d.base+1000); ok=ok && _form.tomarBase===d.base;         // sobre el saldo se recorta
+  _setTomar('base',3);  ok=ok && _form.tomarBase===3;
   _editSolId=null; _form={}; _SOLIC=[]; _tab=0; return ok;
 });
-t('renderForm Vacaciones: progresivo nunca editable (por ley), base sí', () => {
+t('renderForm Vacaciones: base y progresivo editables (progresivo para años previos)', () => {
   _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _SOLIC=[];
   _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',baseOverride:null,progOverride:9,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
+  var d=_dispPorBolsa();
   var h=renderForm();
-  var ok=h.indexOf("editarAsignado('prog')")<0 && h.indexOf("editarAsignado('base')")>=0;
+  var fD=function(n){ return String(Math.round(n*100)/100).replace('.',','); };
+  var ok=h.indexOf("editarAsignado('prog')")>=0 && h.indexOf("editarAsignado('base')")>=0
+      && d.prog>9                                                  // el acreditado se aplica a cada período
+      && h.indexOf('Disponible '+fD(d.prog)+' de '+fD(d.prog))>=0;
   _tab=0; _form={tipoDias:'BASE'}; return ok;
 });
 t('edición: progresivo se recalcula por ley (2 años -> 0)', () => {
@@ -859,28 +896,32 @@ t('_diasProporcionales: null sin fecha de ingreso', () => _diasProporcionales({c
 t('renderForm Vacaciones: sindicales no cuentan en el saldo (maxDias)', () => {
   _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _SOLIC=[];
   _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2024-01-02',baseOverride:null,progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
-  var p=_diasProporcionales(_form.emp);
+  var d=_dispPorBolsa();
   renderForm();
-  var ok=_form.maxDias===Math.round(p.base);
+  var ok=_form.maxDias===Math.round((d.base+d.prog)*100)/100
+    && d.sind>0 && _form.maxDias!==Math.round((d.base+d.prog+d.sind)*100)/100;   // sindicales fuera del saldo legal
   _tab=0; _form={tipoDias:'BASE'}; return ok;
 });
-t('renderForm Vacaciones: Feriados Legales usa el proporcional', () => {
+t('renderForm Vacaciones: el saldo legal acumula lo anterior + el devengo en curso', () => {
   _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false; _SOLIC=[];
   _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2024-01-02',baseOverride:null,progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
   var p=_diasProporcionales(_form.emp);
+  var d=_dispPorBolsa();
   var h=renderForm();
-  var rnd=Math.round(p.base);
-  var ok=h.indexOf('Disponible '+rnd+' de ')>0 && p.base>0 && p.base<20;
+  var fD=function(n){ return String(Math.round(n*100)/100).replace('.',','); };
+  // 2 períodos de aniversario cerrados y completos (20 c/u) + lo devengado del período en curso
+  var ok=Math.abs(d.base-(40+p.base))<0.05 && p.base>0 && p.base<20
+    && h.indexOf('Disponible '+fD(d.base)+' de '+fD(d.base)+' · usado 0')>0;
   _tab=0; _form={tipoDias:'BASE'}; return ok;
 });
-t('renderForm Vacaciones: muestra Programadas y Saldo real', () => {
+t('renderForm Vacaciones: muestra Programadas, Devengado y Quedan', () => {
   var d1=new Date(hoy()+'T12:00:00'); d1.setDate(d1.getDate()+1);
   var fut=d1.toISOString().slice(0,10);
   _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false;
   _SOLIC=[{tipo:'VACACIONES',codigo:'M1',inicio:fut,termino:fut,dias_habiles:5,dias_base:5,estado:'APROBADO'}];
   _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
   var h=renderForm();
-  var ok=h.indexOf('Programadas')>=0 && h.indexOf('Saldo real')>=0 && h.indexOf('Quedan')>=0 && h.indexOf('Proporcional')>=0;
+  var ok=h.indexOf('Programadas')>=0 && h.indexOf('Devengado')>=0 && h.indexOf('Quedan')>=0 && h.indexOf('Proporcional')>=0;
   _tab=0; _form={tipoDias:'BASE'}; _SOLIC=[]; return ok;
 });
 t('renderForm: boton gestionar responsables junto al autorizador', () => {

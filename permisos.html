@@ -972,22 +972,31 @@ function _anosServicio(fechaIngreso){
   if(m<0 || (m===0 && h.getDate()<fi.getDate())) a--;
   return a<0?0:a;
 }
-// Días adicionales de feriado progresivo
+// Días adicionales de feriado progresivo (Art. 68).
+// La base son 10 años de trabajo; desde ahí se suma 1 día por cada 3 años NUEVOS
+// trabajados, de modo que el primer día adicional se devenga al cumplir 13 años
+// (10 + 3), el segundo a los 16, y así. Criterio de la Dirección del Trabajo
+// (Dictamen N° 380/2025 y su tabla: hasta 12 años → 0, 13-15 → 1, 16-18 → 2,
+// 19-21 → 3, 22-24 → 4, 25 o más → tope de 5).
 function _diasProgresivos(anos){
   if(anos==null) return 0;
-  if(anos < PROG_DESDE) return 0;
-  return Math.min(PROG_MAX, Math.floor((anos-PROG_DESDE)/PROG_CADA)+1);
+  return Math.min(PROG_MAX, Math.max(0, Math.floor((anos-PROG_DESDE)/PROG_CADA)));
 }
 // Total de días hábiles de feriado (base + progresivo + sindicales)
 function _diasFeriadoTotal(anos){ return FERIADO_BASE + _diasProgresivos(anos) + DIAS_SINDICALES; }
 
 // Asignación de días de un empleado.
-//  - Feriado progresivo: es POR LEY (Art. 68) → siempre automático según antigüedad,
-//    no es editable/negociable (aplica desde los 10 años de servicio).
+//  - Feriado progresivo: es POR LEY (Art. 68) → se calcula con la antigüedad
+//    (primer día adicional a los 13 años; ver _diasProgresivos). Se admite fijarlo
+//    a mano solo para acreditar años trabajados en empleadores anteriores.
 //  - Base y sindicales: pueden tener valor negociado (override) si existe.
 function _asignacionDias(emp, anos){
   var base=(emp && emp.baseOverride!=null)?emp.baseOverride:FERIADO_BASE;
-  var prog=_diasProgresivos(anos);   // por ley, no editable
+  // El progresivo se calcula por ley según la antigüedad; se respeta un valor
+  // acreditado (> 0) para poder computar hasta 10 años de empleadores anteriores,
+  // que la app no puede conocer (cartola de cotizaciones).
+  var progAuto=_diasProgresivos(anos);
+  var prog=(emp && emp.progOverride!=null && +emp.progOverride>0)?(+emp.progOverride):progAuto;
   var sind=(emp && emp.sindOverride!=null)?emp.sindOverride:DIAS_SINDICALES;
   return {base:base, prog:prog, sind:sind};
 }
@@ -1000,7 +1009,7 @@ function _usoDias(codigo, excluirId, anio){
   var k=String(codigo||'').trim().toUpperCase();
   var y0=anio+'-01-01', y1=anio+'-12-31';
   (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
-    if(s.tipo!=='VACACIONES') return;
+    if(!s || s.tipo!=='VACACIONES') return;
     if(s.id && excluirId && s.id===excluirId) return;
     if(String(s.codigo||'').trim().toUpperCase()!==k) return;
     var est=String(s.estado||'').toUpperCase();
@@ -1030,15 +1039,85 @@ function _usoDias(codigo, excluirId, anio){
     if(b0||p0||s0){                             // reparte el desglose proporcionalmente
       var rx=enAnio/totalHab;
       u.base+=b0*rx; u.prog+=p0*rx; u.sind+=s0*rx;
-    } else {                                    // sin desglose: todo a su bolsa por tipo_dias
+    } else {
+      // Sin desglose por bolsa se reparte el TOTAL GUARDADO (dias_habiles) según los
+      // días hábiles de cada año, con el mismo criterio que cuando el desglose existe:
+      // así descontar lo tomado no depende de si el registro trae desglose o no.
       var td=String(s.tipo_dias||'BASE').toUpperCase();
-      if(td==='PROGRESIVO'||td==='PROG') u.prog+=enAnio;
-      else if(td==='SINDICAL'||td==='SIND') u.sind+=enAnio;
-      else u.base+=enAnio;
+      var totG=parseFloat(s.dias_habiles||0)||0;
+      var cant=totG>0?(totG*enAnio/totalHab):enAnio;
+      if(td==='PROGRESIVO'||td==='PROG') u.prog+=cant;
+      else if(td==='SINDICAL'||td==='SIND') u.sind+=cant;
+      else u.base+=cant;
     }
   });
   u.base=Math.round(u.base*100)/100; u.prog=Math.round(u.prog*100)/100; u.sind=Math.round(u.sind*100)/100;
   return u;
+}
+// Días tomados de un empleado imputados a un período de aniversario, por bolsa.
+// Usa la misma regla de imputación del ledger: lo solicitado se carga al período
+// que estaba disponible al iniciarse (años de servicio al inicio − 1).
+function _tomadosEnPeriodo(emp, i, excluirId){
+  var u={base:0,prog:0,sind:0};
+  if(!emp || !emp.ing) return u;
+  var k=String(emp.c||'').trim().toUpperCase(), ing=String(emp.ing).slice(0,10);
+  (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
+    if(!s || s.tipo!=='VACACIONES') return;
+    if(s.id && excluirId && s.id===excluirId) return;
+    if(String(s.codigo||'').trim().toUpperCase()!==k) return;
+    var est=String(s.estado||'').toUpperCase(); if(est==='RECHAZADO'||est==='ANULADO') return;
+    var ini=String(s.inicio||'').slice(0,10); if(!ini) return;
+    var a=_anosEntre(ing,ini); if(a==null) return;
+    if(Math.max(0,a-1)!==i) return;
+    var b=parseFloat(s.dias_base||0)||0, p=parseFloat(s.dias_progresivo||0)||0, si=parseFloat(s.dias_sindical||0)||0;
+    if(b||p||si){ u.base+=b; u.prog+=p; u.sind+=si; return; }
+    var d=parseFloat(s.dias_habiles||0)||0; if(!d) d=1;
+    var td=String(s.tipo_dias||'BASE').toUpperCase();
+    if(td==='PROGRESIVO'||td==='PROG') u.prog+=d;
+    else if(td==='SINDICAL'||td==='SIND') u.sind+=d;
+    else u.base+=d;
+  });
+  return u;
+}
+// ── SALDO DISPONIBLE POR BOLSA · ÚNICA FUENTE DE VERDAD ─────────────────────
+// Recorre los períodos de aniversario del empleado:
+//   · períodos ya cumplidos -> aportan lo que quedó sin tomar (derecho − tomado)
+//   · período en curso      -> aporta lo devengado a la fecha (derecho × fracción)
+// descontando lo ya imputado a cada período. El formulario de solicitud y el modal
+// «Períodos de vacaciones» usan esta misma función, para que nunca muestren ni
+// permitan cifras distintas (antes el formulario usaba el devengo del período en
+// curso sin descontar lo tomado, y el modal el acumulado de períodos cerrados).
+function _saldoPorBolsa(emp, excluirId){
+  if(!emp || !emp.ing) return null;
+  var N=_anosServicio(emp.ing); if(N==null) return null;
+  var r=function(x){ return Math.round(x*100)/100; };
+  var tot={base:0,prog:0,sind:0}, dev={base:0,prog:0,sind:0}, tomT={base:0,prog:0,sind:0}, periodos=[];
+  for(var i=0;i<=N;i++){
+    var asig=_asignacionDias(emp,i);
+    var tom=_tomadosEnPeriodo(emp,i,excluirId);
+    var frac=1, enCurso=(i===N);
+    if(enCurso){
+      var d1=new Date(_addAnios(emp.ing,i)+'T12:00:00'), d2=new Date(_addAnios(emp.ing,i+1)+'T12:00:00'), dh=new Date(hoy()+'T12:00:00');
+      if(isNaN(d1.getTime())||isNaN(d2.getTime())) frac=0;
+      else{
+        var totD=Math.round((d2-d1)/86400000)||365;
+        frac=Math.max(0,Math.min(1,Math.round((dh-d1)/86400000)/totD));
+      }
+    }
+    var der={base:(asig.base||0)*frac, prog:(asig.prog||0)*frac, sind:(asig.sind||0)*frac};
+    var ap={ base:Math.max(0,der.base-tom.base), prog:Math.max(0,der.prog-tom.prog), sind:Math.max(0,der.sind-tom.sind) };
+    tot.base+=ap.base; tot.prog+=ap.prog; tot.sind+=ap.sind;
+    dev.base+=der.base; dev.prog+=der.prog; dev.sind+=der.sind;
+    tomT.base+=tom.base; tomT.prog+=tom.prog; tomT.sind+=tom.sind;
+    periodos.push({ i:i, enCurso:enCurso, frac:r(frac),
+      derecho:{base:r(der.base),prog:r(der.prog),sind:r(der.sind)},
+      tomado:{base:r(tom.base),prog:r(tom.prog),sind:r(tom.sind)},
+      aporte:{base:r(ap.base),prog:r(ap.prog),sind:r(ap.sind)} });
+  }
+  return { base:r(tot.base), prog:r(tot.prog), sind:r(tot.sind),
+           devengado:{base:r(dev.base),prog:r(dev.prog),sind:r(dev.sind)},
+           tomado:{base:r(tomT.base),prog:r(tomT.prog),sind:r(tomT.sind)},
+           periodos:periodos, anos:N };
 }
 // Días de vacaciones PROGRAMADAS (futuras) por bolsa, de un empleado en un año
 function _diasProgramadosPorBolsa(codigo, anio){
@@ -1046,7 +1125,7 @@ function _diasProgramadosPorBolsa(codigo, anio){
   var h=hoy(), u={base:0,prog:0,sind:0};
   var k=String(codigo||'').trim().toUpperCase();
   (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
-    if(s.tipo!=='VACACIONES') return;
+    if(!s || s.tipo!=='VACACIONES') return;
     if(String(s.codigo||'').trim().toUpperCase()!==k) return;
     var est=String(s.estado||'').toUpperCase(); if(est==='RECHAZADO'||est==='ANULADO') return;
     var ini=String(s.inicio||'').slice(0,10); if(!ini || ini<=h) return;   // solo futuras
@@ -1073,14 +1152,15 @@ function _diasProporcionales(emp){
   var iniPer=_addAnios(ing,N), finPer=_addAnios(ing,N+1);
   var asig=_asignacionDias(emp,N);
   var progAuto=_diasProgresivos(N);
-  var total=(asig.base||0)+((progAuto>0)?(asig.prog||0):0);
+  var progEf=((progAuto>0)||(emp.progOverride!=null))?(asig.prog||0):0;
+  var total=(asig.base||0)+progEf;
   var d1=new Date(iniPer+'T12:00:00'), d2=new Date(finPer+'T12:00:00'), dh=new Date(hoy()+'T12:00:00');
   if(isNaN(d1.getTime())||isNaN(d2.getTime())) return null;
   var totDias=Math.round((d2-d1)/86400000)||365;
   var trans=Math.max(0,Math.min(totDias,Math.round((dh-d1)/86400000)));
   var r=function(x){ return Math.round(x*100)/100; };
   var baseProp=(asig.base||0)*trans/totDias;
-  var progProp=((progAuto>0)?(asig.prog||0):0)*trans/totDias;
+  var progProp=progEf*trans/totDias;
   var prop=baseProp+progProp;
   return { dias:r(prop), base:r(baseProp), prog:r(progProp), ini:iniPer, fin:finPer, total:total, transcurridos:trans, delPeriodo:totDias };
 }
@@ -1088,7 +1168,7 @@ function _diasProporcionales(emp){
 function _ultimaVacacion(codigo){
   var k=String(codigo||'').trim().toUpperCase(), last=null, h=hoy();
   (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
-    if(s.tipo!=='VACACIONES') return;
+    if(!s || s.tipo!=='VACACIONES') return;
     if(String(s.codigo||'').trim().toUpperCase()!==k) return;
     var est=String(s.estado||'').toUpperCase();
     if(est==='RECHAZADO'||est==='ANULADO') return;
@@ -1101,7 +1181,7 @@ function _ultimaVacacion(codigo){
 function _proximaVacacionRec(codigo){
   var k=String(codigo||'').trim().toUpperCase(), next=null, nextD=null, h=hoy();
   (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
-    if(s.tipo!=='VACACIONES') return;
+    if(!s || s.tipo!=='VACACIONES') return;
     if(String(s.codigo||'').trim().toUpperCase()!==k) return;
     var est=String(s.estado||'').toUpperCase();
     if(est==='RECHAZADO'||est==='ANULADO') return;
@@ -1125,7 +1205,13 @@ function _tablaEmpleado(cod){
 // Guarda un valor negociable (días progresivos/sindicales) para un empleado
 function _campoOverrideKey(campo){ return campo==='dias_base'?'baseOverride':(campo==='dias_progresivos'?'progOverride':'sindOverride'); }
 async function setDiasEmpleado(cod, campo, val){
-  if(campo==='dias_progresivos'){ toast('Los días progresivos son por ley (Art. 68) y se calculan automáticamente','warn',6500); return; }
+  // El progresivo se calcula por ley (Art. 68) según la antigüedad, pero el mismo
+  // artículo permite computar hasta 10 años trabajados para empleadores anteriores
+  // (cartola de cotizaciones), años que la app no puede conocer. Por eso se autoriza
+  // fijarlo a mano, con confirmación explícita.
+  if(campo==='dias_progresivos'){
+    if(typeof confirm!=='function' || !confirm('Los dias progresivos se calculan por ley (Art. 68) segun la antiguedad.\n\nFijalos a mano solo si corresponde acreditar años trabajados en EMPLEADORES ANTERIORES (cartola de cotizaciones).\n\n¿Continuar?')) return;
+  }
   var d=await dbReady(); if(!d) return;
   var tabla=_tablaEmpleado(cod);
   var num=(val===''||val==null)?null:Math.max(0,parseInt(val,10)||0);
@@ -1141,16 +1227,13 @@ async function setDiasEmpleado(cod, campo, val){
   _recalcTomar();
   render();
 }
-// Reparte/valida los días a tomar según el disponible por bolsa
+// Reparte/valida los días a tomar según el disponible por bolsa.
+// Sale de _saldoPorBolsa, la MISMA función que alimenta el modal de períodos: lo que
+// el formulario muestra y lo que permite pedir es siempre el mismo número.
 function _dispPorBolsa(){
   if(!_form.emp) return null;
-  var anos=_anosServicio(_form.emp.ing); if(anos==null) return null;
-  var asig=_asignacionDias(_form.emp,anos), uso=_usoDias(_form.emp.c,_editSolId);
-  return {
-    base:Math.max(0,asig.base-uso.base),
-    prog:Math.max(0,asig.prog-uso.prog),
-    sind:Math.max(0,asig.sind-uso.sind)
-  };
+  var s=_saldoPorBolsa(_form.emp,_editSolId); if(!s) return null;
+  return { base:s.base, prog:s.prog, sind:s.sind, devengado:s.devengado, tomado:s.tomado };
 }
 function _recalcTomar(){
   var disp=_dispPorBolsa(); if(!disp) return;
@@ -1209,41 +1292,40 @@ function _anosEntre(a,b){
   return y;
 }
 function _addAnios(isoStr,n){
-  var p=String(isoStr).slice(0,10).split('-');
-  return ((+p[0]+n)) + '-' + p[1] + '-' + p[2];
+  var p=String(isoStr||'').slice(0,10).split('-');
+  var y=(+p[0])+n, m=+p[1], d=+p[2];
+  if(!y||!m||!d||m>12) return String(isoStr||'').slice(0,10);
+  // Si el día no existe en el año destino (29 de febrero) se usa el último del mes
+  var ult=new Date(y,m,0).getDate();
+  if(d>ult) d=ult;
+  return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
 }
-// Ledger de períodos de un empleado (devengado / tomado / saldo) y próximo aniversario
+// Ledger de períodos de un empleado (devengado / tomado / saldo) y próximo aniversario.
+// Los saldos salen de _saldoPorBolsa, así «Saldo disponible» es exactamente lo que el
+// formulario de solicitud permite pedir. El período en curso aparece con su derecho
+// devengado a la fecha (fracción del período transcurrida).
 function _periodosVacaciones(emp){
   if(!emp || !emp.ing) return null;
   var ing=String(emp.ing).slice(0,10);
-  var N=_anosServicio(ing); if(N==null) return null;
-  var hoyIso=hoy(), k=String(emp.c||'').trim().toUpperCase();
-  var vac=(typeof _SOLIC!=='undefined'?_SOLIC:[]).filter(function(s){
-    if(s.tipo!=='VACACIONES') return false;
-    if(String(s.codigo||'').trim().toUpperCase()!==k) return false;
-    var est=String(s.estado||'').toUpperCase();
-    return est!=='ANULADO' && est!=='RECHAZADO';
-  });
+  var sal=_saldoPorBolsa(emp, null);
+  if(!sal) return null;
+  var r=function(x){ return Math.round(x*100)/100; };
   var periodos=[], saldoDisp=0, totalTom=0, totalDer=0;
-  for(var i=0;i<=N;i++){
-    var desde=_addAnios(ing,i), hasta=_addAnios(ing,i+1);
-    var asig=_asignacionDias(emp,i);
-    var derecho=(asig.base||0)+(asig.prog||0)+(asig.sind||0);
-    var tomados=0;
-    vac.forEach(function(s){
-      var ini=String(s.inicio||'').slice(0,10); if(!ini) return;
-      var a=_anosEntre(ing,ini); if(a==null) return;
-      var kk=Math.max(0,a-1);            // los días del año i se usan desde el aniversario i+1
-      if(kk===i) tomados+=parseFloat(s.dias_habiles||0)||0;
-    });
+  sal.periodos.forEach(function(sp){
+    var i=sp.i;
+    var derecho=r(sp.derecho.base+sp.derecho.prog+sp.derecho.sind);
+    var tomados=r(sp.tomado.base+sp.tomado.prog+sp.tomado.sind);
+    var saldo=r(sp.aporte.base+sp.aporte.prog+sp.aporte.sind);
     var disponibleEn=_addAnios(ing,i+1);
-    var usable=disponibleEn<=hoyIso;
-    var saldo=derecho-tomados;
-    periodos.push({i:i, desde:desde, hasta:hasta, derecho:derecho, tomados:tomados, saldo:saldo, disponibleEn:disponibleEn, usable:usable, actual:(i===N)});
-    totalDer+=derecho; totalTom+=tomados;
-    if(usable) saldoDisp+=saldo;
-  }
-  return { periodos:periodos, saldoDisponible:saldoDisp, proximo:_addAnios(ing,N+1), anosHoy:N, totalDerecho:totalDer, totalTomado:totalTom };
+    periodos.push({i:i, desde:_addAnios(ing,i), hasta:disponibleEn, derecho:derecho, tomados:tomados, saldo:saldo,
+                   disponibleEn:disponibleEn, usable:(sp.enCurso||disponibleEn<=hoy()), actual:sp.enCurso,
+                   enCurso:sp.enCurso, fraccion:sp.frac});
+    totalDer+=derecho; totalTom+=tomados; saldoDisp+=saldo;
+  });
+  // El total se toma directo de _saldoPorBolsa (no de la suma fila a fila) para que
+  // el KPI del modal sea EXACTAMENTE el mismo número que permite solicitar el formulario.
+  return { periodos:periodos, saldoDisponible:+((sal.base+sal.prog+sal.sind).toFixed(2)), proximo:_addAnios(ing,sal.anos+1), anosHoy:sal.anos,
+           totalDerecho:r(totalDer), totalTomado:r(totalTom) };
 }
 function _fmtCorto(isoStr){ var p=String(isoStr||'').split('-'); return p.length===3?(p[2]+'-'+p[1]+'-'+p[0]):'—'; }
 function verPeriodosVacaciones(){
@@ -1269,7 +1351,7 @@ function verPeriodosVacaciones(){
       '<div class="kpi" style="padding:14px"><div class="l">Días tomados</div><div class="v" style="font-size:24px">'+d.totalTomado+'</div></div>'+
       '<div class="kpi" style="padding:14px"><div class="l">Próximo período</div><div class="v" style="font-size:16px;letter-spacing:0">'+_fmtCorto(d.proximo)+'</div><div style="font-size:11px;color:var(--hint);margin-top:2px">cumple '+(d.anosHoy+1)+' año'+(d.anosHoy+1!==1?'s':'')+'</div></div>'+
     '</div>'+
-    '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Período actual (devengando): <b>'+_fmtCorto(_addAnios(_form.emp.ing,d.anosHoy))+' → '+_fmtCorto(d.proximo)+'</b>. Los días de cada período quedan disponibles al cumplir el aniversario.</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Período actual (devengando): <b>'+_fmtCorto(_addAnios(_form.emp.ing,d.anosHoy))+' → '+_fmtCorto(d.proximo)+'</b>. Los días de cada período se suman al saldo al cumplir el aniversario; el período en curso aporta lo devengado a la fecha. El saldo de arriba es el mismo que permite solicitar el formulario.</div>'+
     '<div class="table-card" style="margin-top:0"><div class="tbl-scroll" style="max-height:46vh"><table class="tbl tbl-compact"><thead><tr>'+
       '<th>Período</th><th style="text-align:center">Año</th><th style="text-align:right">Derecho</th><th style="text-align:right">Tomado</th><th style="text-align:right">Saldo</th><th style="text-align:center">Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div></div>';
   var el=document.createElement('div'); el.id='perModal';
@@ -1402,7 +1484,7 @@ async function generarPapeletaRegistro(id){
 // Alias compatible
 function generarPapeleta(){ return generarPapeletas(); }
 // Fila compacta de una bolsa (con stepper para tomar y ✎ para editar el asignado)
-function _diasRow(key,lbl,color,asig,uso,disp,tomar,auto,editable){
+function _diasRow(key,lbl,color,asig,uso,disp,tomar,auto,editable,acum){
   var fD=function(n){ return (n==null||isNaN(n))?'—':String(Math.round(n*100)/100).replace('.',','); };
   var autoHint=(auto!=null && asig!==auto) ? ' · automático '+fD(auto) : '';
   var editBtn=(editable===false)?'' : ' <button class="btn btn-ghost btn-sm" style="padding:0 5px;font-size:11px;color:'+color+'" onclick="editarAsignado(\''+key+'\')" title="Editar días asignados (negociable; vacío = automático)">✎</button>';
@@ -1410,7 +1492,7 @@ function _diasRow(key,lbl,color,asig,uso,disp,tomar,auto,editable){
     '<span style="width:9px;height:9px;border-radius:50%;background:'+color+';flex-shrink:0"></span>'+
     '<div style="flex:1;min-width:0">'+
       '<div style="font-size:13px;font-weight:600;color:'+color+'">'+lbl+'</div>'+
-      '<div style="font-size:11px;color:var(--hint)">Disponible '+fD(disp)+' de '+fD(asig)+' · usado '+fD(uso)+autoHint+editBtn+'</div>'+
+      '<div style="font-size:11px;color:var(--hint)">Disponible '+fD(disp)+' de '+fD(acum?acum.dev:asig)+' · usado '+fD(acum?acum.tom:uso)+autoHint+editBtn+'</div>'+
     '</div>'+
     '<div style="display:flex;align-items:center;gap:2px;background:var(--surface3);border-radius:10px;padding:2px">'+
       '<button class="btn-ghost" style="width:30px;height:30px;padding:0;border-radius:8px;font-size:16px" onclick="_setTomar(\''+key+'\',Math.max(0,('+tomar+')-1))">−</button>'+
@@ -1421,13 +1503,13 @@ function _diasRow(key,lbl,color,asig,uso,disp,tomar,auto,editable){
 function editarAsignado(bucket){
   if(!_form.emp) return;
   var anos=_anosServicio(_form.emp.ing);
-  if(bucket==='prog'){ toast('Los días progresivos son por ley (Art. 68) y se calculan automáticamente','warn',6500); return; }
   var campos={base:'dias_base',prog:'dias_progresivos',sind:'dias_sindicales'};
   var lbls={base:'feriados legales',prog:'progresivos',sind:'sindicales'};
   var asig=_asignacionDias(_form.emp,anos);
   var actual=(bucket==='base')?asig.base:(bucket==='prog'?asig.prog:asig.sind);
   var auto=(bucket==='base')?FERIADO_BASE:(bucket==='prog'?_diasProgresivos(anos):DIAS_SINDICALES);
-  var v=window.prompt('Días '+lbls[bucket]+' asignados (negociable).\nAutomático: '+auto+' · deja vacío para usar el automático:', actual);
+  var extra=(bucket==='prog')?'\n\n(El valor automático por ley es '+auto+'; fíjalo a mano solo por años de empleadores anteriores.)':'';
+  var v=window.prompt('Días '+lbls[bucket]+' asignados (negociable).\nAutomático: '+auto+' · deja vacío para usar el automático:'+extra, actual);
   if(v===null) return;
   setDiasEmpleado(_form.emp.c, campos[bucket], v);
 }
@@ -1587,7 +1669,7 @@ var CUPO_MAX=2, CUPO_PERSONAL_MAX=2;
 function cupos(fecha){
   var total=0, personal=0;
   _SOLIC.forEach(function(s){
-    if(!s.inicio) return;
+    if(!s || !s.inicio) return;
     var key=String(s.inicio).slice(0,10);
     if(key===fecha && s.tipo!=='VACACIONES' && (s.estado==='PENDIENTE'||s.estado==='APROBADO')){
       total++;
@@ -2034,31 +2116,32 @@ function renderForm(){
       if(anos!=null){
         var asig=_asignacionDias(f.emp,anos);
         var progAuto=_diasProgresivos(anos);
-        if(progAuto<=0) asig.prog=0;   // si no corresponde, no se agrega ni se negocia
-        var uso=_usoDias(f.emp.c,_editSolId);
+        // Si no corresponde progresivo automático ni hay uno acreditado, no se agrega
+        if(progAuto<=0 && !(f.emp.progOverride!=null && +f.emp.progOverride>0)) asig.prog=0;
+        var uso=_usoDias(f.emp.c,_editSolId);   // tomado del año calendario (informativo)
         _prop=_diasProporcionales(f.emp);
-        // Feriados Legales: el DISPONIBLE es el devengo proporcional REDONDEADO del período en curso
-        var baseAsig=(_prop && _prop.base!=null) ? Math.round(_prop.base) : asig.base;
-        var dBase=baseAsig, dProg=Math.max(0,asig.prog-uso.prog), dSind=Math.max(0,asig.sind-uso.sind);
-        // Programadas (futuras) + saldo real (sin descontar lo programado)
+        // Disponible por bolsa: MISMA función que usa el modal de períodos
+        var saldo=_saldoPorBolsa(f.emp,_editSolId);
+        var dBase=saldo.base, dProg=saldo.prog, dSind=saldo.sind;
+        // Programadas (vacaciones futuras, informativo)
         var uFut=_diasProgramadosPorBolsa(f.emp.c,anioSaldo);
         _progd=Math.round((uFut.base+uFut.prog+uFut.sind)*100)/100;
-        var urP=Math.max(0,uso.prog-uFut.prog), urS=Math.max(0,uso.sind-uFut.sind);
-        // Los días sindicales NO se consideran saldo (solo legal + progresivo)
-        _saldoReal=Math.round((baseAsig+Math.max(0,asig.prog-urP))*100)/100;
-        // El progresivo es por ley: siempre se ajusta al saldo legal (no editable).
+        // Devengado acumulado (sin sindicales: no forman saldo legal)
+        _saldoReal=Math.round((saldo.devengado.base+saldo.devengado.prog)*100)/100;
         if((f.tomarProg||0)>dProg) f.tomarProg=dProg;
         if(!_editSolId){   // al editar se conservan base/sindicales aunque el saldo esté sobregirado
           if((f.tomarBase||0)>dBase) f.tomarBase=dBase;
           if((f.tomarSind||0)>dSind) f.tomarSind=dSind;
         }
         f.dias=(f.tomarBase||0)+(f.tomarProg||0)+(f.tomarSind||0);
-        f.maxDias=dBase+dProg;   // el saldo no incluye sindicales
-        fInfo=_diasRow('base','Feriados Legales','#4B44C9',asig.base,uso.base,dBase,f.tomarBase||0,FERIADO_BASE,true)+
-          _diasRow('prog','Progresivo','#16794E',asig.prog,uso.prog,dProg,f.tomarProg||0,progAuto,false)+
-          _diasRow('sind','Sindicales','#9A6516',asig.sind,uso.sind,dSind,f.tomarSind||0,DIAS_SINDICALES,true);
+        f.maxDias=Math.round((dBase+dProg)*100)/100;   // el saldo no incluye sindicales
+        fInfo=_diasRow('base','Feriados Legales','#4B44C9',asig.base,uso.base,dBase,f.tomarBase||0,FERIADO_BASE,true,{dev:saldo.devengado.base,tom:saldo.tomado.base})+
+          _diasRow('prog','Progresivo','#16794E',asig.prog,uso.prog,dProg,f.tomarProg||0,progAuto,true,{dev:saldo.devengado.prog,tom:saldo.tomado.prog})+
+          _diasRow('sind','Sindicales','#9A6516',asig.sind,uso.sind,dSind,f.tomarSind||0,DIAS_SINDICALES,true,{dev:saldo.devengado.sind,tom:saldo.tomado.sind});
       } else {
         fInfo='<div class="notice">Sin fecha de ingreso registrada: no se puede calcular el saldo.</div>';
+        // Sin fecha de ingreso no hay saldo que validar: en solicitud NUEVA se limpian los días
+        if(!_editSolId){ f.tomarBase=0; f.tomarProg=0; f.tomarSind=0; f.dias=0; f.maxDias=0; }
       }
     }
     var perfil='';
@@ -2117,9 +2200,9 @@ function renderForm(){
       ((_saldoReal!=null)?('<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px">'+
         '<div style="background:var(--oj-soft);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--oj)">Programadas</div><div style="font-size:19px;font-weight:700;color:var(--oj);font-variant-numeric:tabular-nums">'+_chartVal(_progd)+'</div></div>'+
         '<div style="background:var(--surface3);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--hint)">Proporcional</div><div style="font-size:19px;font-weight:700;font-variant-numeric:tabular-nums">'+(_prop?_chartVal(Math.round(_prop.dias)):'—')+'</div></div>'+
-        '<div style="background:var(--surface3);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--hint)">Saldo real</div><div style="font-size:19px;font-weight:700;font-variant-numeric:tabular-nums">'+_chartVal(_saldoReal)+'</div></div>'+
+        '<div style="background:var(--surface3);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--hint)">Devengado</div><div style="font-size:19px;font-weight:700;font-variant-numeric:tabular-nums">'+_chartVal(_saldoReal)+'</div></div>'+
         '<div style="background:var(--green-soft);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--green)">Quedan</div><div style="font-size:19px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums">'+_chartVal(f.maxDias)+'</div></div>'+
-      '</div><div style="font-size:10.5px;color:var(--hint);margin-top:6px">Programadas = vacaciones futuras · Proporcional = devengado del período en curso (Art. 67/68) · Saldo real = sin descontar lo programado · Quedan = disponible actual</div>'):'')+
+      '</div><div style="font-size:10.5px;color:var(--hint);margin-top:6px">Programadas = vacaciones futuras · Proporcional = devengado del período en curso (Art. 67/68) · Devengado = acumulado de todos los períodos · Quedan = disponible que puedes solicitar hoy</div>'):'')+
       '<div style="font-size:11px;color:var(--hint);margin-top:8px">Lunes a viernes, sin feriados. El día 1 cuenta. El ✎ permite editar los días negociables.</div>'+
       '<button class="btn btn-secondary" style="width:100%;margin-top:10px" onclick="generarPapeletas()">📄 Generar papeleta(s) Word</button>'+
       '</div>'+
@@ -2505,7 +2588,13 @@ async function _guardarSolicitud(){
   if(t!==2){ if(!f.turno)miss.push('turno'); if(!f.tipo)miss.push('tipo de permiso'); if(!f.aut)miss.push('autorizador'); }
   if(!f.emp)miss.push('empleado');
   if(!f.cc)miss.push('centro de costo');
-  if(t===2){ if(!f.start)miss.push('inicio de vacaciones'); if(!f.dias)miss.push('días hábiles'); }
+  if(t===2){
+    if(!f.start)miss.push('inicio de vacaciones');
+    if(!f.dias)miss.push('días hábiles');
+    // Sin fecha de ingreso no hay forma de validar el saldo (solo en solicitudes nuevas:
+    // al editar un registro antiguo de alguien que ya no está en la nómina se permite)
+    if(!_editSolId && !(f.emp&&f.emp.ing)) miss.push('fecha de ingreso del empleado');
+  }
   else if(!f.dates.length)miss.push(t===1?'día del permiso':'días de permiso');
   if(miss.length){ toast('Faltan datos obligatorios: '+miss.join(', '),'error'); return {ok:false}; }
 
