@@ -408,18 +408,21 @@ textarea{resize:vertical}
 @keyframes toastBar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 
 /* ── Entrada escalonada de vistas y filas ── */
-.content-box>.anim-in{animation:animRise var(--dur-3) var(--ease-emph) both;animation-delay:calc(var(--i,0)*45ms)}
-.tbl tbody tr.anim-row{animation:animFadeIn .34s var(--ease-emph) both;animation-delay:calc(var(--i,0)*18ms)}
-.dn-it.dn-in{animation:animFadeIn .4s var(--ease-emph) both;animation-delay:calc(var(--i,0)*36ms)}
+.content-box>.anim-in{animation:animRise var(--dur-3) var(--ease-emph) backwards;animation-delay:calc(var(--i,0)*45ms)}
+.tbl tbody tr.anim-row{animation:animFadeIn .34s var(--ease-emph) backwards;animation-delay:calc(var(--i,0)*18ms)}
+.dn-it.dn-in{animation:animFadeIn .4s var(--ease-emph) backwards;animation-delay:calc(var(--i,0)*36ms)}
 
-/* ── Barra superior reactiva + progreso de lectura ── */
-.topbar{transition:background .3s,box-shadow .3s var(--ease-out),padding .28s var(--ease-out),border-color .3s}
-.topbar.scrolled{box-shadow:0 1px 0 var(--border),0 8px 24px rgba(23,23,26,.07);padding-top:15px;padding-bottom:11px;backdrop-filter:blur(18px) saturate(1.25);-webkit-backdrop-filter:blur(18px) saturate(1.25)}
+/* ── Barra superior reactiva + progreso de lectura ──
+   OJO: sin cambios de tamaño/padding aquí. Mover el alto de la barra fija
+   desplaza todo el contenido en cada cruce del umbral y eso produce parpadeo
+   al hacer scroll (más aún en tablas de miles de filas). Solo pintura. */
+.topbar{transition:background .3s,box-shadow .3s var(--ease-out),border-color .3s}
+.topbar.scrolled{box-shadow:0 1px 0 var(--border),0 8px 24px rgba(23,23,26,.07)}
 [data-theme="oscuro"] .topbar.scrolled{box-shadow:0 1px 0 var(--border),0 12px 30px rgba(0,0,0,.45)}
 .tb-progress{position:absolute;left:0;bottom:-1px;height:2px;width:100%;border-radius:0 2px 2px 0;pointer-events:none;
   background:linear-gradient(90deg,var(--acc),color-mix(in srgb,var(--acc) 30%,transparent));
   transform:scaleX(0);transform-origin:0 50%;transition:transform .12s linear,opacity .25s var(--ease-out)}
-.tb-swap{animation:tbSwap .34s var(--ease-emph) both}
+.tb-swap{animation:tbSwap .34s var(--ease-emph) backwards}
 
 /* ── Sidebar: indicador activo, íconos con vida ── */
 .sb-item{position:relative;overflow:hidden}
@@ -431,7 +434,7 @@ textarea{resize:vertical}
 .sb-item:hover .ico{transform:scale(1.09)}
 .sb-item:active .ico{transform:scale(.95)}
 .sb-item.active{box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 8px 18px rgba(0,0,0,.3)}
-.sb-brand .logo{animation:logoIn .55s var(--ease-spring) both}
+.sb-brand .logo{animation:logoIn .55s var(--ease-spring) backwards}
 .sb-collapse{transition:background .15s,color .15s,transform .15s,box-shadow .2s}
 .sb-collapse:hover{box-shadow:0 0 0 4px rgba(255,255,255,.05)}
 .sb-logout{transition:background .15s,color .15s,transform .2s var(--ease-spring)}
@@ -479,11 +482,11 @@ input:focus,select:focus,textarea:focus{background:var(--surface);border-color:v
 .pick-btn:hover{border-color:var(--border2);background:var(--surface)}
 .pick-btn:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--acc-soft)}
 
-/* ── Tablas: hover con tinte y encabezado con sombra ── */
-.tbl tbody tr,.tbl tbody td{transition:background var(--dur-1) var(--ease-out)}
-.tbl tbody tr:hover td{background:color-mix(in srgb,var(--acc) 5%,var(--surface2))}
-.tbl-scroll thead th{box-shadow:inset 0 -1px 0 var(--border),0 6px 12px -8px rgba(23,23,26,.28)}
-[data-theme="oscuro"] .tbl-scroll thead th{box-shadow:inset 0 -1px 0 var(--border),0 6px 12px -8px rgba(0,0,0,.6)}
+/* ── Tablas ──
+   Sin transición de fondo en filas ni sombra exterior en el encabezado fijo:
+   sobre tablas de miles de filas, cualquier repintado ligado al scroll
+   (hover que salta de fila en fila, sombra del thead sticky) se ve como
+   parpadeo. Se mantiene el hover instantáneo que ya traía el archivo. */
 
 /* ── Gráficos: dona animada, total al centro y leyenda interactiva ── */
 .dn-svg path,.dn-svg circle{transform-box:fill-box;transform-origin:center;
@@ -509,8 +512,8 @@ input:focus,select:focus,textarea:focus{background:var(--surface);border-color:v
 
 /* ── Login ── */
 #loginScreen{background:radial-gradient(1100px 520px at 15% -5%,color-mix(in srgb,var(--accent) 13%,transparent),transparent 62%),radial-gradient(860px 480px at 102% 104%,color-mix(in srgb,var(--green) 11%,transparent),transparent 58%),var(--bg)}
-.login-card{animation:modalCardIn .5s var(--ease-emph) both;box-shadow:var(--lift)}
-.login-logo .licon{animation:logoIn .55s var(--ease-spring) both;box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 38%,transparent)}
+.login-card{animation:modalCardIn .5s var(--ease-emph) backwards;box-shadow:var(--lift)}
+.login-logo .licon{animation:logoIn .55s var(--ease-spring) backwards;box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 38%,transparent)}
 .login-field input{transition:border-color .18s var(--ease-out),box-shadow .2s var(--ease-out),background .18s}
 .login-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .login-btn{transition:transform .18s var(--ease-emph),box-shadow .28s var(--ease-out),opacity .15s;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 30%,transparent)}
@@ -519,9 +522,9 @@ input:focus,select:focus,textarea:focus{background:var(--surface);border-color:v
 .login-error{transition:opacity .2s var(--ease-out)}
 
 /* ── Modales: fondo desenfocado y entrada con resorte ── */
-#perModal,#gateCarpeta{animation:modalBackIn .24s var(--ease-out) both}
+#perModal,#gateCarpeta{animation:modalBackIn .24s var(--ease-out) backwards}
 #perModal,#docModalWrap>div{backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
-#perModal>div,#gateCarpeta>div,#docModalWrap>div>div{animation:modalCardIn .34s var(--ease-spring) both}
+#perModal>div,#gateCarpeta>div,#docModalWrap>div>div{animation:modalCardIn .34s var(--ease-spring) backwards}
 #gateCarpeta{background:radial-gradient(900px 460px at 50% -10%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 62%),var(--bg)}
 
 /* ── Toast con ícono y barra de vida ── */
@@ -545,7 +548,7 @@ input:focus,select:focus,textarea:focus{background:var(--surface);border-color:v
 @media(max-width:820px){ .skel-grid{grid-template-columns:1fr 1fr} }
 
 /* ── Entrada de la aplicación tras el login ── */
-.app:not(.hidden){animation:animFadeIn .5s var(--ease-out) both}
+.app:not(.hidden){animation:animFadeIn .5s var(--ease-out) backwards}
 </style>
 </head>
 <body data-theme="claro">
