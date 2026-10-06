@@ -142,11 +142,14 @@ select
   nullif(split_part(d.l,';',9),'')::numeric, nullif(split_part(d.l,';',10),'')
  from d
  where not exists (
+   -- Clave: código + fecha + tipo de regreso. NO se usa la hora de salida: hay cargas
+   -- antiguas que guardaron la salida y el ingreso invertidos (INGRESO A PLANTA con la
+   -- hora del ingreso en la salida), y con la hora en la clave se duplicaban.
    select 1 from public.solicitudes_permiso x
     where x.tipo='MEDIA_JORNADA'
       and upper(trim(x.codigo)) = upper(trim(split_part(d.l,';',1)))
       and x.inicio = split_part(d.l,';',5)::date
-      and coalesce(to_char(x.hora_salida,'HH24:MI'),'') = coalesce(split_part(d.l,';',7),'')
+      and x.tipo_regreso = split_part(d.l,';',6)
  );
 
 -- ── Resumen (sentencia aparte: un SELECT no ve los cambios de la misma sentencia) ──
