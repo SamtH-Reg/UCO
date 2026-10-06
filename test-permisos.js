@@ -738,7 +738,7 @@ t('CSS: .btn base define fondo y color', () => /\.btn\{[^}]*background:var\(--su
 t('sidebar moderno: toggleSb + botón colapsar + íconos + rail', () => typeof toggleSb==='function' && /class="sb-collapse"/.test(html) && /\.sb-item \.ico\s*\{/.test(html) && /\.sidebar\.collapsed\s*\{/.test(html));
 t('_respAgg: agrupa por responsable, suma y ordena desc', () => {
   var a=_respAgg([{autorizador:'ANA'},{autorizador:'ANA'},{autorizador:'LUIS'},{autorizador:''}], function(){return 1;});
-  return a[0].label==='ANA' && a[0].value===2 && a.some(function(p){return p.label==='Sin responsable' && p.value===1;});
+  return a[0].label==='Ana' && a[0].value===2 && a.some(function(p){return p.label==='Sin responsable' && p.value===1;});
 });
 t('_donutSVG: genera svg con porcentajes', () => {
   var h=_donutSVG([{label:'A',value:3},{label:'B',value:1}]);
@@ -769,7 +769,7 @@ t('registros día completo: columna RESPONSABLE (autorizador)', () => {
   _SOLIC=[{tipo:'COMPLETO',codigo:'C1',nombre:'PEREZ',inicio:hoy(),tipo_permiso:'PERSONAL',autorizador:'HUGO MILLANERI',estado:'APROBADO'}];
   _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpandC={}; _diasPrevMes={}; _docIds={};
   var h=renderDiaCompletoVista();
-  var ok=h.indexOf('RESPONSABLE')>=0 && h.indexOf('HUGO MILLANERI')>=0 && h.indexOf('FECHA PERMISO')>=0;
+  var ok=h.indexOf('RESPONSABLE')>=0 && h.indexOf('Hugo Millaneri')>=0 && h.indexOf('FECHA PERMISO')>=0;   // nombre con primera letra en mayúscula
   _SOLIC=[]; return ok;
 });
 t('registros media jornada: acciones editar/eliminar por fila', () => {
@@ -794,7 +794,7 @@ t('registros media jornada: columna RESPONSABLE', () => {
   _SOLIC=[{tipo:'MEDIA_JORNADA',codigo:'M1',nombre:'X',inicio:'2026-10-01',turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20',autorizador:'ANA PEREZ',estado:'APROBADO'}];
   _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpand={};
   var h=renderPorDia('MEDIA_JORNADA','Registros media jornada','#1C8A5B',1);
-  var ok=h.indexOf('RESPONSABLE')>=0 && h.indexOf('ANA PEREZ')>=0;
+  var ok=h.indexOf('RESPONSABLE')>=0 && h.indexOf('Ana Perez')>=0;
   _SOLIC=[]; return ok;
 });
 t('registros: NO muestran gráficos (solo en el panel)', () => {
@@ -1031,7 +1031,7 @@ t('panel: el gráfico por responsable muestra el nombre que viene de la planilla
   _SOLIC=[{tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO',
            tipo_permiso:'PERSONAL',autorizador:'PEDRO DELGADO'}];
   var html=renderHome();
-  return html.indexOf('PEDRO DELGADO')>=0 && html.indexOf('Sin responsable')<0;
+  return html.indexOf('Pedro Delgado')>=0 && html.indexOf('Sin responsable')<0;
 });
 t('panel: sin responsable sigue agrupando como "Sin responsable"', () => {
   var h=hoy();
@@ -1098,7 +1098,7 @@ t('día completo: el mes siguiente se lista desagrupado (sin subtotales por día
   var html=_cuerpoCompletoHTML();
   var sinSubtotales=html.indexOf('fecha-total')<0 && html.indexOf("toggleDiaC('")<0;
   var conFechas=html.indexOf('03-')>=0 && html.indexOf('04-')>=0 && html.indexOf('05-')>=0;
-  var conResponsables=html.indexOf('ANDRES CONTRERAS')>=0 && html.indexOf('EVA NAVARRO')>=0;
+  var conResponsables=html.indexOf('Andres Contreras')>=0 && html.indexOf('Eva Navarro')>=0;
   return sinSubtotales && conFechas && conResponsables;
 });
 t('formulario: el botón de envío tiene id propio y su rótulo', () => {
@@ -1210,6 +1210,53 @@ t('panel: al mirar otro mes se ocultan los KPI de hoy', () => {
   var sinHoy=html.indexOf('Resumen de hoy')<0 && html.indexOf('Permiso personal diario')<0;
   _panelMes=''; _SOLIC=[];
   return conHoy && sinHoy;
+});
+
+t('panel: el filtro de turno aparece solo si el mes tiene turnos distintos de Día', () => {
+  var mes=hoy().slice(0,7);
+  function base(turnos){
+    return turnos.map(function(tu,i){ return {tipo:'MEDIA_JORNADA',estado:'APROBADO',codigo:'T'+i,nombre:'T'+i,
+      inicio:mes+'-0'+(i+1),turno:tu,tipo_permiso:'PERSONAL',tipo_regreso:'SIN',hora_salida:'16:00',horas_permiso:2}; });
+  }
+  _panelMes=''; _panelTurno='';
+  _SOLIC=base(['DIA','DIA']);                                  // todo de día: sin filtro
+  var sinFiltro=renderHome().indexOf('panelTurnoSel')<0 && _panelTurnosDelMes(mes).hayOtro===false;
+  _SOLIC=base(['DIA','NOCHE','TARDE']);                        // hay otros turnos: aparece
+  var conFiltro=renderHome().indexOf('panelTurnoSel')>=0 && _panelTurnosDelMes(mes).hayOtro===true;
+  _panelTurno='NOCHE';
+  var html=renderHome();                                       // filtra las tarjetas y los gráficos
+  var soloNoche=_kpi('Medias jornadas', html)==='1' && html.indexOf('Turno noche')>=0;
+  _SOLIC=base(['DIA']); _panelTurno='NOCHE';                   // mes sin otros turnos: se limpia solo
+  renderHome();
+  var limpio=(_panelTurno==='');
+  _panelMes=''; _panelTurno=''; _SOLIC=[];
+  return sinFiltro && conFiltro && soloNoche && limpio;
+});
+
+t('turnos: "DÍA", "DIA" y "día" son el mismo turno y se muestra con primera letra en mayúscula', () => {
+  var mes=hoy().slice(0,7);
+  _SOLIC=[
+    {tipo:'MEDIA_JORNADA',estado:'APROBADO',codigo:'A',nombre:'A',inicio:mes+'-01',turno:'DÍA',tipo_permiso:'PERSONAL',tipo_regreso:'SIN',hora_salida:'16:00',horas_permiso:1},
+    {tipo:'MEDIA_JORNADA',estado:'APROBADO',codigo:'B',nombre:'B',inicio:mes+'-02',turno:'día',tipo_permiso:'PERSONAL',tipo_regreso:'SIN',hora_salida:'16:00',horas_permiso:1}
+  ];
+  var t1=_panelTurnosDelMes(mes);
+  var unoSolo=(t1.lista.length===1 && t1.lista[0]==='DIA' && t1.hayOtro===false);   // sin filtro inútil
+  var etiquetas=(_turnoLbl('DÍA')==='Día' && _turnoLbl('noche')==='Noche' && _turnoLbl('MADRUGADA')==='Madrugada' && _turnoLbl('Amanecida')==='Madrugada');
+  var nombre=(_titulo('CARMEN BELMAR')==='Carmen Belmar' && _titulo('patricia hernandez')==='Patricia Hernandez' && _titulo('Carmen Belmar')==='Carmen Belmar');
+  _SOLIC=[]; return unoSolo && etiquetas && nombre;
+});
+t('registros media jornada: el turno se muestra como "Día" aunque en la base diga "DÍA"', () => {
+  _SOLIC=[{tipo:'MEDIA_JORNADA',codigo:'M1',nombre:'X',inicio:'2026-10-01',turno:'DÍA',tipo_regreso:'SIN',hora_salida:'11:20',autorizador:'ANA',estado:'APROBADO'}];
+  _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpand={}; _docIds={};
+  var h=renderPorDia('MEDIA_JORNADA','Registros media jornada','#1C8A5B',1);
+  _SOLIC=[]; return h.indexOf('>Día</td>')>=0;
+});
+t('registros: el filtro de turno encuentra los registros escritos con tilde', () => {
+  _SOLIC=[{tipo:'MEDIA_JORNADA',codigo:'M9',nombre:'X',inicio:'2026-10-01',turno:'DÍA',tipo_regreso:'SIN',hora_salida:'11:20',autorizador:'ANA',estado:'APROBADO'}];
+  _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno='DIA'; recQ=''; _diaExpand={}; _docIds={};
+  var h=renderPorDia('MEDIA_JORNADA','Registros media jornada','#1C8A5B',1);
+  var ok=h.indexOf('M9')>=0 && h.indexOf('Todos los registros · Día')>=0;   // el subtítulo muestra el turno con primera letra en mayúscula
+  _recTurno=''; _SOLIC=[]; return ok;
 });
 
 // 5. Reporte

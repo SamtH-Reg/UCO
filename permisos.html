@@ -1720,6 +1720,26 @@ function _panelMesesDisponibles(){
 }
 function _panelMesLbl(m){ return (MONTHS[parseInt(String(m).slice(5,7),10)-1]||'')+' '+String(m).slice(0,4); }
 function _panelCambiarMes(m){ _panelMes=m||''; window._animPending=true; render(); }
+// ── Panel: filtro de TURNO (solo aparece si el mes tiene turnos distintos de Día) ──
+var _panelTurno='';
+var _TURNO_LBL={DIA:'Día', TARDE:'Tarde', NOCHE:'Noche', MADRUGADA:'Madrugada'};
+function _turnoLbl(t){
+  var v=_turnoNorm(t);
+  return _TURNO_LBL[v]||(v.charAt(0)+v.slice(1).toLowerCase());   // desconocido: primera letra en mayúscula
+}
+function _panelCambiarTurno(t){ _panelTurno=(t||'').toUpperCase(); window._animPending=true; render(); }
+// Turnos que HAY en ese mes (permisos, no vacaciones). `hayOtro` = existe alguno que no sea Día.
+function _panelTurnosDelMes(mesPrefix){
+  var s={}, hayOtro=false;
+  _SOLIC.forEach(function(x){
+    if(x.tipo!=='COMPLETO' && x.tipo!=='MEDIA_JORNADA') return;
+    if(x.estado!=='PENDIENTE' && x.estado!=='APROBADO') return;
+    if(String(x.inicio||'').slice(0,7)!==mesPrefix) return;
+    var tu=_turnoNorm(x.turno);
+    s[tu]=1; if(tu!=='DIA') hayOtro=true;
+  });
+  return {lista:Object.keys(s).sort(), hayOtro:hayOtro};
+}
 
 function renderHome(){
   var hoyIso=hoy();
@@ -1730,29 +1750,36 @@ function renderHome(){
   // Los permisos MÉDICOS y JUDICIALES no se cuentan como permisos: son ausencias justificadas.
   // Sí suman en "Horas de permiso", porque esas horas también descuentan productividad.
   function _cuentaComoPermiso(s){ var tp=String(s.tipo_permiso||'').toUpperCase(); return tp!=='MEDICO'&&tp!=='JUDICIAL'; }
+  // Filtro de TURNO: sólo tiene sentido si el mes trae turnos distintos de Día (p. ej. de noche).
+  // Si no los hay, el filtro no se muestra y no filtra nada.
+  var _turnosMes=_panelTurnosDelMes(mesPrefix);
+  if(!_turnosMes.hayOtro) _panelTurno='';
+  else if(_panelTurno && _turnosMes.lista.indexOf(_panelTurno)<0) _panelTurno='';
   _SOLIC.forEach(function(s){
     if(s.estado!=='PENDIENTE'&&s.estado!=='APROBADO') return;
     var ini=String(s.inicio||'').slice(0,10);
     var enMes=ini.slice(0,7)===mesPrefix;
     var enHoy=ini===hoyIso;
     var cuenta=_cuentaComoPermiso(s);
+    var turnoOK=(!_panelTurno || _turnoNorm(s.turno)===_panelTurno);
     if(s.tipo==='COMPLETO'){
       // KPI "permiso personal diario": solo permisos de día completo de tipo personal
-      if(enMes && cuenta){ nMesComp++; mesComp.push(s); }
-      if(enHoy && cuenta){ nHoyComp++; }
+      if(enMes && cuenta && turnoOK){ nMesComp++; mesComp.push(s); }
+      if(enHoy && cuenta && turnoOK){ nHoyComp++; }
     }
     else if(s.tipo==='MEDIA_JORNADA'){
       var hh=parseFloat(calcularHorasPermiso(s))||0;
-      if(enMes){ horas+=hh; mesMediaTodas.push(s); if(cuenta){ nMesMedia++; } }
-      if(enHoy){ dHoras+=hh; if(cuenta){ nHoyMedia++; } }
+      if(enMes && turnoOK){ horas+=hh; mesMediaTodas.push(s); if(cuenta){ nMesMedia++; } }
+      if(enHoy && turnoOK){ dHoras+=hh; if(cuenta){ nHoyMedia++; } }
     }
     else if(s.tipo==='VACACIONES'){ if(estadoDe(s)==='EN CURSO') vac++; }   // en curso (no por mes)
   });
   var _mesNombre=_panelMesLbl(mesPrefix);
+  var _mesTitulo=_mesNombre+(_panelTurno? ' · Turno '+_turnoLbl(_panelTurno).toLowerCase() : '');
   // Los KPI de HOY sólo tienen sentido en el mes en curso: al revisar otro mes se ocultan
   // para que el panel muestre únicamente la información del mes elegido.
   var esMesActual=(mesPrefix===hoyIso.slice(0,7));
-  var _charts='<div class="section-title">Por responsable · '+_mesNombre+'</div>'+
+  var _charts='<div class="section-title">Por responsable · '+_mesTitulo+'</div>'+
     '<div class="chart-grid">'+
       _chartCard('Permisos día completo por responsable', 'Total: '+_chartVal(nMesComp)+' permiso'+(nMesComp!==1?'s':'')+' personal'+(nMesComp!==1?'es':''), _respAgg(mesComp, function(){ return 1; }))+
       _chartCard('Horas de media jornada por responsable', 'Total: '+_chartVal(horas)+' h de permiso', _respAgg(mesMediaTodas, function(s){ return parseFloat(calcularHorasPermiso(s))||0; }))+
@@ -1772,12 +1799,17 @@ function renderHome(){
     '<h1 style="font-size:32px;font-weight:700;letter-spacing:-1px;line-height:1.1">Solicitudes de permiso</h1>'+
     '<p style="font-size:14.5px;color:var(--muted);margin-top:8px;max-width:56ch">Registra permisos de jornada, salidas parciales y vacaciones. Los feriados chilenos se descuentan automáticamente.</p>'+
     '<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:22px 0 12px">'+
-      '<div class="section-title" style="margin:0">Resumen del mes · '+_mesNombre+'</div>'+
+      '<div class="section-title" style="margin:0">Resumen del mes · '+_mesTitulo+'</div>'+
       '<div style="display:flex;align-items:center;gap:8px">'+
         '<span style="font-size:11px;color:var(--hint)">Ver mes</span>'+
         '<select id="panelMesSel" onchange="_panelCambiarMes(this.value)" title="Elige el mes que quieres ver en el resumen" style="padding:7px 10px;border:1px solid var(--border);border-radius:11px;background:var(--surface2);font-size:12px;color:var(--text);font-family:inherit;cursor:pointer">'+
           _panelMesesDisponibles().map(function(m){ return '<option value="'+m+'"'+(m===mesPrefix?' selected':'')+'>'+_panelMesLbl(m)+'</option>'; }).join('')+
         '</select>'+
+        (_turnosMes.hayOtro? '<span style="font-size:11px;color:var(--hint);margin-left:6px">Turno</span>'+
+        '<select id="panelTurnoSel" onchange="_panelCambiarTurno(this.value)" title="El mes elegido tiene permisos en otros turnos" style="padding:7px 10px;border:1px solid var(--border);border-radius:11px;background:var(--surface2);font-size:12px;color:var(--text);font-family:inherit;cursor:pointer">'+
+          '<option value=""'+(_panelTurno?'':' selected')+'>Todos los turnos</option>'+
+          _turnosMes.lista.map(function(t){ return '<option value="'+t+'"'+(t===_panelTurno?' selected':'')+'>'+_turnoLbl(t)+'</option>'; }).join('')+
+        '</select>' : '')+
       '</div>'+
     '</div>'+
     '<div class="kpi-grid" style="margin-top:0">'+
@@ -2559,7 +2591,7 @@ function calClick(s){
 //  - SIN regreso:  fin del turno − hora salida
 //  - INGRESO a planta: hora ingreso − inicio del turno
 function _horasPermisoForm(f){
-  var ho=_TURNOS_H[String(f.turno||'DIA').toUpperCase()]||_TURNOS_H.DIA;
+  var ho=_TURNOS_H[_turnoNorm(f.turno)]||_TURNOS_H.DIA;
   var mins;
   if(f.reg==='SIN'){
     if(!f.hs) return null;
@@ -2598,6 +2630,19 @@ function actualizarHoras(){
 //   SIN REGRESO      -> MOD(fin_turno   − hora_salida, 1)*24
 //   INGRESO A PLANTA -> MOD(hora_ingreso − inicio_turno, 1)*24
 // Turnos: DIA 08:00–17:00 · TARDE 15:00–01:00 · NOCHE 20:30–05:30
+// Turno canónico: los datos traen "DIA", "DÍA", "día"… todos son el mismo turno.
+function _turnoNorm(t){
+  var v=String(t==null?'':t).trim().toUpperCase();
+  v=v.replace(/[ÁÀÄÂ]/g,'A').replace(/[ÉÈËÊ]/g,'E').replace(/[ÍÌÏÎ]/g,'I')
+     .replace(/[ÓÒÖÔ]/g,'O').replace(/[ÚÙÜÛ]/g,'U');
+  if(v==='AMANECIDA') v='MADRUGADA';      // en empleados figura como "Amanecida"
+  return v||'DIA';
+}
+// Nombres y etiquetas: primera letra en mayúscula, el resto en minúscula
+function _titulo(s){
+  return String(s==null?'':s).toLowerCase()
+    .replace(/(^|[\s\-\.\'/])([a-záéíóúüñç])/g, function(m,a,b){ return a+b.toUpperCase(); });
+}
 var _TURNOS_H={DIA:[8*60,17*60], TARDE:[15*60,1*60], NOCHE:[20*60+30,5*60+30]};
 function _min(s){ var p=String(s).split(':'); return (+p[0]||0)*60+(+p[1]||0); }
 function _hm(mins){ var h=Math.floor(mins/60), m=mins%60; return h+':'+String(m).padStart(2,'0'); }
@@ -2605,7 +2650,7 @@ function _r2(n){ return Math.round(n*100)/100; }
 function calcularHorasPermiso(s){
   if(s.horas_permiso!=null&&s.horas_permiso!=='') return s.horas_permiso;
   var reg=String(s.tipo_regreso||'').toUpperCase();
-  var turno=String(s.turno||'DIA').toUpperCase(); var ho=_TURNOS_H[turno]||_TURNOS_H.DIA;
+  var turno=_turnoNorm(s.turno); var ho=_TURNOS_H[turno]||_TURNOS_H.DIA;
   if(reg==='CON'){ if(s.hora_salida&&s.hora_ingreso){ var d=_min(s.hora_ingreso)-_min(s.hora_salida); if(d<0)d+=1440; return _r2(d/60); } return 0; }
   if(reg==='SIN'){ if(s.hora_salida){ var d2=ho[1]-_min(s.hora_salida); if(d2<0)d2+=1440; return _r2(d2/60); } return 0; }
   if(_esIngreso(reg)){ if(s.hora_ingreso){ var d3=_min(s.hora_ingreso)-ho[0]; if(d3<0)d3+=1440; return _r2(d3/60); } return 0; }
@@ -2790,7 +2835,7 @@ function periodoLabel(){
   else base='Todos los registros';
   var tipo={PERSONAL:'Personal',MEDICO:'Médico',JUDICIAL:'Judicial'}[_recTipo];
   if(tipo) base+=' · '+tipo;
-  var turno={DIA:'Día',TARDE:'Tarde',NOCHE:'Noche'}[_recTurno];
+  var turno=_recTurno? _turnoLbl(_recTurno) : '';
   if(turno) base+=' · '+turno;
   return base;
 }
@@ -2825,7 +2870,8 @@ function recFilterBar(t){
     var turnoOpts='<option value="">Turno</option>'+
       '<option value="DIA"'+( _recTurno==='DIA'?' selected':'')+'>Día</option>'+
       '<option value="TARDE"'+( _recTurno==='TARDE'?' selected':'')+'>Tarde</option>'+
-      '<option value="NOCHE"'+( _recTurno==='NOCHE'?' selected':'')+'>Noche</option>';
+      '<option value="NOCHE"'+( _recTurno==='NOCHE'?' selected':'')+'>Noche</option>'+
+      '<option value="MADRUGADA"'+( _recTurno==='MADRUGADA'?' selected':'')+'>Madrugada</option>';
     turnoSel=sel(turnoOpts,'_recTurno=this.value;render()');
     tipoSel=sel(tipoOpts,'_recTipo=this.value;render()');
   }
@@ -2954,7 +3000,8 @@ var _CHART_COLORS=['#14508C','#1F6FB2','#2E8BC0','#37A6D0','#57BEE0','#7CCBEA','
 function _respAgg(items, valueFn){
   var map={};
   (items||[]).forEach(function(s){
-    var k=String(s.autorizador||'').trim()||'Sin responsable';
+    var k=String(s.autorizador||'').trim();
+    k=k? _titulo(k) : 'Sin responsable';          // "CARMEN BELMAR" y "Carmen Belmar" se agrupan igual
     map[k]=(map[k]||0)+(valueFn?valueFn(s):1);
   });
   return Object.keys(map).map(function(k){ return {label:k, value:map[k]}; })
@@ -3041,7 +3088,7 @@ function renderPorDia(tipo, titulo, accColor, recIdx){
     if(_recDesde && st<_recDesde) return false;
     if(_recHasta && st>_recHasta) return false;
     if(_recTipo && (s.tipo_permiso||'')!==_recTipo) return false;
-    if(_recTurno && String(s.turno||'').toUpperCase()!==_recTurno) return false;
+    if(_recTurno && _turnoNorm(s.turno)!==_recTurno) return false;
     return true;
   }
   function fmtHora(h){ if(!h) return '—'; var s=String(h); return s.length>=5 ? s.substring(0,5) : s; }
@@ -3051,7 +3098,7 @@ function renderPorDia(tipo, titulo, accColor, recIdx){
   // Filtrar por tipo + turno + búsqueda + fechas
   var items=_SOLIC.filter(function(s){
     if(s.tipo!==tipo) return false;
-    if(_recTurno && (String(s.turno||'').toUpperCase())!==_recTurno) return false;
+    if(_recTurno && _turnoNorm(s.turno)!==_recTurno) return false;
     return hit(s)&&fechaOk(s);
   });
   var dias=[]; var dk={};
@@ -3068,7 +3115,7 @@ function renderPorDia(tipo, titulo, accColor, recIdx){
   var totT=0, tDiaT=0, tTardeT=0, tNocheT=0;
   var hayDia=false, hayTarde=false, hayNoche=false;
   var hoyS=hoy(), dkRef=_calcularDkRef();
-  function acumTurno(s,hN,hT){ var turno=String((s.turno||'DIA')).toUpperCase(); if(turno==='TARDE'){totTarde+=hN;tTardeT+=hT;hayTarde=true;}else if(turno==='NOCHE'){totNoche+=hN;tNocheT+=hT;hayNoche=true;}else{totDia+=hN;tDiaT+=hT;hayDia=true;} }
+  function acumTurno(s,hN,hT){ var turno=_turnoNorm(s.turno); if(turno==='TARDE'){totTarde+=hN;tTardeT+=hT;hayTarde=true;}else if(turno==='NOCHE'){totNoche+=hN;tNocheT+=hT;hayNoche=true;}else{totDia+=hN;tDiaT+=hT;hayDia=true;} }
 
   dias.forEach(function(g){
     var fechas=g.k.split('-');
@@ -3092,9 +3139,9 @@ function renderPorDia(tipo, titulo, accColor, recIdx){
       var codNom='<b style="color:var(--text)">'+esc(s.codigo||'')+'</b> <span>'+esc(s.nombre||'')+'</span>'+
         (s.centro_costo?' <span style="color:var(--hint);margin-left:8px">'+esc(s.centro_costo)+'</span>':'');
       body+='<tr>'+
-        '<td style="font-size:11px;color:var(--muted)">'+esc(s.turno||'—')+'</td>'+
+        '<td style="font-size:11px;color:var(--muted)">'+esc(s.turno? _turnoLbl(s.turno) : '—')+'</td>'+
         '<td style="color:var(--muted);white-space:nowrap;font-size:11.5px">'+fechaLbl+'</td>'+
-        (esMJ?'<td style="font-size:12px;white-space:nowrap;color:var(--muted)">'+esc(s.autorizador||'—')+'</td>':'')+
+        (esMJ?'<td style="font-size:12px;white-space:nowrap;color:var(--muted)">'+esc(s.autorizador? _titulo(s.autorizador) : '—')+'</td>':'')+
         '<td style="font-size:12px">'+codNom+'</td>'+
         '<td style="font-size:12px;white-space:nowrap">'+tLbl(s.tipo_permiso)+'</td>'+
         '<td style="font-size:12px;white-space:nowrap">'+regTxt(s.tipo_regreso)+'</td>'+
@@ -3395,7 +3442,7 @@ function _cuerpoCompletoHTML(){
     if(_recDesde && st<_recDesde) return false;
     if(_recHasta && st>_recHasta) return false;
     if(_recTipo && (s.tipo_permiso||'')!==_recTipo) return false;
-    if(_recTurno && String(s.turno||'').toUpperCase()!==_recTurno) return false;
+    if(_recTurno && _turnoNorm(s.turno)!==_recTurno) return false;
     return true;
   }
   // Filtrar y agrupar POR FECHA (formato de la imagen: fecha una vez arriba, nombres debajo, total al final)
@@ -3434,7 +3481,7 @@ function _cuerpoCompletoHTML(){
       '</div></td>';
     return '<tr'+(conRef?' id="fechaRef"':'')+' style="'+(gStyle||'')+'">'+
       '<td style="color:var(--hint);font-size:11px;white-space:nowrap">'+(fechaCell||'')+'</td>'+
-      '<td style="font-size:12px;white-space:nowrap;color:var(--muted)">'+esc(s.autorizador||'—')+'</td>'+
+      '<td style="font-size:12px;white-space:nowrap;color:var(--muted)">'+esc(s.autorizador? _titulo(s.autorizador) : '—')+'</td>'+
       '<td>'+codNom+'</td>'+
       celTipo(esTipo(s,'PERSONAL'))+
       celTipo(esTipo(s,'MEDICO'))+
@@ -3750,7 +3797,7 @@ function exportRec(t){
     if(_recDesde && st<_recDesde) return false;
     if(_recHasta && st>_recHasta) return false;
     if(_recTipo && (s.tipo_permiso||'')!==_recTipo) return false;
-    if(_recTurno && String(s.turno||'').toUpperCase()!==_recTurno) return false;
+    if(_recTurno && _turnoNorm(s.turno)!==_recTurno) return false;
     return true;
   };
   var fil=function(tipo){ return _SOLIC.filter(function(s){return s.tipo===tipo&&hit(s)&&fechaOk(s);}); };
@@ -3811,9 +3858,10 @@ function abrirEditarModal(id){
   if(esCompleto||esMedia){
     campos+='<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 4px">TURNO</label>'+
       '<select id="e_turno" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--surface2)">'+
-      '<option value="DIA"'+((s.turno||'DIA')==='DIA'?' selected':'')+'>Día</option>'+
-      '<option value="TARDE"'+((s.turno||'')==='TARDE'?' selected':'')+'>Tarde</option>'+
-      '<option value="NOCHE"'+((s.turno||'')==='NOCHE'?' selected':'')+'>Noche</option></select>'+
+      '<option value="DIA"'+(_turnoNorm(s.turno)==='DIA'?' selected':'')+'>Día</option>'+
+      '<option value="TARDE"'+(_turnoNorm(s.turno)==='TARDE'?' selected':'')+'>Tarde</option>'+
+      '<option value="NOCHE"'+(_turnoNorm(s.turno)==='NOCHE'?' selected':'')+'>Noche</option>'+
+      '<option value="MADRUGADA"'+(_turnoNorm(s.turno)==='MADRUGADA'?' selected':'')+'>Madrugada</option></select>'+
     '<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 4px">TIPO DE PERMISO</label>'+
       '<select id="e_tipo" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--surface2)">'+
       '<option value="PERSONAL"'+((s.tipo_permiso||'PERSONAL')==='PERSONAL'?' selected':'')+'>Personal</option>'+
