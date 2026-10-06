@@ -303,9 +303,9 @@ textarea{resize:vertical}
       claro oscurecen y en oscuro aclaran sobre el mismo tono de la tabla, con la
       jerarquía intacta (subtítulo 6% < total 8% < encabezado 9% < año 13%).
    3) Los bordes también salen del color del texto, nunca de un gris fijo. */
-.table-card{background:color-mix(in srgb,var(--surface) 78%,var(--bg) 22%);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-top:20px;box-shadow:var(--shadow-sm)}
+.table-card{--tbl-bg:color-mix(in srgb,var(--surface) 78%,var(--bg) 22%);background:var(--tbl-bg);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-top:20px;box-shadow:var(--shadow-sm)}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
-.tbl thead th{text-align:left;padding:13px 18px;background:color-mix(in srgb,var(--text) 4%,transparent);border-bottom:1px solid var(--border);font-size:10.5px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--hint);white-space:nowrap}
+.tbl thead th{text-align:left;padding:13px 18px;background:color-mix(in srgb,var(--text) 4%,var(--tbl-bg));border-bottom:1px solid var(--border);font-size:10.5px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--hint);white-space:nowrap}
 /* Contenedor con scroll y encabezado de tabla fijo */
 .tbl-scroll{overflow:auto;max-height:calc(100vh - 250px)}
 .tbl-scroll thead th{position:sticky;top:0;z-index:3;box-shadow:inset 0 -1px 0 var(--border)}
@@ -337,7 +337,7 @@ textarea{resize:vertical}
 .tbl .badge.purp{background:var(--accent-soft);color:var(--accent)}
 .tbl .badge.green{background:var(--green-soft);color:var(--green)}
 .tbl .badge.oj{background:var(--oj-soft);color:var(--oj)}
-.tbl-foot{padding:14px 18px;background:color-mix(in srgb,var(--text) 4%,transparent);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--hint)}
+.tbl-foot{padding:14px 18px;background:color-mix(in srgb,var(--text) 4%,var(--tbl-bg));border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--hint)}
 /* Gráfico de torta (donut) por responsable */
 .chart-card{margin-top:20px}
 .chart-head{margin-bottom:16px}
@@ -1705,9 +1705,25 @@ function render(){
   actualizarFolderBadge();
 }
 
+// ── Panel: mes que se está mirando ('' = el mes en curso) ──────────────
+var _panelMes='';
+function _panelMesesDisponibles(){
+  var s={}, hoyM=hoy().slice(0,7);
+  _SOLIC.forEach(function(x){ var i=String(x.inicio||'').slice(0,7); if(i) s[i]=1; });
+  var meses=Object.keys(s);
+  if(!meses.length) return [hoyM];               // sin datos: al menos el mes en curso
+  // Orden: el mes en curso primero, después los meses ANTERIORES del más nuevo al más
+  // viejo, y al final los meses FUTUROS (permisos programados) del más cercano al más lejano.
+  var pasados=meses.filter(function(m){ return m<hoyM; }).sort().reverse();
+  var futuros=meses.filter(function(m){ return m>hoyM; }).sort();
+  return [].concat(meses.indexOf(hoyM)>=0?[hoyM]:[], pasados, futuros);
+}
+function _panelMesLbl(m){ return (MONTHS[parseInt(String(m).slice(5,7),10)-1]||'')+' '+String(m).slice(0,4); }
+function _panelCambiarMes(m){ _panelMes=m||''; window._animPending=true; render(); }
+
 function renderHome(){
   var hoyIso=hoy();
-  var mesPrefix=hoyIso.slice(0,7);   // mes presente (YYYY-MM)
+  var mesPrefix=(_panelMes||hoyIso.slice(0,7));   // mes elegido en el panel (por defecto, el actual)
   var horas=0, vac=0, dHoras=0;              // horas: TODAS las medias jornadas (descuentan productividad)
   var nMesComp=0, nMesMedia=0, nHoyComp=0, nHoyMedia=0;   // registros que SÍ se cuentan (permisos personales)
   var mesComp=[], mesMediaTodas=[];          // para los gráficos por responsable
@@ -1732,8 +1748,10 @@ function renderHome(){
     }
     else if(s.tipo==='VACACIONES'){ if(estadoDe(s)==='EN CURSO') vac++; }   // en curso (no por mes)
   });
-  var _mActual=new Date();
-  var _mesNombre=MONTHS[_mActual.getMonth()]+' '+_mActual.getFullYear();
+  var _mesNombre=_panelMesLbl(mesPrefix);
+  // Los KPI de HOY sólo tienen sentido en el mes en curso: al revisar otro mes se ocultan
+  // para que el panel muestre únicamente la información del mes elegido.
+  var esMesActual=(mesPrefix===hoyIso.slice(0,7));
   var _charts='<div class="section-title">Por responsable · '+_mesNombre+'</div>'+
     '<div class="chart-grid">'+
       _chartCard('Permisos día completo por responsable', 'Total: '+_chartVal(nMesComp)+' permiso'+(nMesComp!==1?'s':'')+' personal'+(nMesComp!==1?'es':''), _respAgg(mesComp, function(){ return 1; }))+
@@ -1753,20 +1771,28 @@ function renderHome(){
   return '<div class="kicker" style="font-size:11px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--accent);margin-bottom:10px">Panel</div>'+
     '<h1 style="font-size:32px;font-weight:700;letter-spacing:-1px;line-height:1.1">Solicitudes de permiso</h1>'+
     '<p style="font-size:14.5px;color:var(--muted);margin-top:8px;max-width:56ch">Registra permisos de jornada, salidas parciales y vacaciones. Los feriados chilenos se descuentan automáticamente.</p>'+
-    '<div class="section-title" style="margin:22px 0 12px">Resumen del mes · '+_mesNombre+'</div>'+
+    '<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:22px 0 12px">'+
+      '<div class="section-title" style="margin:0">Resumen del mes · '+_mesNombre+'</div>'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="font-size:11px;color:var(--hint)">Ver mes</span>'+
+        '<select id="panelMesSel" onchange="_panelCambiarMes(this.value)" title="Elige el mes que quieres ver en el resumen" style="padding:7px 10px;border:1px solid var(--border);border-radius:11px;background:var(--surface2);font-size:12px;color:var(--text);font-family:inherit;cursor:pointer">'+
+          _panelMesesDisponibles().map(function(m){ return '<option value="'+m+'"'+(m===mesPrefix?' selected':'')+'>'+_panelMesLbl(m)+'</option>'; }).join('')+
+        '</select>'+
+      '</div>'+
+    '</div>'+
     '<div class="kpi-grid" style="margin-top:0">'+
       '<div class="kpi k1"><div class="l">Permisos personales del mes</div><div class="v">'+nMesComp+'</div></div>'+
       '<div class="kpi k2"><div class="l">Medias jornadas</div><div class="v">'+nMesMedia+'</div></div>'+
       '<div class="kpi k3"><div class="l">Vacaciones en curso</div><div class="v">'+vac+'</div></div>'+
       '<div class="kpi k4"><div class="l">Horas de permiso</div><div class="v">'+(horas?_fmtHN(horas):'0')+'</div></div>'+
     '</div>'+
-    '<div class="section-title" style="margin:18px 0 12px">Resumen de hoy · '+_fmtCorto(hoyIso)+'</div>'+
+    (esMesActual? '<div class="section-title" style="margin:18px 0 12px">Resumen de hoy · '+_fmtCorto(hoyIso)+'</div>'+
     '<div class="kpi-grid" style="margin-top:0">'+
       '<div class="kpi k1"><div class="l">Permiso personal diario</div><div class="v">'+nHoyComp+'</div></div>'+
       '<div class="kpi k2"><div class="l">Medias jornadas</div><div class="v">'+nHoyMedia+'</div></div>'+
       '<div class="kpi k3"><div class="l">Vacaciones en curso</div><div class="v">'+vac+'</div></div>'+
       '<div class="kpi k4"><div class="l">Horas de permiso</div><div class="v">'+(dHoras?_fmtHN(dHoras):'0')+'</div></div>'+
-    '</div>'+_charts+
+    '</div>' : '')+_charts+
     '<div class="section-title">Nueva solicitud</div>'+grid3+
     '<div class="section-title">Registros</div>'+
     '<div class="card"><table class="tbl">'+

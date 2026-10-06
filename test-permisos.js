@@ -1162,6 +1162,56 @@ t('desplegables: se cierran al hacer clic fuera y al marcar una casilla no se ci
   return cierraFuera && helper && usos && escape;
 });
 
+t('tabla: el encabezado fijo quedó opaco (no se transparentan las filas al hacer scroll)', () => {
+  var i=html.indexOf('.tbl thead th{');            // el CSS vive en el <style>, no en el <script>
+  var bloque=html.slice(i, html.indexOf('}', i));
+  return i>=0 && bloque.indexOf('var(--tbl-bg)')>=0 && bloque.indexOf('transparent')<0;
+});
+t('panel: el filtro por mes cambia el resumen y los gráficos', () => {
+  var mes=hoy().slice(0,7);
+  var y=parseInt(mes.slice(0,4),10), m=parseInt(mes.slice(5,7),10);
+  var otro=(m===1? (y-1)+'-12' : y+'-'+String(m-1).padStart(2,'0'));
+  _SOLIC=[
+    {tipo:'COMPLETO',estado:'APROBADO',codigo:'A1',nombre:'A',inicio:hoy(),tipo_permiso:'PERSONAL'},
+    {tipo:'COMPLETO',estado:'APROBADO',codigo:'B1',nombre:'B',inicio:otro+'-05',tipo_permiso:'PERSONAL'}
+  ];
+  _panelMes=otro;
+  var html=renderHome();
+  var okTitulo=html.indexOf(_panelMesLbl(otro))>=0;
+  var okLista=_panelMesesDisponibles().indexOf(otro)>=0 && _panelMesesDisponibles().indexOf(mes)>=0;
+  var okValor=_kpi('Permisos personales del mes', html)==='1';
+  _panelMes=''; _SOLIC=[];
+  return okTitulo && okLista && okValor;
+});
+
+t('panel: el selector pone el mes en curso primero y solo meses con datos', () => {
+  var mes=hoy().slice(0,7);
+  var y=parseInt(mes.slice(0,4),10), m=parseInt(mes.slice(5,7),10);
+  var ant=(m===1? (y-1)+'-12' : y+'-'+String(m-1).padStart(2,'0'));
+  var fut=(m===12? (y+1)+'-01' : y+'-'+String(m+1).padStart(2,'0'));
+  _SOLIC=[
+    {tipo:'COMPLETO',estado:'APROBADO',codigo:'F1',nombre:'F',inicio:fut+'-10',tipo_permiso:'PERSONAL'},
+    {tipo:'COMPLETO',estado:'APROBADO',codigo:'A1',nombre:'A',inicio:ant+'-10',tipo_permiso:'PERSONAL'},
+    {tipo:'COMPLETO',estado:'APROBADO',codigo:'H1',nombre:'H',inicio:hoy(),tipo_permiso:'PERSONAL'}
+  ];
+  var lista=_panelMesesDisponibles();
+  _SOLIC=[];
+  return lista.length===3 && lista[0]===mes && lista[1]===ant && lista[2]===fut;
+});
+t('panel: al mirar otro mes se ocultan los KPI de hoy', () => {
+  var mes=hoy().slice(0,7);
+  var y=parseInt(mes.slice(0,4),10), m=parseInt(mes.slice(5,7),10);
+  var ant=(m===1? (y-1)+'-12' : y+'-'+String(m-1).padStart(2,'0'));
+  _SOLIC=[{tipo:'COMPLETO',estado:'APROBADO',codigo:'A1',nombre:'A',inicio:ant+'-10',tipo_permiso:'PERSONAL'}];
+  _panelMes='';
+  var conHoy=renderHome().indexOf('Resumen de hoy · ')>=0;
+  _panelMes=ant;
+  var html=renderHome();
+  var sinHoy=html.indexOf('Resumen de hoy')<0 && html.indexOf('Permiso personal diario')<0;
+  _panelMes=''; _SOLIC=[];
+  return conHoy && sinHoy;
+});
+
 // 5. Reporte
 console.log('\n— Resumen —');
 let pass = 0, fail = 0;
