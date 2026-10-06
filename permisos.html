@@ -2122,13 +2122,13 @@ function renderForm(){
   // Columna derecha
   var horaBox='';
   if(t===1){
-    var inSal = f.reg==='ING' ? '' :
+    var inSal = _esIngreso(f.reg) ? '' :
       '<label style="flex:1"><div class="field-lbl">Hora salida</div><input type="time" value="'+esc(f.hs)+'" onchange="_form.hs=this.value;actualizarHoras()"></label>';
     var inIng = f.reg==='SIN' ? '' :
       '<label style="flex:1"><div class="field-lbl">Hora ingreso</div><input type="time" value="'+esc(f.hi)+'" onchange="_form.hi=this.value;actualizarHoras()"></label>';
     var ht=_horasTrabajadasForm(f);
     horaBox='<div class="card"><div class="card-h">Tipo de regreso</div><div class="seg gr">'+
-      segBtnR('CON',f.reg==='CON')+segBtnR('SIN',f.reg==='SIN')+segBtnR('ING',f.reg==='ING')+'</div>'+
+      segBtnR('CON',f.reg==='CON')+segBtnR('SIN',f.reg==='SIN')+segBtnR('INGRESO',_esIngreso(f.reg))+'</div>'+
       '<div style="display:flex;gap:10px;margin-top:14px">'+inSal+inIng+'</div>'+
       '<div class="okbak" style="display:block">'+
         '<div style="display:flex;align-items:center;justify-content:space-between"><span>Horas de permiso</span><b id="ok_hp">'+calcularHoras()+'</b></div>'+
@@ -2299,7 +2299,7 @@ function renderForm(){
 }
 function segBtn(lbl,on){ return '<button class="'+(on?'on':'')+'" onclick="_form.turno=\''+(lbl==='Día'?'DIA':lbl.toUpperCase())+'\';render()">'+lbl+'</button>'; }
 function segBtnT(lbl,on){ return '<button class="'+(on?'on':'')+'" onclick="_form.tipo=\''+norm(lbl)+'\';render()">'+lbl+'</button>'; }
-function segBtnR(lbl,on){ return '<button class="'+(on?'on verde':'')+'" onclick="_form.reg=\''+lbl+'\';render()">'+(['CON','SIN','ING'].indexOf(lbl)>=0?({CON:'Con regreso',SIN:'Sin regreso',ING:'Ingreso a planta'})[lbl]:lbl)+'</button>'; }
+function segBtnR(lbl,on){ return '<button class="'+(on?'on verde':'')+'" onclick="_form.reg=\''+lbl+'\';render()">'+(['CON','SIN','ING','INGRESO'].indexOf(lbl)>=0?({CON:'Con regreso',SIN:'Sin regreso',ING:'Ingreso a planta',INGRESO:'Ingreso a planta'})[lbl]:lbl)+'</button>'; }
 function resRow(l,v,hl){ return '<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--muted)">'+l+'</span><span style="'+(hl?'font-weight:600;color:var(--acc)':'font-weight:500;color:var(--text)')+'">'+v+'</span></div>'; }
 
 // Picker de selección (empleado/autorizador/centro)
@@ -2538,7 +2538,7 @@ function _horasPermisoForm(f){
   if(f.reg==='SIN'){
     if(!f.hs) return null;
     mins=ho[1]-_min(f.hs); if(mins<0) mins+=1440;
-  } else if(f.reg==='ING'){
+  } else if(_esIngreso(f.reg)){
     if(!f.hi) return null;
     mins=_min(f.hi)-ho[0]; if(mins<0) mins+=1440;
   } else {
@@ -2582,7 +2582,7 @@ function calcularHorasPermiso(s){
   var turno=String(s.turno||'DIA').toUpperCase(); var ho=_TURNOS_H[turno]||_TURNOS_H.DIA;
   if(reg==='CON'){ if(s.hora_salida&&s.hora_ingreso){ var d=_min(s.hora_ingreso)-_min(s.hora_salida); if(d<0)d+=1440; return _r2(d/60); } return 0; }
   if(reg==='SIN'){ if(s.hora_salida){ var d2=ho[1]-_min(s.hora_salida); if(d2<0)d2+=1440; return _r2(d2/60); } return 0; }
-  if(reg==='INGRESO'){ if(s.hora_ingreso){ var d3=_min(s.hora_ingreso)-ho[0]; if(d3<0)d3+=1440; return _r2(d3/60); } return 0; }
+  if(_esIngreso(reg)){ if(s.hora_ingreso){ var d3=_min(s.hora_ingreso)-ho[0]; if(d3<0)d3+=1440; return _r2(d3/60); } return 0; }
   return 0;
 }
 // Horas trabajadas de un registro = 9 − horas de permiso (con tope de 8,5 al superar 5 h)
@@ -2611,6 +2611,16 @@ function formStatus(){
 // ── ENVÍO ───────────────────────────────────────────────────
 // Guarda (crea o actualiza) la solicitud del formulario SIN resetear ni navegar.
 // Devuelve { ok, id, tipo:'insert'|'update' } o { ok:false }.
+// Devuelve null si la hora viene vacía: una columna `time` de Postgres no acepta ''
+// (da "invalid input syntax for type time: \"\""). Pasa en media jornada al elegir
+// "Ingreso a planta", donde sólo se pide la hora de ingreso.
+function _horaONull(v){ var s=String(v==null?'':v).trim(); return s===''? null : s; }
+// "Ingreso a planta" tiene DOS escrituras históricas: el formulario usaba 'ING' y la base
+// (lo que ya está guardado, y lo que calcula la app) usa 'INGRESO'. Se aceptan las dos al
+// leer y se guarda siempre 'INGRESO'.
+function _esIngreso(v){ var s=String(v==null?'':v).trim().toUpperCase(); return s==='ING'||s==='INGRESO'; }
+function _regNorm(v){ var s=String(v==null?'':v).trim().toUpperCase(); if(_esIngreso(s)) return 'INGRESO'; return s||null; }
+
 async function _guardarSolicitud(){
   var f=_form,t=_tab, miss=[];
   if(t!==2){ if(!f.turno)miss.push('turno'); if(!f.tipo)miss.push('tipo de permiso'); if(!f.aut)miss.push('autorizador'); }
@@ -2670,8 +2680,8 @@ async function _guardarSolicitud(){
         termino:t===2?_finVacaciones(f):(f.dates.length>1?f.dates[f.dates.length-1]:null),
         dias_habiles:t===2?f.dias:null, tipo_dias:_tipoDias,
         dias_base:t===2?(f.tomarBase||0):null, dias_progresivo:t===2?(f.tomarProg||0):null, dias_sindical:t===2?(f.tomarSind||0):null,
-        tipo_regreso:t===1?f.reg:null, hora_salida:t===1?f.hs:null,
-        hora_ingreso:t===1?((f.reg==='SIN')?null:f.hi):null,
+        tipo_regreso:t===1?_regNorm(f.reg):null, hora_salida:t===1?_horaONull(f.hs):null,
+        hora_ingreso:t===1?((f.reg==='SIN')?null:_horaONull(f.hi)):null,
         horas_permiso:t===1?parseFloat(calcularHoras().replace(',','.'))||null:null, comentario:f.com||null
       };
       var rE=await d.from('solicitudes_permiso').update(updE).eq('id',_editSolId);
@@ -2697,9 +2707,9 @@ async function _guardarSolicitud(){
     dias_base:t===2?(f.tomarBase||0):null,
     dias_progresivo:t===2?(f.tomarProg||0):null,
     dias_sindical:t===2?(f.tomarSind||0):null,
-    tipo_regreso:t===1?f.reg:null,
-    hora_salida:t===1?f.hs:null,
-    hora_ingreso:t===1?((f.reg==='SIN')?null:f.hi):null,
+    tipo_regreso:t===1?_regNorm(f.reg):null,
+    hora_salida:t===1?_horaONull(f.hs):null,
+    hora_ingreso:t===1?((f.reg==='SIN')?null:_horaONull(f.hi)):null,
     horas_permiso:t===1?parseFloat(calcularHoras().replace(',','.'))||null:null,
     archivo:f.file||null, comentario:f.com||null,
     creado_por:_sesion?_sesion.id:null, creado_por_email:_sesion?_sesion.email:null
@@ -3629,7 +3639,7 @@ function renderRec(){
     '<tbody>'+(body||'<tr><td colspan="'+cols.length+'" style="text-align:center;color:var(--hint);padding:40px">Sin registros aún</td></tr>')+'</tbody></table></div>'+
     '<div class="tbl-foot"><span>Mostrando '+rows.length+' registros</span><span>'+recTotal(t)+'</span></div></div>';
 }
-function regTxt(r){ return {CON:'Con regreso',SIN:'Sin regreso',ING:'Ingreso a planta'}[r]||'—'; }
+function regTxt(r){ if(_esIngreso(r)) return 'Ingreso a planta'; return {CON:'Con regreso',SIN:'Sin regreso'}[String(r||'').toUpperCase()]||'—'; }
 function estBadge(est){
   return est==='APROBADO'?'green':est==='RECHAZADO'?'oj':est==='ANULADO'?'gray':'purp';
 }

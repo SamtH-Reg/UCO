@@ -1125,6 +1125,34 @@ t('media jornada: el subtotal del día va DEBAJO de sus registros', () => {
   return iEnc>=0 && iUlt>=0 && iTot>iUlt && sinTotalArriba;
 });
 
+t('guardado: las horas vacías van como null (no como texto vacío)', () => {
+  return _horaONull('')===null && _horaONull('   ')===null && _horaONull(null)===null
+      && _horaONull(undefined)===null && _horaONull('10:00')==='10:00' && _horaONull('08:20')==='08:20';
+});
+t('guardado: el payload de media jornada usa _horaONull en salida e ingreso', () => {
+  var okSalida = code.split('hora_salida:t===1?_horaONull(f.hs):null').length - 1;
+  var okIngreso = code.split("hora_ingreso:t===1?((f.reg==='SIN')?null:_horaONull(f.hi)):null").length - 1;
+  return okSalida===2 && okIngreso===2;   // inserción nueva + edición
+});
+
+t('INGRESO: se aceptan las dos escrituras y se guarda la canónica', () => {
+  return _esIngreso('ING') && _esIngreso('INGRESO') && _esIngreso('ingreso') && !_esIngreso('CON') && !_esIngreso('SIN')
+      && _regNorm('ING')==='INGRESO' && _regNorm('INGRESO')==='INGRESO' && _regNorm('CON')==='CON';
+});
+t('INGRESO: la columna REGRESO ya no muestra "—"', () => {
+  return regTxt('INGRESO')==='Ingreso a planta' && regTxt('ING')==='Ingreso a planta'
+      && regTxt('CON')==='Con regreso' && regTxt('SIN')==='Sin regreso';
+});
+t('INGRESO: las horas se calculan igual con ING y con INGRESO', () => {
+  var base={turno:'DIA',tipo_regreso:'INGRESO',hora_ingreso:'10:00'};
+  var a=calcularHorasPermiso(base);
+  var b=calcularHorasPermiso(Object.assign({},base,{tipo_regreso:'ING'}));
+  return a===2 && b===2;
+});
+t('guardado: el payload de media jornada normaliza el tipo de regreso', () => {
+  return code.split('tipo_regreso:t===1?_regNorm(f.reg):null').length-1 === 2;
+});
+
 // 5. Reporte
 console.log('\n— Resumen —');
 let pass = 0, fail = 0;
