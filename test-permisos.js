@@ -840,14 +840,14 @@ t('estadoDe: vacación pasada -> FINALIZADAS', () => estadoDe({inicio:'2025-03-0
 t('estadoDe: sin días -> POR TOMAR', () => estadoDe({inicio:'2025-03-03',termino:'2025-03-17',dias_habiles:0})==='POR TOMAR');
 t('panel: dos filas de KPIs (resumen del mes y del día)', () => {
   _SOLIC=[
-    {tipo:'COMPLETO',estado:'APROBADO',inicio:hoy()},
-    {tipo:'MEDIA_JORNADA',estado:'APROBADO',inicio:hoy(),turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20'}
+    {tipo:'COMPLETO',estado:'APROBADO',inicio:hoy(),tipo_permiso:'PERSONAL'},
+    {tipo:'MEDIA_JORNADA',estado:'APROBADO',inicio:hoy(),tipo_permiso:'PERSONAL',turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20'}
   ];
   var h=renderHome();
-  // El KPI cuenta personas: el valor va seguido de una nota con el detalle por tipo
+  // El primer KPI cuenta solo los permisos personales de DÍA COMPLETO; la media jornada tiene su tarjeta
   var ok=h.indexOf('Resumen del mes')>=0 && h.indexOf('Resumen de hoy')>=0
-      && h.indexOf('Permisos del día')>=0 && h.indexOf('Permisos del mes')>=0
-      && /Permisos del día<\/div><div class="v">2/.test(h);
+      && h.indexOf('Permiso personal diario')>=0 && h.indexOf('Permisos personales del mes')>=0
+      && /Permiso personal diario<\/div><div class="v">1/.test(h);
   _SOLIC=[]; return ok;
 });
 t('panel: KPIs del mes presente + vacaciones EN CURSO', () => {
@@ -862,7 +862,7 @@ t('panel: KPIs del mes presente + vacaciones EN CURSO', () => {
     {tipo:'VACACIONES',estado:'APROBADO',inicio:(y-3)+'-01-01',termino:(y-3)+'-01-05',dias_habiles:5}
   ];
   var h=renderHome();
-  var ok=/Permisos del mes<\/div><div class="v">2/.test(h)
+  var ok=/Permisos personales del mes<\/div><div class="v">1/.test(h)
       && /Medias jornadas<\/div><div class="v">1/.test(h)
       && /Vacaciones en curso<\/div><div class="v">1/.test(h);
   _SOLIC=[]; return ok;
@@ -970,17 +970,19 @@ function _kpi(titulo, html){
   var m=html.match(new RegExp(titulo+'</div><div class="v">(\\d+)'));
   return m? m[1] : null;
 }
-t('renderHome: 2 personas con 2 registros cada una = 2 en "permisos del día"', () => {
-  _SOLIC=_mockPermisosHoy();
+t('renderHome: el KPI diario suma solo los permisos personales de día completo', () => {
+  _SOLIC=_mockPermisosHoy();          // 2 permisos día completo + 2 medias jornadas, todos personales
   var h=renderHome();
-  return _kpi('Permisos del día', h)==='2' && _kpi('Permisos del mes', h)==='2';
+  return _kpi('Permiso personal diario', h)==='2'
+      && _kpi('Permisos personales del mes', h)==='2'
+      && _kpi('Medias jornadas', h)==='2';
 });
 t('renderHome: los KPI no llevan textos de detalle', () => {
   _SOLIC=_mockPermisosHoy();
   var html=renderHome();
   return html.indexOf('kpi-nota')<0 && html.indexOf('registros')<0;
 });
-t('renderHome: permisos médicos y judiciales NO cuentan como permisos del día', () => {
+t('renderHome: permisos médicos y judiciales NO cuentan como permisos', () => {
   var h=hoy();
   _SOLIC=[
     {tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL'},
@@ -988,7 +990,7 @@ t('renderHome: permisos médicos y judiciales NO cuentan como permisos del día'
     {tipo:'COMPLETO',codigo:'M3',nombre:'TRES',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'JUDICIAL'}
   ];
   var html=renderHome();
-  return _kpi('Permisos del día',html)==='1' && _kpi('Permisos del mes',html)==='1';
+  return _kpi('Permiso personal diario',html)==='1' && _kpi('Permisos personales del mes',html)==='1';
 });
 t('renderHome: media jornada médica no cuenta, pero sus horas sí se suman', () => {
   var h=hoy();
@@ -998,22 +1000,23 @@ t('renderHome: media jornada médica no cuenta, pero sus horas sí se suman', ()
   ];
   var html=renderHome();
   var horas=(html.match(/Horas de permiso<\/div><div class="v">([^<]+)</)||[])[1]||'';
-  return _kpi('Medias jornadas',html)==='1' && _kpi('Permisos del día',html)==='1' && horas.indexOf('4')===0;
+  // 1 media jornada personal (la médica no se cuenta), 4 h en total (2 + 2)
+  return _kpi('Medias jornadas',html)==='1' && _kpi('Permiso personal diario',html)==='0' && horas.indexOf('4')===0;
 });
-t('renderHome: 1 persona con 1 permiso hoy = 1 y sin nota de registros', () => {
+t('renderHome: 1 permiso personal hoy = 1 y sin textos', () => {
   var h=hoy();
-  _SOLIC=[{tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO'}];
+  _SOLIC=[{tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL'}];
   var html=renderHome();
-  return _kpi('Permisos del día', html)==='1' && html.indexOf('registros')<0;
+  return _kpi('Permiso personal diario', html)==='1' && html.indexOf('registros')<0;
 });
-t('renderHome: dos personas en el mismo día = 2', () => {
+t('renderHome: el permiso diario y la media jornada no se mezclan en el KPI', () => {
   var h=hoy();
   _SOLIC=[
-    {tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO'},
+    {tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL'},
     {tipo:'MEDIA_JORNADA',codigo:'M2',nombre:'DOS',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL',turno:'DIA',hora_salida:'13:00',hora_ingreso:'14:00',tipo_regreso:'CON'}
   ];
   var html=renderHome();
-  return _kpi('Permisos del día', html)==='2' && _kpi('Medias jornadas', html)==='1';
+  return _kpi('Permiso personal diario', html)==='1' && _kpi('Medias jornadas', html)==='1';
 });
 
 // 5. Reporte
