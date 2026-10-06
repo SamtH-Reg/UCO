@@ -2673,10 +2673,19 @@ planilla_tabla as (            -- tabla cargada desde la planilla
      and (p.autorizador is null or trim(p.autorizador) = '')
   returning 1
 )
--- Resumen final: cuántos quedaron con responsable
-select tipo,
+select 1 as ok;   -- fin del update (el resumen va en la sentencia siguiente)
+
+-- ── Resumen ─────────────────────────────────────────────────────────────
+-- OJO: va en sentencia aparte. Un SELECT dentro de la misma sentencia ve la
+-- foto ANTERIOR a los updates (las CTE que escriben no le son visibles).
+select 'permisos (planilla)' as tabla, '(todas las filas)' as tipo,
        count(*) filter (where autorizador is not null and trim(autorizador) <> '') as con_responsable,
-       count(*) filter (where autorizador is null or trim(autorizador) = '')        as sin_responsable,
        count(*) as filas
+  from public.permisos
+union all
+select 'solicitudes_permiso', tipo,
+       count(*) filter (where autorizador is not null and trim(autorizador) <> ''),
+       count(*)
   from public.solicitudes_permiso
- group by tipo order by tipo;
+ group by tipo
+ order by 1, 2;
