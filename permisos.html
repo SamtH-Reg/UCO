@@ -29,6 +29,7 @@
   --shadow-sm:0 1px 2px rgba(23,23,26,.04),0 3px 8px rgba(23,23,26,.05);
   --ease:cubic-bezier(0.2,0.8,0.2,1); --ease-out:cubic-bezier(0.2,0.8,0.2,1); --ease-in-out:cubic-bezier(0.65,0,0.35,1); --ease-drawer:cubic-bezier(0.32,0.72,0,1);
   --acc:var(--accent); --acc-soft:var(--accent-soft); --acc-bd:#C9C6F4;
+  --ref-bg:color-mix(in srgb,var(--accent) 13%,transparent);
 }
 /* Color activo según formulario (tab) */
 [data-formtab="1"]{ --acc:#1C8A5B; --acc-soft:var(--green-soft); --acc-bd:#B4DEC9; }
@@ -48,9 +49,9 @@ body[data-theme="oscuro"][data-page="form"][data-formtab="0"]{ --bg:#17171A; --t
 body[data-theme="oscuro"][data-page="form"][data-formtab="1"]{ --bg:#121A17; --topbar:rgba(18,26,23,.86) }
 body[data-theme="oscuro"][data-page="form"][data-formtab="2"]{ --bg:#1B1710; --topbar:rgba(27,23,16,.86) }
 /* Mismo tinte para los Registros según su pestaña */
-body[data-page="rec"][data-rec="0"]{ --bg:#F0F0F1; --topbar:rgba(240,240,241,.86) }
-body[data-page="rec"][data-rec="1"]{ --bg:#EEF6F2; --topbar:rgba(238,246,242,.86) }
-body[data-page="rec"][data-rec="2"]{ --bg:#FBF3E9; --topbar:rgba(251,243,233,.86) }
+body[data-page="rec"][data-rec="0"]{ --bg:#F0F0F1; --topbar:rgba(240,240,241,.86); --acc:var(--accent); --acc-soft:var(--accent-soft); --acc-bd:#C9C6F4; --ref-bg:color-mix(in srgb,var(--accent) 13%,transparent) }
+body[data-page="rec"][data-rec="1"]{ --bg:#EEF6F2; --topbar:rgba(238,246,242,.86); --acc:var(--green); --acc-soft:var(--green-soft); --acc-bd:#B4DEC9; --ref-bg:color-mix(in srgb,var(--green) 15%,transparent) }
+body[data-page="rec"][data-rec="2"]{ --bg:#FBF3E9; --topbar:rgba(251,243,233,.86); --acc:var(--oj); --acc-soft:var(--oj-soft); --acc-bd:#EBD2AE; --ref-bg:color-mix(in srgb,var(--oj) 14%,transparent) }
 body[data-theme="oscuro"][data-page="rec"][data-rec="0"]{ --bg:#17171A; --topbar:rgba(23,23,26,.86) }
 body[data-theme="oscuro"][data-page="rec"][data-rec="1"]{ --bg:#121A17; --topbar:rgba(18,26,23,.86) }
 body[data-theme="oscuro"][data-page="rec"][data-rec="2"]{ --bg:#1B1710; --topbar:rgba(27,23,16,.86) }
@@ -289,33 +290,35 @@ textarea{resize:vertical}
 .cal-legend span{display:flex;align-items:center;gap:6px}
 .cal-legend .sw{width:9px;height:9px;border-radius:3px;border:1px solid transparent}
 
-/* ══ TABLA REGISTROS ══ */
-.table-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-top:20px;box-shadow:var(--shadow-sm)}
+/* ══ TABLA REGISTROS ══
+   Cómo se combinan los colores con el fondo:
+   1) La superficie de la tabla se tiñe con el FONDO ACTIVO de la sección
+      (--bg cambia por pestaña: neutro, verde o ámbar), así la tabla acompaña el
+      color de la página en vez de verse como un bloque frío encima.
+   2) Las bandas de agrupación (mes, totales, subtotales) NO llevan un gris fijo:
+      son el COLOR DEL TEXTO con alfa bajo, compuesto sobre esa superficie. En tema
+      claro oscurecen y en oscuro aclaran sobre el mismo tono de la tabla, con la
+      jerarquía intacta (subtítulo 6% < total 8% < encabezado 9% < año 13%).
+   3) Los bordes también salen del color del texto, nunca de un gris fijo. */
+.table-card{background:color-mix(in srgb,var(--surface) 78%,var(--bg) 22%);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-top:20px;box-shadow:var(--shadow-sm)}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
-.tbl thead th{text-align:left;padding:13px 18px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10.5px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--hint);white-space:nowrap}
+.tbl thead th{text-align:left;padding:13px 18px;background:color-mix(in srgb,var(--text) 4%,transparent);border-bottom:1px solid var(--border);font-size:10.5px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--hint);white-space:nowrap}
 /* Contenedor con scroll y encabezado de tabla fijo */
 .tbl-scroll{overflow:auto;max-height:calc(100vh - 250px)}
 .tbl-scroll thead th{position:sticky;top:0;z-index:3;box-shadow:inset 0 -1px 0 var(--border)}
 .tbl tbody td{padding:6px 16px;border-bottom:1px solid var(--border);white-space:nowrap;font-variant-numeric:tabular-nums}
 .tbl .btn-icon{width:24px;height:24px;border-radius:7px;font-size:11px;padding:0}
-.tbl tbody tr:hover td{background:var(--surface2)}
-.tbl tbody tr.fecha-head td{background:#EAEAEE;font-weight:800;font-size:12.5px;color:#17171A;border-top:2px solid #D3D3DA;border-bottom:1px solid #D3D3DA;cursor:pointer;padding:6px 18px}
-.tbl tbody tr.fecha-head:hover td{background:#DFDFE5}
-[data-theme="oscuro"] .tbl tbody tr.fecha-head td{background:#3A3A45;color:#EDEDF0;border-top-color:#2A2A33;border-bottom-color:#2A2A33}
-[data-theme="oscuro"] .tbl tbody tr.fecha-head:hover td{background:#44444F}
-.tbl tbody tr.res-anio td{background:#DEDEE4;font-weight:800;font-size:12.5px;color:#17171A;border-top:2px solid #C7C7CF;border-bottom:1px solid #C7C7CF;cursor:pointer;padding:8px 18px}
-.tbl tbody tr.res-anio:hover td{background:#D3D3DB}
-[data-theme="oscuro"] .tbl tbody tr.res-anio td{background:#33333F;color:#EDEDF0;border-top-color:#2A2A33;border-bottom-color:#2A2A33}
-[data-theme="oscuro"] .tbl tbody tr.res-anio:hover td{background:#3D3D4A}
-.tbl tbody tr.mes-total td{background:#EAEAEE;font-weight:800;font-size:11px;color:#17171A;border-top:2px solid #D3D3DA;cursor:pointer;padding:5px 18px;line-height:1.25}
-.tbl tbody tr.mes-total:hover td{background:#DFDFE5}
-.tbl tbody tr.semana-total td{background:#EFEFF2;font-weight:700;font-size:11px;color:#17171A;border-top:2px solid #D3D3DA;padding:4px 18px;line-height:1.2}
-.tbl tbody tr.semana-total:hover td{background:#E4E4EA}
-.tbl tbody tr.fecha-total td{background:#EAEAEE;font-weight:800;font-size:11px;border-top:2px solid #D3D3DA;border-bottom:1px solid #D3D3DA;padding:5px 18px;line-height:1.25;color:#17171A}
-.tbl tbody tr.fecha-total:hover td{background:#DFDFE5}
-[data-theme="oscuro"] .tbl tbody tr.mes-total td,[data-theme="oscuro"] .tbl tbody tr.fecha-total td{background:#3A3A45;color:#EDEDF0;border-top-color:#2A2A33}
-[data-theme="oscuro"] .tbl tbody tr.mes-total:hover td,[data-theme="oscuro"] .tbl tbody tr.fecha-total:hover td{background:#44444F}
-[data-theme="oscuro"] .tbl tbody tr.semana-total td{background:#343440;color:#EDEDF0}
+.tbl tbody tr:hover td{background:color-mix(in srgb,var(--text) 4%,transparent)}
+.tbl tbody tr.fecha-head td{background:color-mix(in srgb,var(--text) 9%,transparent);font-weight:800;font-size:12.5px;color:var(--text);border-top:2px solid color-mix(in srgb,var(--text) 16%,transparent);border-bottom:1px solid color-mix(in srgb,var(--text) 12%,transparent);cursor:pointer;padding:6px 18px}
+.tbl tbody tr.fecha-head:hover td{background:color-mix(in srgb,var(--text) 12%,transparent)}
+.tbl tbody tr.res-anio td{background:color-mix(in srgb,var(--text) 13%,transparent);font-weight:800;font-size:12.5px;color:var(--text);border-top:2px solid color-mix(in srgb,var(--text) 20%,transparent);border-bottom:1px solid color-mix(in srgb,var(--text) 16%,transparent);cursor:pointer;padding:8px 18px}
+.tbl tbody tr.res-anio:hover td{background:color-mix(in srgb,var(--text) 16%,transparent)}
+.tbl tbody tr.mes-total td{background:color-mix(in srgb,var(--text) 8%,transparent);font-weight:800;font-size:11px;color:var(--text);border-top:2px solid color-mix(in srgb,var(--text) 16%,transparent);cursor:pointer;padding:5px 18px;line-height:1.25}
+.tbl tbody tr.mes-total:hover td{background:color-mix(in srgb,var(--text) 11%,transparent)}
+.tbl tbody tr.semana-total td{background:color-mix(in srgb,var(--text) 6%,transparent);font-weight:700;font-size:11px;color:var(--text);border-top:2px solid color-mix(in srgb,var(--text) 10%,transparent);padding:4px 18px;line-height:1.2}
+.tbl tbody tr.semana-total:hover td{background:color-mix(in srgb,var(--text) 9%,transparent)}
+.tbl tbody tr.fecha-total td{background:color-mix(in srgb,var(--text) 8%,transparent);font-weight:800;font-size:11px;border-top:2px solid color-mix(in srgb,var(--text) 16%,transparent);border-bottom:1px solid color-mix(in srgb,var(--text) 12%,transparent);padding:5px 18px;line-height:1.25;color:var(--text)}
+.tbl tbody tr.fecha-total:hover td{background:color-mix(in srgb,var(--text) 11%,transparent)}
 /* Vista Día completo compacta */
 .tbl.tbl-compact thead th{padding:8px 10px;font-size:9.5px;letter-spacing:.5px}
 .tbl.tbl-compact tbody td{padding:3px 10px;font-size:12px}
@@ -327,7 +330,7 @@ textarea{resize:vertical}
 .tbl .badge.purp{background:var(--accent-soft);color:var(--accent)}
 .tbl .badge.green{background:var(--green-soft);color:var(--green)}
 .tbl .badge.oj{background:var(--oj-soft);color:var(--oj)}
-.tbl-foot{padding:14px 18px;background:var(--surface2);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--hint)}
+.tbl-foot{padding:14px 18px;background:color-mix(in srgb,var(--text) 4%,transparent);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--hint)}
 /* Gráfico de torta (donut) por responsable */
 .chart-card{margin-top:20px}
 .chart-head{margin-bottom:16px}
@@ -2960,7 +2963,7 @@ function renderPorDia(tipo, titulo, accColor, recIdx){
     var sumaDia=0, sumaTrab=0;
     g.items.forEach(function(s){ var hN=parseFloat(calcularHorasPermiso(s))||0; var hT=esMJ?(parseFloat(calcularHorasTrabajadas(s))||0):0; sumaDia+=hN; sumaTrab+=hT; totT+=hT; acumTurno(s,hN,hT); });
     var diaExp=_diaExpand[g.k]===true;
-    var isRef=g.k===dkRef, gStyle=isRef?'background:rgba(0,152,212,.12)':'';
+    var isRef=g.k===dkRef, gStyle=isRef?'background:var(--ref-bg)':'';
     var refTag=g.k===hoyS?' <span style="color:var(--accent);font-size:9px">HOY</span>':(isRef?' <span style="color:var(--accent);font-size:9px">PRÓXIMA</span>':'');
     // Encabezado del día (botón colapsar) — ancla para scroll al día de referencia
     var diaFlecha=diaExp?'▼':'▶';
@@ -3345,7 +3348,7 @@ function _cuerpoCompletoHTML(){
     var isRef=g.k===dkRef;
     var esPasada=(g.k!=='__sin__' && g.k<hoyS);
     var esHoy=(g.k===hoyS);
-    var gStyle=(isRef||esHoy)?'background:rgba(0,152,212,.12)':'';
+    var gStyle=(isRef||esHoy)?'background:var(--ref-bg)':'';
 
     if(esPasada){
       // ── Fechas PASADAS: grupo colapsable por fecha (colapsado por defecto) ──
@@ -3494,7 +3497,7 @@ function renderRec(){
       var est=r.cells[0];
       var badgeCol=estBadge(est);
       var esHoy = r.fechaRaw && String(r.fechaRaw).slice(0,10)===hoyS;
-      var hoyStyle = esHoy ? 'background:rgba(0,152,212,.12);font-weight:700' : '';
+      var hoyStyle = esHoy ? 'background:var(--ref-bg);font-weight:700' : '';
       var hoyBoldCells = esHoy ? r.cells.map(function(c,i){ return i===1 ? '<td style="color:var(--accent);font-weight:800">'+esc(c)+'</td>' : '<td>'+esc(c)+'</td>'; }).join('') : r.cells.slice(1).map(function(c){return '<td>'+esc(c)+'</td>';}).join('');
       return '<tr style="'+hoyStyle+'">'+
         '<td><span class="badge '+badgeCol+'">'+est+'</span></td>'+
