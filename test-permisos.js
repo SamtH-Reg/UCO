@@ -844,9 +844,10 @@ t('panel: dos filas de KPIs (resumen del mes y del día)', () => {
     {tipo:'MEDIA_JORNADA',estado:'APROBADO',inicio:hoy(),turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20'}
   ];
   var h=renderHome();
+  // El KPI cuenta personas: el valor va seguido de una nota con el detalle por tipo
   var ok=h.indexOf('Resumen del mes')>=0 && h.indexOf('Resumen de hoy')>=0
       && h.indexOf('Permisos del día')>=0 && h.indexOf('Permisos del mes')>=0
-      && h.indexOf('<div class="l">Permisos del día</div><div class="v">2</div>')>=0;
+      && /Permisos del día<\/div><div class="v">2/.test(h);
   _SOLIC=[]; return ok;
 });
 t('panel: KPIs del mes presente + vacaciones EN CURSO', () => {
@@ -861,9 +862,9 @@ t('panel: KPIs del mes presente + vacaciones EN CURSO', () => {
     {tipo:'VACACIONES',estado:'APROBADO',inicio:(y-3)+'-01-01',termino:(y-3)+'-01-05',dias_habiles:5}
   ];
   var h=renderHome();
-  var ok=h.indexOf('<div class="l">Permisos del mes</div><div class="v">2</div>')>=0
-      && h.indexOf('<div class="l">Medias jornadas</div><div class="v">1</div>')>=0
-      && h.indexOf('<div class="l">Vacaciones en curso</div><div class="v">1</div>')>=0;
+  var ok=/Permisos del mes<\/div><div class="v">2/.test(h)
+      && /Medias jornadas<\/div><div class="v">1/.test(h)
+      && /Vacaciones en curso<\/div><div class="v">1/.test(h);
   _SOLIC=[]; return ok;
 });
 t('_recFilterAnios: incluye año actual y próximo (2027)', () => {
@@ -936,6 +937,63 @@ _tab = 0; _form = { dates:[], tipo:'', emp:null, aut:null, cc:null, start:null, 
 _SOLIC = [];
 t('calClick() añade día a arreglo', () => { calClick('2026-08-10'); return _form.dates.includes('2026-08-10'); });
 t('calClick() alterna (quita si ya estaba)', () => { calClick('2026-08-10'); return _form.dates.length === 0; });
+
+// ── Autorizador: no se hereda entre solicitudes ──
+t('resetForm() limpia el autorizador al enviar una solicitud nueva', () => {
+  _form={aut:{c:'A1',n:'PATRICIA HERNANDEZ'}};
+  resetForm();
+  return _form.aut === null;
+});
+t('resetForm(true) conserva el autorizador al cambiar de pestaña del formulario', () => {
+  _form={aut:{c:'A1',n:'PATRICIA HERNANDEZ'}};
+  resetForm(true);
+  return !!(_form.aut && _form.aut.c==='A1');
+});
+t('resetForm() sin formulario previo no falla', () => {
+  _form=null; resetForm();
+  var ok = !!(_form && _form.aut===null);
+  _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
+  return ok;
+});
+
+// ── KPI del panel: cuentan PERSONAS con permiso, no registros ──
+function _mockPermisosHoy(){
+  var h=hoy();
+  return [
+    {tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO'},
+    {tipo:'MEDIA_JORNADA',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO',hora_salida:'13:00',hora_ingreso:'14:00',tipo_regreso:'CON'},
+    {tipo:'COMPLETO',codigo:'M2',nombre:'DOS',inicio:h,termino:h,estado:'APROBADO'},
+    {tipo:'MEDIA_JORNADA',codigo:'M2',nombre:'DOS',inicio:h,termino:h,estado:'APROBADO',hora_salida:'13:00',hora_ingreso:'14:00',tipo_regreso:'CON'}
+  ];
+}
+function _kpi(titulo, html){
+  var m=html.match(new RegExp(titulo+'</div><div class="v">(\\d+)'));
+  return m? m[1] : null;
+}
+t('renderHome: 2 personas con 2 registros cada una = 2 en "permisos del día"', () => {
+  _SOLIC=_mockPermisosHoy();
+  var h=renderHome();
+  return _kpi('Permisos del día', h)==='2' && _kpi('Permisos del mes', h)==='2';
+});
+t('renderHome: el detalle avisa los registros de más ("4 registros")', () => {
+  _SOLIC=_mockPermisosHoy();
+  return renderHome().indexOf('4 registros')>=0;
+});
+t('renderHome: 1 persona con 1 permiso hoy = 1 y sin nota de registros', () => {
+  var h=hoy();
+  _SOLIC=[{tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO'}];
+  var html=renderHome();
+  return _kpi('Permisos del día', html)==='1' && html.indexOf('registros')<0;
+});
+t('renderHome: dos personas en el mismo día = 2', () => {
+  var h=hoy();
+  _SOLIC=[
+    {tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO'},
+    {tipo:'MEDIA_JORNADA',codigo:'M2',nombre:'DOS',inicio:h,termino:h,estado:'APROBADO',hora_salida:'13:00',hora_ingreso:'14:00',tipo_regreso:'CON'}
+  ];
+  var html=renderHome();
+  return _kpi('Permisos del día', html)==='2' && _kpi('Medias jornadas', html)==='1';
+});
 
 // 5. Reporte
 console.log('\n— Resumen —');

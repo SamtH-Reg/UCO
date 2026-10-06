@@ -197,6 +197,7 @@ a{text-underline-offset:3px;text-decoration-thickness:1.5px}
 .kpi{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:var(--shadow-sm);transition:background .3s var(--ease-out),box-shadow .3s var(--ease-out)}
 .kpi .l{font-size:11px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;color:var(--hint)}
 .kpi .v{font-size:30px;font-weight:700;letter-spacing:-1px;margin-top:10px;font-variant-numeric:tabular-nums}
+.kpi .kpi-nota{font-size:10.5px;line-height:1.35;color:var(--muted);margin-top:6px;max-width:26ch}
 /* Color por KPI (tinte suave + valor/etiqueta a color) */
 .kpi.k1{background:color-mix(in srgb,var(--accent) 7%,var(--surface));border-color:color-mix(in srgb,var(--accent) 22%,var(--border))}
 .kpi.k1 .l{color:color-mix(in srgb,var(--accent) 72%,var(--muted))}
@@ -1647,7 +1648,7 @@ function go(p){ _page=p; if(document.body) document.body.setAttribute('data-page
   render();
   _autoConectarCarpetas();
 }
-function setTab(t){ _tab=t; _editSolId=null; resetForm(); if(document.body) document.body.setAttribute('data-formtab', String(t)); go('form'); }
+function setTab(t){ _tab=t; _editSolId=null; resetForm(true); if(document.body) document.body.setAttribute('data-formtab', String(t)); go('form'); }
 function setRecIdx(i){
   _recIdx=i; if(document.body) document.body.setAttribute('data-rec', String(i));
   // Cada pestaña de Registros parte con su filtro por defecto (no hereda el de la anterior)
@@ -1699,18 +1700,42 @@ function render(){
 function renderHome(){
   var hoyIso=hoy();
   var mesPrefix=hoyIso.slice(0,7);   // mes presente (YYYY-MM)
-  var completos=0, media=0, vac=0, horas=0;
-  var dCompletos=0, dMedia=0, dHoras=0;   // resumen de HOY
+  var horas=0, vac=0, dHoras=0;
   var mesComp=[], mesMedia=[];
-  _SOLIC.forEach(function(s){
+  var setMesC={}, setMesM={}, setHoyC={}, setHoyM={};   // claves por PERSONA (código), no por registro
+  var regMesC=0, regMesM=0, regHoyC=0, regHoyM=0;
+  // Sin código ni nombre no se puede saber si es la misma persona: cada registro cuenta aparte.
+  function _clave(s,idx){ var k=String(s.codigo||s.nombre||'').trim().toUpperCase(); return k || ('#sc-'+idx); }
+  _SOLIC.forEach(function(s,idx){
     if(s.estado!=='PENDIENTE'&&s.estado!=='APROBADO') return;
     var ini=String(s.inicio||'').slice(0,10);
     var enMes=ini.slice(0,7)===mesPrefix;
     var enHoy=ini===hoyIso;
-    if(s.tipo==='COMPLETO'){ if(enMes){ completos++; mesComp.push(s); } if(enHoy) dCompletos++; }
-    else if(s.tipo==='MEDIA_JORNADA'){ if(enMes){ media++; horas+=parseFloat(calcularHorasPermiso(s))||0; mesMedia.push(s); } if(enHoy){ dMedia++; dHoras+=parseFloat(calcularHorasPermiso(s))||0; } }
+    var k=_clave(s,idx);
+    if(s.tipo==='COMPLETO'){
+      if(enMes){ setMesC[k]=1; regMesC++; mesComp.push(s); }
+      if(enHoy){ setHoyC[k]=1; regHoyC++; }
+    }
+    else if(s.tipo==='MEDIA_JORNADA'){
+      if(enMes){ setMesM[k]=1; regMesM++; horas+=parseFloat(calcularHorasPermiso(s))||0; mesMedia.push(s); }
+      if(enHoy){ setHoyM[k]=1; regHoyM++; dHoras+=parseFloat(calcularHorasPermiso(s))||0; }
+    }
     else if(s.tipo==='VACACIONES'){ if(estadoDe(s)==='EN CURSO') vac++; }   // en curso (no por mes)
   });
+  // Los KPI cuentan PERSONAS con permiso, no registros: un trabajador con dos registros
+  // el mismo día (o en el mismo mes) aparece una sola vez, así el resumen coincide con
+  // la cantidad de personas que realmente faltan. El detalle va como nota al pie.
+  var completos=mesComp.length, media=mesMedia.length;      // registros del mes (gráficos por responsable)
+  var nMesC=Object.keys(setMesC).length, nMesM=Object.keys(setMesM).length;
+  var nHoyC=Object.keys(setHoyC).length, nHoyM=Object.keys(setHoyM).length;
+  var personasMes=Object.keys(setMesC).concat(Object.keys(setMesM)).filter(function(v,i,a){ return a.indexOf(v)===i; }).length;
+  var personasHoy=Object.keys(setHoyC).concat(Object.keys(setHoyM)).filter(function(v,i,a){ return a.indexOf(v)===i; }).length;
+  function _conteo(n,txt){ return n? n+' '+txt : ''; }
+  var notaMes=[_conteo(nMesC,'con día completo'), _conteo(nMesM,'con media jornada')].filter(Boolean).join(' · ');
+  var notaHoy=[_conteo(nHoyC,'con día completo'), _conteo(nHoyM,'con media jornada')].filter(Boolean).join(' · ');
+  var regMes=regMesC+regMesM, regHoy=regHoyC+regHoyM;
+  if(regMes!==personasMes) notaMes+=(notaMes?' · ':'')+regMes+' registros';
+  if(regHoy!==personasHoy) notaHoy+=(notaHoy?' · ':'')+regHoy+' registros';
   var _mActual=new Date();
   var _mesNombre=MONTHS[_mActual.getMonth()]+' '+_mActual.getFullYear();
   var _charts='<div class="section-title">Por responsable · '+_mesNombre+'</div>'+
@@ -1734,15 +1759,15 @@ function renderHome(){
     '<p style="font-size:14.5px;color:var(--muted);margin-top:8px;max-width:56ch">Registra permisos de jornada, salidas parciales y vacaciones. Los feriados chilenos se descuentan automáticamente.</p>'+
     '<div class="section-title" style="margin:22px 0 12px">Resumen del mes · '+_mesNombre+'</div>'+
     '<div class="kpi-grid" style="margin-top:0">'+
-      '<div class="kpi k1"><div class="l">Permisos del mes</div><div class="v">'+(completos+media)+'</div></div>'+
-      '<div class="kpi k2"><div class="l">Medias jornadas</div><div class="v">'+media+'</div></div>'+
+      '<div class="kpi k1"><div class="l">Permisos del mes</div><div class="v">'+personasMes+_kpNota(notaMes)+'</div></div>'+
+      '<div class="kpi k2"><div class="l">Medias jornadas</div><div class="v">'+nMesM+_kpNota(regMesM!==nMesM?regMesM+' registros':'')+'</div></div>'+
       '<div class="kpi k3"><div class="l">Vacaciones en curso</div><div class="v">'+vac+'</div></div>'+
       '<div class="kpi k4"><div class="l">Horas de permiso</div><div class="v">'+(horas?_fmtHN(horas):'0')+'</div></div>'+
     '</div>'+
     '<div class="section-title" style="margin:18px 0 12px">Resumen de hoy · '+_fmtCorto(hoyIso)+'</div>'+
     '<div class="kpi-grid" style="margin-top:0">'+
-      '<div class="kpi k1"><div class="l">Permisos del día</div><div class="v">'+(dCompletos+dMedia)+'</div></div>'+
-      '<div class="kpi k2"><div class="l">Medias jornadas</div><div class="v">'+dMedia+'</div></div>'+
+      '<div class="kpi k1"><div class="l">Permisos del día</div><div class="v">'+personasHoy+_kpNota(notaHoy)+'</div></div>'+
+      '<div class="kpi k2"><div class="l">Medias jornadas</div><div class="v">'+nHoyM+_kpNota(regHoyM!==nHoyM?regHoyM+' registros':'')+'</div></div>'+
       '<div class="kpi k3"><div class="l">Vacaciones en curso</div><div class="v">'+vac+'</div></div>'+
       '<div class="kpi k4"><div class="l">Horas de permiso</div><div class="v">'+(dHoras?_fmtHN(dHoras):'0')+'</div></div>'+
     '</div>'+_charts+
@@ -1755,6 +1780,7 @@ function renderHome(){
         recLink('Registros vacaciones','Estado y días hábiles','#B0711C','bar',2)+
       '</tbody></table></div>';
 }
+function _kpNota(txt){ return txt? '<div class="kpi-nota">'+txt+'</div>' : ''; }
 function recLink(title,sub,color,shp,idx){
   return '<tr><td style="border-bottom:1px solid var(--border);padding:0"><button onclick="go(\'rec\');setRecIdx('+idx+')" style="display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:17px 22px;border:none;background:transparent;cursor:pointer;font-family:inherit">'+
     '<span style="width:18px;'+(shp==='bar'?'height:2px;border-radius:2px':'height:18px;border-radius:50%')+';background:'+color+'"></span>'+
@@ -2057,8 +2083,12 @@ function imprimirDocumento(){
 }
 
 // ── FORMULARIO ───────────────────────────────────────────────
-function resetForm(){
-  var autPrev=_form? _form.aut : null;   // conservar autorizador preseleccionado al cambiar de tab
+function resetForm(conservarAut){
+  // El autorizador se conserva ÚNICAMENTE al moverse entre las pestañas del formulario
+  // (para no volver a elegirlo a cada rato). Al enviar una solicitud, al pulsar
+  // "Limpiar" o al abrir otra pestaña del menú, se borra: una solicitud nueva no debe
+  // heredar el responsable de la anterior.
+  var autPrev=(conservarAut && _form)? _form.aut : null;
   _form={turno:'',tipo:'',emp:null,aut:null,cc:null,dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:5,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
   if(autPrev) _form.aut=autPrev;
   _cal={y:new Date().getFullYear(), m:new Date().getMonth()};   // volver al mes actual
@@ -2600,6 +2630,32 @@ async function _guardarSolicitud(){
   }
   else if(!f.dates.length)miss.push(t===1?'día del permiso':'días de permiso');
   if(miss.length){ toast('Faltan datos obligatorios: '+miss.join(', '),'error'); return {ok:false}; }
+
+  // Aviso anti-duplicado: si el trabajador ya tiene un permiso activo en la misma fecha
+  // (dé o no jornada completa) se pide confirmación antes de guardar. Evita cargar dos
+  // veces el mismo permiso, que es lo que infla el resumen del día. No aplica al editar
+  // un registro existente.
+  if(t!==2 && !_editSolId){
+    var _dup=[], _codeEmp=String((f.emp&&f.emp.c)||'').trim().toUpperCase();
+    (f.dates||[]).forEach(function(fx){
+      for(var i=0;i<_SOLIC.length;i++){
+        var s=_SOLIC[i];
+        if(s.estado!=='PENDIENTE'&&s.estado!=='APROBADO') continue;
+        if(String(s.codigo||'').trim().toUpperCase()!==_codeEmp) continue;
+        if(String(s.inicio||'').slice(0,10)!==fx) continue;
+        _dup.push(_fmtCorto(fx)+(s.tipo==='MEDIA_JORNADA'?' (media jornada)':(s.tipo==='COMPLETO'?' (día completo)':'')));
+        break;
+      }
+    });
+    if(_dup.length){
+      var _nombreDup=(f.emp&&(f.emp.n||f.emp.c))||'el trabajador';
+      var _okDup=true;
+      if(typeof confirm==='function'){
+        _okDup=confirm('Ya hay un permiso registrado para '+_nombreDup+' el '+_dup.join(', ')+'.\n\n¿Registrar este '+(t===1?'permiso de media jornada':'permiso de día completo')+' de todas formas?');
+      }
+      if(!_okDup){ toast('Sin cambios: '+_nombreDup+' ya tenía permiso ese día',''); return {ok:false,cancelado:true}; }
+    }
+  }
 
   var _buckets=[];
   if(t===2){
