@@ -960,10 +960,10 @@ t('resetForm() sin formulario previo no falla', () => {
 function _mockPermisosHoy(){
   var h=hoy();
   return [
-    {tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO'},
-    {tipo:'MEDIA_JORNADA',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO',hora_salida:'13:00',hora_ingreso:'14:00',tipo_regreso:'CON'},
-    {tipo:'COMPLETO',codigo:'M2',nombre:'DOS',inicio:h,termino:h,estado:'APROBADO'},
-    {tipo:'MEDIA_JORNADA',codigo:'M2',nombre:'DOS',inicio:h,termino:h,estado:'APROBADO',hora_salida:'13:00',hora_ingreso:'14:00',tipo_regreso:'CON'}
+    {tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL'},
+    {tipo:'MEDIA_JORNADA',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL',turno:'DIA',hora_salida:'13:00',hora_ingreso:'14:00',tipo_regreso:'CON'},
+    {tipo:'COMPLETO',codigo:'M2',nombre:'DOS',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL'},
+    {tipo:'MEDIA_JORNADA',codigo:'M2',nombre:'DOS',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL',turno:'DIA',hora_salida:'13:00',hora_ingreso:'14:00',tipo_regreso:'CON'}
   ];
 }
 function _kpi(titulo, html){
@@ -975,9 +975,30 @@ t('renderHome: 2 personas con 2 registros cada una = 2 en "permisos del día"', 
   var h=renderHome();
   return _kpi('Permisos del día', h)==='2' && _kpi('Permisos del mes', h)==='2';
 });
-t('renderHome: el detalle avisa los registros de más ("4 registros")', () => {
+t('renderHome: los KPI no llevan textos de detalle', () => {
   _SOLIC=_mockPermisosHoy();
-  return renderHome().indexOf('4 registros')>=0;
+  var html=renderHome();
+  return html.indexOf('kpi-nota')<0 && html.indexOf('registros')<0;
+});
+t('renderHome: permisos médicos y judiciales NO cuentan como permisos del día', () => {
+  var h=hoy();
+  _SOLIC=[
+    {tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL'},
+    {tipo:'COMPLETO',codigo:'M2',nombre:'DOS',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'MEDICO'},
+    {tipo:'COMPLETO',codigo:'M3',nombre:'TRES',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'JUDICIAL'}
+  ];
+  var html=renderHome();
+  return _kpi('Permisos del día',html)==='1' && _kpi('Permisos del mes',html)==='1';
+});
+t('renderHome: media jornada médica no cuenta, pero sus horas sí se suman', () => {
+  var h=hoy();
+  _SOLIC=[
+    {tipo:'MEDIA_JORNADA',codigo:'M4',nombre:'CUATRO',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'MEDICO',turno:'DIA',hora_salida:'13:00',hora_ingreso:'15:00',tipo_regreso:'CON'},
+    {tipo:'MEDIA_JORNADA',codigo:'M5',nombre:'CINCO',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL',turno:'DIA',hora_salida:'13:00',hora_ingreso:'15:00',tipo_regreso:'CON'}
+  ];
+  var html=renderHome();
+  var horas=(html.match(/Horas de permiso<\/div><div class="v">([^<]+)</)||[])[1]||'';
+  return _kpi('Medias jornadas',html)==='1' && _kpi('Permisos del día',html)==='1' && horas.indexOf('4')===0;
 });
 t('renderHome: 1 persona con 1 permiso hoy = 1 y sin nota de registros', () => {
   var h=hoy();
@@ -989,7 +1010,7 @@ t('renderHome: dos personas en el mismo día = 2', () => {
   var h=hoy();
   _SOLIC=[
     {tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO'},
-    {tipo:'MEDIA_JORNADA',codigo:'M2',nombre:'DOS',inicio:h,termino:h,estado:'APROBADO',hora_salida:'13:00',hora_ingreso:'14:00',tipo_regreso:'CON'}
+    {tipo:'MEDIA_JORNADA',codigo:'M2',nombre:'DOS',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL',turno:'DIA',hora_salida:'13:00',hora_ingreso:'14:00',tipo_regreso:'CON'}
   ];
   var html=renderHome();
   return _kpi('Permisos del día', html)==='2' && _kpi('Medias jornadas', html)==='1';
