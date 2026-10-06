@@ -319,6 +319,10 @@ textarea{resize:vertical}
 .tbl tbody tr.semana-total:hover td{background:color-mix(in srgb,var(--text) 9%,transparent)}
 .tbl tbody tr.fecha-total td{background:color-mix(in srgb,var(--text) 8%,transparent);font-weight:800;font-size:11px;border-top:2px solid color-mix(in srgb,var(--text) 16%,transparent);border-bottom:1px solid color-mix(in srgb,var(--text) 12%,transparent);padding:5px 18px;line-height:1.25;color:var(--text)}
 .tbl tbody tr.fecha-total:hover td{background:color-mix(in srgb,var(--text) 11%,transparent)}
+/* Botón pequeño para mostrar/ocultar los días anteriores del mes (vista más limpia) */
+.btn-dias-prev{font-family:inherit;font-size:10px;font-weight:600;letter-spacing:.2px;padding:2px 9px;margin-left:8px;border-radius:20px;border:1px solid color-mix(in srgb,var(--text) 16%,transparent);background:color-mix(in srgb,var(--text) 6%,transparent);color:var(--muted);cursor:pointer;vertical-align:middle;white-space:nowrap;transition:background .18s var(--ease-out),color .18s var(--ease-out)}
+.btn-dias-prev:hover{background:color-mix(in srgb,var(--text) 12%,transparent);color:var(--text)}
+.btn-dias-prev:active{transform:translateY(1px)}
 /* Vista Día completo compacta */
 .tbl.tbl-compact thead th{padding:8px 10px;font-size:9.5px;letter-spacing:.5px}
 .tbl.tbl-compact tbody td{padding:3px 10px;font-size:12px}
@@ -2861,8 +2865,10 @@ function toggleDia(dk){ _diaExpand[dk]=!_diaExpand[dk]; render(); }
 // Estado de colapso (solo fechas pasadas) de la vista Día completo
 var _diaExpandC = {};
 var _diaExpandMes = {};   // colapso por MES en Registros · Día completo
+var _diasPrevMes = {};    // por mes: true = mostrar los días ANTERIORES a hoy (por defecto van plegados)
 function toggleDiaC(dk){ _diaExpandC[dk]=!_diaExpandC[dk]; render(); }
 function toggleDiaMes(k){ k=String(k); _diaExpandMes[k]=(_diaExpandMes[k]===true)?false:true; render(); }
+function toggleDiasPrevMes(k){ k=String(k); _diasPrevMes[k]=(_diasPrevMes[k]===true)?false:true; render(); }
 // Estado de colapso por fecha en vista Media jornada
 var _diaExpandMJ = {};
 function toggleDiaMJ(dk){ _diaExpandMJ[dk]=!_diaExpandMJ[dk]; render(); }
@@ -3380,10 +3386,20 @@ function _cuerpoCompletoHTML(){
     if(_diaExpandMes[mg.k]===undefined) _diaExpandMes[mg.k]=(mg.k===mesActual);
     var mExp=_diaExpandMes[mg.k]===true;
     var mesLbl=(mg.k==='__sin__')?'Sin fecha':(MONTHS[parseInt(mg.k.slice(5,7),10)-1]+' '+mg.k.slice(0,4));
+    // Los DÍAS ANTERIORES a hoy del mes en curso se pueden plegar para dejar la vista
+    // limpia: la vista parte en el día de hoy. El botón (pequeño) los muestra/oculta.
+    // Los totales del mes NO cambian: siguen sumando lo plegado. En meses que no son el
+    // actual no se toca nada (ahí todos los días son "anteriores").
+    var diasPrev=0;
+    mg.dias.forEach(function(g){ if(g.k!=='__sin__' && g.k<hoyS) diasPrev++; });
+    var conBoton=(mg.k===mesActual && diasPrev>0 && mExp);
+    var verPrev=_diasPrevMes[mg.k]===true;
+    var txtPrev=(verPrev?'Ocultar ':'Ver ')+diasPrev+' día'+(diasPrev!==1?'s':'')+' anterior'+(diasPrev!==1?'es':'');
+    var btnPrev=conBoton? ' <button type="button" class="btn-dias-prev" title="Días anteriores a hoy del mes en curso" onclick="event.stopPropagation();toggleDiasPrevMes(\''+esc(mg.k)+'\')">'+txtPrev+'</button>' : '';
     body+='<tr class="res-anio" style="cursor:pointer" onclick="toggleDiaMes(\''+esc(mg.k)+'\')">'+
       '<td><span style="display:inline-block;width:16px">'+(mExp?'▼':'▶')+'</span> <b>'+esc(mesLbl)+'</b></td>'+
       '<td></td>'+
-      '<td style="font-size:10px;color:var(--hint)">'+mg.dias.length+' día'+(mg.dias.length!==1?'s':'')+'</td>'+
+      '<td style="font-size:10px;color:var(--hint)">'+mg.dias.length+' día'+(mg.dias.length!==1?'s':'')+btnPrev+'</td>'+
       celTipo(mP)+celTipo(mM)+celTipo(mJ)+'<td></td></tr>';
     if(!mExp) return;
   mg.dias.forEach(function(g){
@@ -3395,6 +3411,8 @@ function _cuerpoCompletoHTML(){
     var gStyle=(isRef||esHoy)?'background:var(--ref-bg)':'';
 
     if(esPasada){
+      // Plegado general de los días anteriores del mes en curso (botón del mes)
+      if(conBoton && !verPrev) return;
       // ── Fechas PASADAS: grupo colapsable por fecha (colapsado por defecto) ──
       if(_diaExpandC[g.k]!==true && _diaExpandC[g.k]!==false) _diaExpandC[g.k]=isRef;
       var diaExp=_diaExpandC[g.k]===true;

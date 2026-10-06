@@ -765,8 +765,9 @@ t('registros día completo: agrupa por MES (colapsable)', () => {
   _SOLIC=[]; _diaExpandMes={}; return okCol && okExp;
 });
 t('registros día completo: columna RESPONSABLE (autorizador)', () => {
-  _SOLIC=[{tipo:'COMPLETO',codigo:'C1',nombre:'PEREZ',inicio:'2026-10-01',tipo_permiso:'PERSONAL',autorizador:'HUGO MILLANERI',estado:'APROBADO'}];
-  _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpandC={}; _docIds={};
+  // con la fecha de hoy el registro se lista sin agrupar (los días anteriores del mes van plegados)
+  _SOLIC=[{tipo:'COMPLETO',codigo:'C1',nombre:'PEREZ',inicio:hoy(),tipo_permiso:'PERSONAL',autorizador:'HUGO MILLANERI',estado:'APROBADO'}];
+  _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta=''; _recTipo=''; _recTurno=''; recQ=''; _diaExpandC={}; _diasPrevMes={}; _docIds={};
   var h=renderDiaCompletoVista();
   var ok=h.indexOf('RESPONSABLE')>=0 && h.indexOf('HUGO MILLANERI')>=0 && h.indexOf('FECHA PERMISO')>=0;
   _SOLIC=[]; return ok;
@@ -1036,6 +1037,53 @@ t('panel: sin responsable sigue agrupando como "Sin responsable"', () => {
   var h=hoy();
   _SOLIC=[{tipo:'COMPLETO',codigo:'M2',nombre:'DOS',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL'}];
   return renderHome().indexOf('Sin responsable')>=0;
+});
+
+// ── Registros · Día completo: plegado de los días anteriores del mes ──
+function _prepRec(items){
+  _SOLIC=items;
+  _recIdx=0; recQ=''; _recAnio=''; _recMeses=[]; _recDesde=''; _recHasta='';
+  _recEstados=['EN CURSO','POR TOMAR','FINALIZADAS'];
+  _diaExpand={}; _diaExpandC={}; _diaExpandMes={}; _diasPrevMes={};
+}
+t('día completo: los días anteriores del mes van plegados y el botón los muestra', () => {
+  var hoyS=hoy(), mes=hoyS.slice(0,7);
+  var ayer=iso(new Date(new Date(hoyS+'T12:00:00').getTime()-86400000));
+  _prepRec([
+    {tipo:'COMPLETO',estado:'APROBADO',codigo:'H1',nombre:'HOY UNO',centro_costo:'1110',inicio:hoyS,tipo_permiso:'PERSONAL',autorizador:'PEDRO DELGADO'},
+    {tipo:'COMPLETO',estado:'APROBADO',codigo:'H2',nombre:'AYER DOS',centro_costo:'1110',inicio:ayer,tipo_permiso:'PERSONAL',autorizador:'EVA NAVARRO'}
+  ]);
+  var antes=_cuerpoCompletoHTML();
+  if(ayer.slice(0,7)!==mes){                 // hoy es día 1: no hay días anteriores en el mes
+    return antes.indexOf('btn-dias-prev')<0;
+  }
+  var conBoton=antes.indexOf('btn-dias-prev')>=0;
+  var plegado=antes.indexOf("toggleDiaC('"+ayer+"')")<0;
+  toggleDiasPrevMes(mes);
+  var despues=_cuerpoCompletoHTML();
+  var mostrado=despues.indexOf("toggleDiaC('"+ayer+"')")>=0;
+  return conBoton && plegado && mostrado;
+});
+t('día completo: en un mes anterior los días siguen agrupados y sin botón', () => {
+  _prepRec([{tipo:'COMPLETO',estado:'APROBADO',codigo:'X1',nombre:'VIEJO',centro_costo:'1110',inicio:'2026-05-11',tipo_permiso:'PERSONAL'}]);
+  _diaExpandMes={'2026-05':true};
+  var html=_cuerpoCompletoHTML();
+  return html.indexOf("toggleDiaC('2026-05-11')")>=0 && html.indexOf('btn-dias-prev')<0;
+});
+t('día completo: los totales del mes siguen sumando los días plegados', () => {
+  var hoyS=hoy(), mes=hoyS.slice(0,7);
+  var ayer=iso(new Date(new Date(hoyS+'T12:00:00').getTime()-86400000));
+  if(ayer.slice(0,7)!==mes) return true;     // día 1 del mes: no aplica
+  _prepRec([
+    {tipo:'COMPLETO',estado:'APROBADO',codigo:'H1',nombre:'HOY UNO',centro_costo:'1110',inicio:hoyS,tipo_permiso:'PERSONAL'},
+    {tipo:'COMPLETO',estado:'APROBADO',codigo:'H2',nombre:'AYER DOS',centro_costo:'1110',inicio:ayer,tipo_permiso:'MEDICO'}
+  ]);
+  var html=_cuerpoCompletoHTML();
+  // La fila del mes muestra 1 personal + 1 médico aunque el día anterior esté plegado
+  var filaMes=(html.match(/<tr class="res-anio"[\s\S]*?<\/tr>/)||[''])[0];
+  var celdas=(filaMes.match(/>[0-9]+<\/td>/g)||[]).map(function(x){ return x.replace(/[^0-9]/g,''); });
+  var plegado=html.indexOf("toggleDiaC('"+ayer+"')")<0;
+  return plegado && celdas.length===2 && celdas[0]==='1' && celdas[1]==='1';
 });
 
 // 5. Reporte
