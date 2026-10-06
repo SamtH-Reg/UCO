@@ -1019,6 +1019,12 @@ t('renderHome: el permiso diario y la media jornada no se mezclan en el KPI', ()
   return _kpi('Permiso personal diario', html)==='1' && _kpi('Medias jornadas', html)==='1';
 });
 
+t('cargarSolicitudes: conserva el responsable que viene de la planilla (tabla permisos)', () => {
+  // La columna AUTORIZA de la planilla estaba llegando y se descartaba al mapear la tabla `permisos`
+  return code.indexOf('autorizador:(p.autorizador||p.autoriza||null)') >= 0
+      && code.indexOf('autorizador:null, autorizador_sub:null') < 0;
+});
+
 // 5. Reporte
 console.log('\n— Resumen —');
 let pass = 0, fail = 0;

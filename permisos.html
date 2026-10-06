@@ -1595,7 +1595,9 @@ async function cargarSolicitudes(){
       tipo_permiso:_mapTipoPermisoTexto(p.tipo),
       inicio:p.fecha, termino:p.fecha, dias_habiles:null,
       tipo_regreso:null, hora_salida:null, hora_ingreso:null, horas_permiso:null,
-      autorizador:null, autorizador_sub:null,
+      // Responsable: en la planilla de Google está en la columna AUTORIZA (E).
+      // Antes se descartaba aquí, por eso el gráfico salía 100% "Sin responsable".
+      autorizador:(p.autorizador||p.autoriza||null), autorizador_sub:(p.autorizador_sub||null),
       archivo:null, comentario:null,
       created_at:p.updated_at||p.fecha
     });
