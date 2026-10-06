@@ -130,41 +130,43 @@ console.log('Sin fecha válida  : ' + sinFecha + ' fila(s) (se omiten)');
 if (salteadas) console.log('Sin código legible: ' + salteadas + ' fila(s) (se omiten)');
 
 // ── SQL ─────────────────────────────────────────────────────────────────────
-const VALUES = triples.map(t => "(" + esc(t.cod) + "," + esc(t.fecha) + "," + esc(t.aut) + ")").join(",\n  ");
+const VALUES = triples.map(t => "(" + esc(t.cod) + "," + esc(t.fecha) + "," + esc(t.aut) + ")").join(",\n    ");
 
+// Una sola sentencia (WITH ... = sirve igual pegado en el SQL Editor de Supabase
+// que ejecutado por API, sin tablas temporales).
 const sql = `-- ============================================================
---  Responsables de permisos importados desde la planilla de Google
---  Columna AUTORIZA (E). Generado por importar_responsables.js
---  Permisos: ${triples.length}
+--  Responsables de permisos — planilla de Google, columna AUTORIZA (E)
+--  Permisos leídos de la planilla: ${triples.length}
+--  Generado por importar_responsables.js
 --
---  Solo rellena donde el responsable está vacío: no pisa lo que
---  ya guardó la app. Ejecutar en Supabase → SQL Editor → New query.
+--  Solo RELLENA casillas vacías: no pisa el responsable que ya
+--  guardó la app. Pegar todo en Supabase → SQL Editor → New query.
 -- ============================================================
-
--- 1) Tabla de trabajo con lo que viene de la planilla
-create temp table _resp_planilla (codigo text, fecha date, autorizador text) on commit drop;
-insert into _resp_planilla (codigo, fecha, autorizador) values
-  ${VALUES};
-
--- 2) Permisos de la app (lo que muestra permisos.html)
-update public.solicitudes_permiso s
-   set autorizador = r.autorizador, updated_at = now()
-  from _resp_planilla r
- where upper(trim(s.codigo)) = upper(trim(r.codigo))
-   and s.inicio = r.fecha
-   and (s.autorizador is null or trim(s.autorizador) = '');
-
--- 3) Tabla cargada desde la planilla
-update public.permisos p
-   set autorizador = r.autorizador, updated_at = now()
-  from _resp_planilla r
- where upper(trim(p.codigo)) = upper(trim(r.codigo))
-   and p.fecha::text like r.fecha::text || '%'
-   and (p.autorizador is null or trim(p.autorizador) = '');
-
--- 4) Cuántos quedaron con responsable por tipo
+with planilla(codigo, fecha, autorizador) as (values
+    ${VALUES}
+),
+app as (                       -- permisos de la app (solicitudes_permiso)
+  update public.solicitudes_permiso s
+     set autorizador = pl.autorizador, updated_at = now()
+    from planilla pl
+   where upper(trim(s.codigo)) = upper(trim(pl.codigo))
+     and s.inicio = pl.fecha::date
+     and (s.autorizador is null or trim(s.autorizador) = '')
+  returning 1
+),
+planilla_tabla as (            -- tabla cargada desde la planilla
+  update public.permisos p
+     set autorizador = pl.autorizador, updated_at = now()
+    from planilla pl
+   where upper(trim(p.codigo)) = upper(trim(pl.codigo))
+     and p.fecha::text like pl.fecha || '%'
+     and (p.autorizador is null or trim(p.autorizador) = '')
+  returning 1
+)
+-- Resumen final: cuántos quedaron con responsable
 select tipo,
        count(*) filter (where autorizador is not null and trim(autorizador) <> '') as con_responsable,
+       count(*) filter (where autorizador is null or trim(autorizador) = '')        as sin_responsable,
        count(*) as filas
   from public.solicitudes_permiso
  group by tipo order by tipo;

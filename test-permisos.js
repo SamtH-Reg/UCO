@@ -1025,6 +1025,19 @@ t('cargarSolicitudes: conserva el responsable que viene de la planilla (tabla pe
       && code.indexOf('autorizador:null, autorizador_sub:null') < 0;
 });
 
+t('panel: el gráfico por responsable muestra el nombre que viene de la planilla', () => {
+  var h=hoy();
+  _SOLIC=[{tipo:'COMPLETO',codigo:'M1',nombre:'UNO',inicio:h,termino:h,estado:'APROBADO',
+           tipo_permiso:'PERSONAL',autorizador:'PEDRO DELGADO'}];
+  var html=renderHome();
+  return html.indexOf('PEDRO DELGADO')>=0 && html.indexOf('Sin responsable')<0;
+});
+t('panel: sin responsable sigue agrupando como "Sin responsable"', () => {
+  var h=hoy();
+  _SOLIC=[{tipo:'COMPLETO',codigo:'M2',nombre:'DOS',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL'}];
+  return renderHome().indexOf('Sin responsable')>=0;
+});
+
 // 5. Reporte
 console.log('\n— Resumen —');
 let pass = 0, fail = 0;
