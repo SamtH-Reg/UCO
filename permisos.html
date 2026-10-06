@@ -2847,13 +2847,22 @@ function recFilterBar(t){
   return bar;
 }
 // Re-renderiza SOLO el cuerpo de la tabla (sin reconstruir la barra ni perder foco)
+// Re-render conservando ABIERTO el desplegable desde el que se hizo clic: marcar meses,
+// estados, centros de costo o años no debe cerrar el panel (antes había que reabrirlo por
+// cada casilla, porque estas funciones llamaban a render() y el panel se reconstruía).
+function _renderPop(idPop){
+  var estaba=false;
+  try{ var p0=idPop&&document.getElementById(idPop); estaba=!!(p0&&!p0.classList.contains('hidden')); }catch(e){}
+  render();
+  if(estaba){ try{ var p=document.getElementById(idPop); if(p) p.classList.remove('hidden'); }catch(e){} }
+}
 function recRefrescarTbody(){
   var tb=document.getElementById('tbodyCompleto');
   if(tb){ tb.innerHTML=_cuerpoCompletoHTML(); }
 }
 function recClearFilters(){ _recAnio='';_recAnios=[];_recMeses=[];_recCC=[];_recDesde='';_recHasta=''; recQ=''; _recTipo=''; _recTurno=''; _recEstados=['EN CURSO','POR TOMAR']; _recFechaAuto=false; render(); }
-function recToggleEstado(e){ var i=_recEstados.indexOf(e); if(i>=0)_recEstados.splice(i,1); else _recEstados.push(e); render(); }
-function recSetTodosEstados(){ var all=['EN CURSO','POR TOMAR','FINALIZADAS']; if(_recEstados.length===all.length)_recEstados=[]; else _recEstados=all.slice(); render(); }
+function recToggleEstado(e){ var i=_recEstados.indexOf(e); if(i>=0)_recEstados.splice(i,1); else _recEstados.push(e); _renderPop('estPop'); }
+function recSetTodosEstados(){ var all=['EN CURSO','POR TOMAR','FINALIZADAS']; if(_recEstados.length===all.length)_recEstados=[]; else _recEstados=all.slice(); _renderPop('estPop'); }
 function recEstadosLbl(){ if(!_recEstados.length) return 'Estado'; return _recEstados.length===1?_recEstados[0]:(_recEstados.length+' estados'); }
 var _recTipo='';   // '' | PERSONAL | MEDICO | JUDICIAL
 var _recTurno='';  // '' | DIA | TARDE | NOCHE (filtro de turno, solo media jornada)
@@ -3207,13 +3216,13 @@ var _resVacExpand={};
 var _resAnios=[];   // filtro de años EXCLUSIVO del resumen
 var _resCC=[];      // filtro de centros de costo EXCLUSIVO del resumen
 var _resInit=false; // inicializa el año por defecto una sola vez
-function resToggleAnio(a){ a=String(a); var i=_resAnios.indexOf(a); if(i>=0) _resAnios.splice(i,1); else _resAnios.push(a); _resAnios.sort(); render(); }
+function resToggleAnio(a){ a=String(a); var i=_resAnios.indexOf(a); if(i>=0) _resAnios.splice(i,1); else _resAnios.push(a); _resAnios.sort(); _renderPop('resAnioPop'); }
 function resAniosDisponibles(){ var y={}, h=new Date().getFullYear(); _SOLIC.forEach(function(s){ if(s.tipo==='VACACIONES'&&s.inicio){ var a=String(s.inicio).slice(0,4); if(a) y[a]=1; } }); y[h]=1; y[h+1]=1; return Object.keys(y).sort().reverse(); }
-function resSetTodosAnios(){ var all=resAniosDisponibles(); if(_resAnios.length===all.length){ _resAnios=[]; } else { _resAnios=all.slice(); } render(); }
+function resSetTodosAnios(){ var all=resAniosDisponibles(); if(_resAnios.length===all.length){ _resAnios=[]; } else { _resAnios=all.slice(); } _renderPop('resAnioPop'); }
 function resAniosLbl(){ if(!_resAnios.length) return 'Todos los años'; return _resAnios.join(', '); }
-function resToggleCC(cc){ cc=String(cc); var i=_resCC.indexOf(cc); if(i>=0) _resCC.splice(i,1); else _resCC.push(cc); render(); }
+function resToggleCC(cc){ cc=String(cc); var i=_resCC.indexOf(cc); if(i>=0) _resCC.splice(i,1); else _resCC.push(cc); _renderPop('resCCPop'); }
 function resCentrosDisponibles(){ var s={}; _SOLIC.forEach(function(x){ if(x.tipo==='VACACIONES'&&x.centro_costo) s[x.centro_costo]=1; }); return Object.keys(s).sort(); }
-function resSetTodosCC(){ var all=resCentrosDisponibles(); if(_resCC.length===all.length){ _resCC=[]; } else { _resCC=all.slice(); } render(); }
+function resSetTodosCC(){ var all=resCentrosDisponibles(); if(_resCC.length===all.length){ _resCC=[]; } else { _resCC=all.slice(); } _renderPop('resCCPop'); }
 function resCCLbl(){ if(!_resCC.length) return 'Centro de costo'; return _resCC.length===1 ? _resCC[0] : (_resCC.length+' centros'); }
 function resumenVacaciones(items){
   if(!items||!items.length) return '';
@@ -3657,9 +3666,9 @@ var _recCC = [];        // [] = todos (multiselección de centros de costo)
 var _recDesde = '';     // YYYY-MM-DD
 var _recHasta = '';     // YYYY-MM-DD
 // Multiselección de centros de costo
-function recToggleCC(cc){ cc=String(cc); var i=_recCC.indexOf(cc); if(i>=0) _recCC.splice(i,1); else _recCC.push(cc); render(); }
+function recToggleCC(cc){ cc=String(cc); var i=_recCC.indexOf(cc); if(i>=0) _recCC.splice(i,1); else _recCC.push(cc); _renderPop('ccPop'); }
 function recCentrosDisponibles(){ var s={}; _SOLIC.forEach(function(x){ if(x.centro_costo) s[x.centro_costo]=1; }); return Object.keys(s).sort(); }
-function recSetTodosCC(){ var all=recCentrosDisponibles(); if(_recCC.length===all.length){ _recCC=[]; } else { _recCC=all.slice(); } render(); }
+function recSetTodosCC(){ var all=recCentrosDisponibles(); if(_recCC.length===all.length){ _recCC=[]; } else { _recCC=all.slice(); } _renderPop('ccPop'); }
 function recCCLbl(){ if(!_recCC.length) return 'Centro de costo'; return _recCC.length===1 ? _recCC[0] : (_recCC.length+' centros'); }
 // Multiselección de años (vacaciones)
 function recToggleAnio(a){ a=String(a); var i=_recAnios.indexOf(a); if(i>=0) _recAnios.splice(i,1); else _recAnios.push(a); _recAnios.sort(); render(); }
@@ -3671,13 +3680,13 @@ function recToggleMes(m){
   _recMeses.sort(function(a,b){return a-b;});
   _recFechaAuto=true;   // autocompletar Desde/Hasta a partir de los meses
   aplicarRangoMeses();
-  render();
+  _renderPop('mesPop');
 }
 // Seleccionar / deseleccionar todos los meses
 function recSetTodosMeses(){
   if(_recMeses.length===12){ _recMeses=[]; }
   else { _recMeses=[]; for(var i=1;i<=12;i++) _recMeses.push(i); }
-  _recFechaAuto=true; aplicarRangoMeses(); render();
+  _recFechaAuto=true; aplicarRangoMeses(); _renderPop('mesPop');
 }
 // Autocompletar Desde/Hasta con el rango de los meses seleccionados (si el usuario no eligió manualmente)
 var _recFechaAuto=false;
@@ -4033,6 +4042,20 @@ function _initScrollUI(){
     upd();
   }catch(e){}
 }
+// Cerrar los desplegables (.pick-pop) al hacer clic FUERA de ellos o con Escape.
+// Sus botones (.pick-btn) quedan excluidos: ahí el propio onclick los abre/cierra.
+// Antes había que volver a pulsar el mismo botón para que se fueran.
+try{
+  document.addEventListener('click', function(e){
+    var t=e.target; if(!t||!t.closest) return;
+    if(t.closest('.pick-pop') || t.closest('.pick-btn')) return;   // dentro del panel o en su botón
+    if(document.querySelector('.pick-pop:not(.hidden)')) closePick();
+  }, true);
+  document.addEventListener('keydown', function(e){
+    if(e.key!=='Escape' && e.keyCode!==27) return;
+    if(document.querySelector('.pick-pop:not(.hidden)')) closePick();
+  });
+}catch(e){}
 // Onda al pulsar (botones, menú lateral, segmentos y filas de selector)
 try{
   document.addEventListener('pointerdown',function(e){

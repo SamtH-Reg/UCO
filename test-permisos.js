@@ -1153,6 +1153,15 @@ t('guardado: el payload de media jornada normaliza el tipo de regreso', () => {
   return code.split('tipo_regreso:t===1?_regNorm(f.reg):null').length-1 === 2;
 });
 
+t('desplegables: se cierran al hacer clic fuera y al marcar una casilla no se cierran', () => {
+  var cierraFuera = code.indexOf("t.closest('.pick-pop') || t.closest('.pick-btn')")>=0;
+  var helper = code.indexOf('function _renderPop(idPop)')>=0;
+  var usos = ["_renderPop('mesPop')","_renderPop('estPop')","_renderPop('ccPop')","_renderPop('resAnioPop')","_renderPop('resCCPop')"]
+              .every(function(t){ return code.split(t).length-1 >= 2; });
+  var escape = code.indexOf("e.key!=='Escape'")>=0;
+  return cierraFuera && helper && usos && escape;
+});
+
 // 5. Reporte
 console.log('\n— Resumen —');
 let pass = 0, fail = 0;
