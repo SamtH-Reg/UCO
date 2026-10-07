@@ -3203,6 +3203,31 @@ function _normTxt(s){
     .replace(/[^A-Z0-9]+/g,' ').trim();
 }
 
+// Distancia de edición acotada: sirve para aceptar nombres mal escritos a mano ("Yeniferf").
+function _dist(a, b, max){
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  var prev = [], cur, i, j;
+  for (j = 0; j <= b.length; j++) prev[j] = j;
+  for (i = 1; i <= a.length; i++){
+    cur = [i];
+    for (j = 1; j <= b.length; j++){
+      cur[j] = Math.min(prev[j] + 1, cur[j-1] + 1, prev[j-1] + (a.charAt(i-1) === b.charAt(j-1) ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+// ¿La palabra calza? exacto (subcadena), o parecido (a lo más 1-2 letras de diferencia)
+function _calzaToken(t, palabras, texto){
+  if (texto.indexOf(t) >= 0) return 'exacto';
+  var max = t.length >= 8 ? 3 : (t.length >= 6 ? 2 : (t.length >= 5 ? 1 : 0));
+  if (!max) return null;
+  for (var i = 0; i < palabras.length; i++){
+    if (_dist(t, palabras[i], max) <= max) return 'parecido';
+  }
+  return null;
+}
+
 // Lee el pegado: acepta una persona por línea o una tabla con varias columnas.
 // Devuelve las filas y en qué columna está el nombre (la de más letras; "activo", códigos y
 // columnas de true/false quedan descartadas).
@@ -3283,19 +3308,33 @@ async function buscarInactivosLista(silencioso){
       hits = universo.filter(function(x){
         var cod = _normTxt(x.emp.codigo);
         return cod === toks[0] || cod.replace(/[^0-9]/g,'') === toks[0].replace(/[^0-9]/g,'');
-      });
+      }).map(function(x){ return { x: x, par: 0 }; });
     } else {
       var largas = toks.filter(function(t){ return t.length >= 3; });
       var usa = largas.length ? largas : toks;
-      hits = universo.filter(function(x){
-        var todo = _normTxt(x.emp.codigo) + ' ' + _normTxt(x.emp.nombre);
-        return usa.every(function(t){ return todo.indexOf(t) >= 0; });
-      });
+      // De cada candidato se exige que TODAS las palabras del listado aparezcan; si alguna
+      // aparece con 1-2 letras de diferencia, la coincidencia queda marcada como "parecida"
+      // para revisarla antes de activar.
+      hits = universo.map(function(x){
+        var palabras = (_normTxt(x.emp.codigo) + ' ' + _normTxt(x.emp.nombre)).split(' ').filter(Boolean);
+        var texto2 = palabras.join(' ');
+        var exactas = 0, parecidas = 0;
+        for (var ti = 0; ti < usa.length; ti++){
+          var c = _calzaToken(usa[ti], palabras, texto2);
+          if (!c) return null;
+          if (c === 'exacto') exactas++; else parecidas++;
+        }
+        if (!exactas && !parecidas) return null;
+        return { x: x, par: parecidas };
+      }).filter(Boolean);
     }
     if (!hits.length) { sin.push(texto); return; }
-    hits.forEach(function(x){
+    hits.forEach(function(h){
+      var x = (h.x !== undefined) ? h.x : h;
+      var par = (h.par !== undefined) ? h.par : 0;
       var k = String(x.emp.id == null ? x.emp.codigo : x.emp.id);
-      if (!porId[k]) porId[k] = { emp: x.emp, lineas: [], activo: !!x.activo };
+      if (!porId[k]) porId[k] = { emp: x.emp, lineas: [], activo: !!x.activo, par: par };
+      else if (par < porId[k].par) porId[k].par = par;
       if (porId[k].lineas.indexOf(texto) < 0) porId[k].lineas.push(texto);
     });
   });
@@ -3314,9 +3353,11 @@ function _pintarMatchesInac(sin, total, incluirActivos){
 
   if (btn) btn.style.display = nInac ? '' : 'none';
   if (btnCop) btnCop.style.display = _inacListaMatches.length ? '' : 'none';
+  var nPar = _inacListaMatches.filter(function(m){ return m.par > 0; }).length;
   if (resum) resum.textContent = _inacListaMatches.length + ' coincidencia' + (_inacListaMatches.length === 1 ? '' : 's') +
     ' de ' + total + ' línea' + (total === 1 ? '' : 's') +
     (incluirActivos ? ' · ' + nInac + ' por reactivar' : '') +
+    (nPar ? ' · ' + nPar + ' parecida' + (nPar === 1 ? '' : 's') + ' (revisar)' : '') +
     (sin.length ? ' · ' + sin.length + ' sin coincidencia' : '');
 
   var html = '';
@@ -3332,6 +3373,9 @@ function _pintarMatchesInac(sin, total, incluirActivos){
           var chk = m.activo
             ? '<input type="checkbox" disabled style="width:15px;height:15px" title="Ya está activo: no hace falta reactivarlo">'
             : '<input type="checkbox" class="chk-inac-lista" value="' + esc(String(m.emp.id)) + '" checked style="width:15px;height:15px;cursor:pointer">';
+          var marca = m.par > 0
+            ? ' <span class="badge" style="background:rgba(176,113,28,.16);color:#B0711C" title="Alguna palabra del listado no calza exacta (1-2 letras de diferencia): revisa antes de activar">≈ parecido</span>'
+            : '';
           return '<tr>'
             + '<td>' + chk + '</td>'
             + '<td><strong style="font-family:var(--mono);color:var(--accent2)">' + esc(m.emp.codigo) + '</strong></td>'
@@ -3339,7 +3383,7 @@ function _pintarMatchesInac(sin, total, incluirActivos){
             + '<td>' + esc(m.emp.centro_costo) + '</td>'
             + '<td>' + esc(m.emp.turno) + '</td>'
             + '<td>' + est + '</td>'
-            + '<td style="font-size:11px;color:var(--muted)">' + esc(m.lineas.join(' · ')) + '</td>'
+            + '<td style="font-size:11px;color:var(--muted)">' + esc(m.lineas.join(' · ')) + marca + '</td>'
           + '</tr>';
         }).join('')
       + '</tbody></table></div>';
@@ -3361,9 +3405,10 @@ function toggleTodosInacLista(on){
 // Copia las filas completadas para pegarlas en la planilla
 function copiarResultadoInac(){
   if (!_inacListaMatches.length) { toast('No hay coincidencias para copiar', 'warn'); return; }
-  var lineas = ['codigo\tnombre\tcentro_costo\tturno\testado'];
+  var lineas = ['codigo\tnombre\tcentro_costo\tturno\testado\tcoincidencia'];
   _inacListaMatches.forEach(function(m){
-    lineas.push([m.emp.codigo||'', m.emp.nombre||'', m.emp.centro_costo||'', m.emp.turno||'', (m.activo?'activo':'inactivo')].join('\t'));
+    lineas.push([m.emp.codigo||'', m.emp.nombre||'', m.emp.centro_costo||'', m.emp.turno||'',
+                 (m.activo?'activo':'inactivo'), (m.par>0?'parecida':'exacta')].join('\t'));
   });
   var txt = lineas.join('\n');
   var ok = function(){ toast('✅ ' + _inacListaMatches.length + ' filas copiadas — pégalas donde quieras', 'success', 6000); };
