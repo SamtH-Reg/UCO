@@ -1503,14 +1503,11 @@ body {
           <div class="settings-section-title"><span class="sticon">📋</span> Buscar un listado en los inactivos</div>
           <div style="padding:14px 18px">
             <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
-              Pega el listado tal como lo copiaste de Excel o Google Sheets: sirve una persona por línea
-              (código, un apellido o el nombre completo) o una <b>tabla</b> con varias columnas — se toma la
-              columna del nombre y las demás (por ejemplo <i>activo</i>) se ignoran.
-              El listado <b>puede estar incompleto</b>: cada coincidencia se completa con lo que hay en la
-              base (código, nombre y centro de costo).
+              Pega el listado copiado de Excel o Sheets: una persona por línea o la tabla completa.
+              Cada coincidencia se completa con el código, el nombre y el centro de costo de la base.
             </div>
             <textarea id="inacLista" class="form-input" rows="5" spellcheck="false"
-              placeholder="Palmenia Cheuqueman&#10;Marco Valderrama&#10;Andres Ojeda&#10;… (o pega la tabla completa)"
+              placeholder="Pega aquí el listado (Ctrl+V)"
               style="width:100%;font-family:var(--mono);font-size:12px;resize:vertical"></textarea>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
               <button class="btn btn-primary btn-sm" onclick="buscarInactivosLista()">🔍 Buscar coincidencias</button>
@@ -1518,12 +1515,12 @@ body {
                 <select class="search-input" id="inacListaTurno" style="min-width:170px;padding:4px 8px;font-size:12px;cursor:pointer"></select>
               </label>
               <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer"
-                     title="Útil para ver si alguien del listado ya está activo (no se puede reactivar dos veces)">
+                     title="Muestra también a los que ya están activos">
                 <input type="checkbox" id="inacListaIncluirActivos" onchange="buscarInactivosLista()" style="width:14px;height:14px;cursor:pointer">
                 Buscar también entre los activos
               </label>
               <button class="btn btn-primary btn-sm" id="btnInacReactivar" onclick="reactivarSeleccionadosLista()" style="display:none">✅ Activar seleccionados</button>
-              <button class="btn btn-secondary btn-sm" id="btnInacCopiar" onclick="copiarResultadoInac()" style="display:none" title="Copia las filas completadas (código, nombre, centro de costo, turno) para pegarlas en tu planilla">📋 Copiar resultado</button>
+              <button class="btn btn-secondary btn-sm" id="btnInacCopiar" onclick="copiarResultadoInac()" style="display:none" title="Copia las filas completadas para tu planilla">📋 Copiar resultado</button>
               <button class="btn btn-secondary btn-sm" onclick="document.getElementById('inacLista').value='';buscarInactivosLista()">✕ Limpiar</button>
               <span id="inacListaResumen" style="font-size:12px;color:var(--muted)"></span>
             </div>
@@ -1640,12 +1637,11 @@ body {
             </div>
             <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--border)">
               <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
-                <b>O pega las personas desde el portapapeles.</b> Copia las filas desde Excel o Google Sheets
-                (con o sin encabezados) y pégalas aquí: se arma la misma vista previa que con un archivo,
-                respetando la <b>tabla destino</b> y el <b>turno</b> elegidos arriba.
+                <b>O pega las personas desde el portapapeles.</b> Pega las filas de Excel o Sheets y se arma la
+                misma vista previa que con un archivo.
               </div>
               <textarea id="pegaTexto" class="form-input" rows="5" spellcheck="false"
-                placeholder="M1234&#9;PEREZ SOTO JUAN&#9;1110 -PRODUCCIÓN (FS)&#9;PLANTA&#10;M1235&#9;GOMEZ DIAZ ANA&#9;1111 -SERVICIOS DE PROD (FS)&#9;PLANTA"
+                placeholder="Pega aquí las filas (Ctrl+V)"
                 style="width:100%;font-family:var(--mono);font-size:12px;resize:vertical"></textarea>
               <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
                 <button class="btn btn-primary btn-sm" onclick="procesarPegado()">📋 Leer lo pegado</button>
@@ -3362,7 +3358,7 @@ function _pintarMatchesInac(sin, total, incluirActivos){
 
   var html = '';
   if (_inacListaMatches.length) {
-    html += '<div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.8px;margin-bottom:8px">COINCIDENCIAS (' + _inacListaMatches.length + ') — datos completados desde la base</div>'
+    html += '<div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.8px;margin-bottom:8px">COINCIDENCIAS (' + _inacListaMatches.length + ')</div>'
       + '<div class="data-table-wrap" style="max-height:380px;overflow:auto"><table class="data-table"><thead><tr>'
       + '<th style="width:38px"><input type="checkbox" id="chkInacTodos" checked onchange="toggleTodosInacLista(this.checked)" style="width:15px;height:15px;cursor:pointer" title="Marcar/desmarcar los reactivables"></th>'
       + '<th>Código</th><th>Nombre</th><th>Centro de Costo</th><th>Turno</th><th>Estado</th><th>Coincide con</th></tr></thead><tbody>'
@@ -3374,7 +3370,7 @@ function _pintarMatchesInac(sin, total, incluirActivos){
             ? '<input type="checkbox" disabled style="width:15px;height:15px" title="Ya está activo: no hace falta reactivarlo">'
             : '<input type="checkbox" class="chk-inac-lista" value="' + esc(String(m.emp.id)) + '" checked style="width:15px;height:15px;cursor:pointer">';
           var marca = m.par > 0
-            ? ' <span class="badge" style="background:rgba(176,113,28,.16);color:#B0711C" title="Alguna palabra del listado no calza exacta (1-2 letras de diferencia): revisa antes de activar">≈ parecido</span>'
+            ? ' <span class="badge" style="background:rgba(176,113,28,.16);color:#B0711C" title="Coincidencia aproximada: revisar antes de activar">≈ parecido</span>'
             : '';
           return '<tr>'
             + '<td>' + chk + '</td>'
@@ -4813,8 +4809,7 @@ function procesarArchivo(file) {
                 ' Así no se puede importar: revisa que el encabezado diga exactamente eso, sin tildes ni espacios de más' +
                 ' (las columnas leídas fueron: ' + cols.join(', ') + ').';
           if (cols.indexOf('nombre') >= 0 && cols.indexOf('codigo') < 0) {
-            msg += '<br>Si lo que tienes es una lista <b>sólo con nombres</b> de personas que ya existen' +
-                   ' (por ejemplo para reactivarlas), no va por aquí: usa <b>Inactivos → «Buscar un listado en los inactivos»</b>,';
+            msg += '<br>Si trae <b>sólo nombres</b> de personas que ya existen, usa <b>Inactivos → Buscar un listado</b>.';
           }
         } else if (_importFaltan.otras.length) {
           msg = '⚠️ <strong>No aparece' + (_importFaltan.otras.length > 1 ? 'n' : '') + ' en el archivo: ' +
