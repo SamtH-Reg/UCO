@@ -2337,7 +2337,8 @@ function renderForm(){
     var end=_finVacaciones(f);
     vacBox=perfil+'<div class="card">'+
       '<div class="card-h" style="display:flex;justify-content:space-between;align-items:baseline"><span>Días de vacaciones</span>'+
-        '<span style="font-size:11px;color:var(--hint);text-transform:none;font-weight:400">Año '+anioSaldo+(f.emp&&f.emp.ing?' · '+_anosServicio(f.emp.ing)+' años de servicio':'')+'</span></div>'+
+        '<span style="font-size:11px;color:var(--hint);text-transform:none;font-weight:400">Año '+anioSaldo+(f.emp&&f.emp.ing?' · '+_anosServicio(f.emp.ing)+' años de servicio':'')+
+          (f.emp&&f.emp.vacBase!=null? ' · saldo base RRHH':'')+'</span></div>'+
       fInfo+
       '<div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;margin-top:4px;border-top:2px solid var(--border)"><span style="font-size:13.5px;font-weight:600">Total solicitado</span>'+
         '<span style="font-size:26px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums">'+f.dias+'</span></div>'+
