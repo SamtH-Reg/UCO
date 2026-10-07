@@ -2254,6 +2254,12 @@ function renderForm(){
   }
   var vacBox='';
   if(t===2){
+    // Si el empleado del formulario llegó sin los datos de la base oficial (por ejemplo desde
+    // otro camino de selección), se completan desde la lista de empleados por su código.
+    if(f.emp && f.emp.vacBase==null && f.emp.c){
+      var _eB=(_EMP||[]).concat(_EMP_EXCL||[]).filter(function(e){ return String(e.c).toUpperCase()===String(f.emp.c).toUpperCase() && e.vacBase!=null; })[0];
+      if(_eB) f.emp=Object.assign({}, f.emp, {vacHab:_eB.vacHab, vacBase:_eB.vacBase, vacCorte:_eB.vacCorte, vacPorMes:_eB.vacPorMes});
+    }
     var fInfo='', anioSaldo=new Date().getFullYear();
     var _progd=0, _saldoReal=null, _prop=null;
     if(f.emp){
@@ -2521,7 +2527,13 @@ function pickChooseKey(i){ var src=_pickSrc; pickChooseFrom(src,i); }
 function pickChooseFrom(src,i){
   var it=src[i]; if(!it) return;
   if(_pickerType==='emp'){
-    _form.emp={c:it.c,n:it.n,tipo:it.tipo||'INDEFINIDO',ing:it.ing||null,baseOverride:(it.baseOverride!=null?it.baseOverride:null),progOverride:(it.progOverride!=null?it.progOverride:null),sindOverride:(it.sindOverride!=null?it.sindOverride:null)};
+    _form.emp={c:it.c,n:it.n,cc:it.cc,tipo:it.tipo||'INDEFINIDO',ing:it.ing||null,
+      baseOverride:(it.baseOverride!=null?it.baseOverride:null),progOverride:(it.progOverride!=null?it.progOverride:null),sindOverride:(it.sindOverride!=null?it.sindOverride:null),
+      // Datos de la base oficial de vacaciones (planilla de RRHH): sin esto el saldo caía al motor viejo
+      vacHab:!!it.vacHab,
+      vacBase:(it.vacBase!=null?it.vacBase:null),
+      vacCorte:it.vacCorte||null,
+      vacPorMes:(it.vacPorMes!=null?it.vacPorMes:null)};
     if(_tab===2){ _form.tipoDias='BASE'; _form.tomarBase=0; _form.tomarProg=0; _form.tomarSind=0; _form.dias=0; }
     // Centro de costo automático desde el empleado
     var cc=null;
