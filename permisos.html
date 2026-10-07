@@ -4097,6 +4097,15 @@ function guardarEdicion(){
     if(tabla==='solicitudes_permiso'){
       upd.inicio=fecha; upd.turno=turno; upd.tipo_permiso=tipo; upd.tipo_regreso=reg;
       upd.hora_salida=hsal||null; upd.hora_ingreso=(reg==='SIN')?null:(hing||null);
+      // MEDIA JORNADA: recalcular HORAS DE PERMISO con la fórmula al editar (antes quedaba el valor viejo).
+      // Se llama con horas_permiso en null para que calcularHorasPermiso() calcule en vez de devolver lo guardado.
+      var _rec=_buscarRegistro(pk);
+      if(_rec && String(_rec.tipo)==='MEDIA_JORNADA'){
+        var _tmp={turno:turno, tipo_regreso:reg, hora_salida:hsal||null,
+                  hora_ingreso:((reg==='SIN')?null:(hing||null)), horas_permiso:null};
+        var _hh=parseFloat(String(calcularHorasPermiso(_tmp)).replace(',','.'));
+        if(_hh>0) upd.horas_permiso=_hh;
+      }
       var eDias=document.getElementById('e_dias');
       if(eDias){ var dd=parseInt(eDias.value,10)||0; if(dd>0){ upd.dias_habiles=dd; upd.termino=vacEnd(fecha,dd); } }
     }
