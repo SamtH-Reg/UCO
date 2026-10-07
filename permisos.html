@@ -2456,9 +2456,18 @@ function _unidadVac(cc){
 //    unidades excluidas (1110-1114) también INDEFINIDO.
 function _empListaPicker(){
   if(_tab===2){
-    // BASE OFICIAL DE VACACIONES: solo las personas de la planilla de RRHH pueden vacacionar.
-    // El resto (otras áreas) queda fuera. Si la base aún no está cargada se usa el criterio anterior.
-    var hab=_EMP.concat(_EMP_EXCL||[]).filter(function(e){ return e.vacHab; });
+    // QUIÉN PUEDE VACACIONAR:
+    //   1) las personas de la BASE OFICIAL (planilla de RRHH), y
+    //   2) además, las de las unidades que sí dan vacaciones con contrato indefinido
+    //      (1110, 1111, 1112, 1113, 1114, 1117).
+    // Todo lo demás queda fuera. Si la base aún no está cargada se usa solo el criterio 2.
+    var UND_VAC=['1110','1111','1112','1113','1114','1117'];
+    var _ccCod=function(cc){ var m=String(cc||'').match(/^\s*(\d{3,4})/); return m? m[1] : ''; };
+    var _esIndef=function(e){ return String(e.tipo||'').toUpperCase().indexOf('INDEFINID')>=0; };
+    var hab=_EMP.concat(_EMP_EXCL||[]).filter(function(e){
+      if(e.vacHab) return true;                                  // 1) base oficial
+      return UND_VAC.indexOf(_ccCod(e.cc))>=0 && _esIndef(e);     // 2) unidades de vacaciones + indefinido
+    });
     if(hab.length){
       var vh={}, out=[];
       hab.forEach(function(e){ var k=String(e.c).toUpperCase(); if(vh[k]) return; vh[k]=true; out.push(e); });
