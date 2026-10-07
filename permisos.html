@@ -858,7 +858,12 @@ async function cargarDatosBase(){
     vacHab:!!e.habilitado_vacaciones,
     vacBase:(e.vacaciones_saldo_base!=null?Number(e.vacaciones_saldo_base):null),
     vacCorte:e.vacaciones_corte?String(e.vacaciones_corte).slice(0,10):null,
-    vacPorMes:(e.vacaciones_dias_por_mes!=null?Number(e.vacaciones_dias_por_mes):null)}; }
+    vacPorMes:(e.vacaciones_dias_por_mes!=null?Number(e.vacaciones_dias_por_mes):null),
+    // Saldo de la planilla SEPARADO en legales y progresivos (pueden pedir de cualquiera de los dos)
+    vacLeg:(e.vacaciones_legal!=null?Number(e.vacaciones_legal):null),
+    vacProg:(e.vacaciones_progresivo!=null?Number(e.vacaciones_progresivo):null),
+    vacLegMes:(e.vacaciones_legal_por_mes!=null?Number(e.vacaciones_legal_por_mes):null),
+    vacProgMes:(e.vacaciones_progresivo_por_mes!=null?Number(e.vacaciones_progresivo_por_mes):null)}; }
   _EMP=(empRes.data||[]).map(_mapEmp);
   _EMP_EXCL=(!ueRes.error&&ueRes.data)?ueRes.data.map(_mapEmp):[];
   // Responsables (jefaturas directas) desde la tabla 'autorizadores'
@@ -1121,8 +1126,14 @@ function _saldoBaseOficial(emp, excluirId){
     var c=new Date(corte+'T12:00:00'), h=new Date(hIso+'T12:00:00');
     if(!isNaN(c.getTime())) meses=Math.max(0,(h.getFullYear()-c.getFullYear())*12+(h.getMonth()-c.getMonth())+(h.getDate()-c.getDate())/30);
   }
-  var devengado=(Number(emp.vacBase)||0)+(Number(emp.vacPorMes)||0)*meses;
-  var cod=String(emp.c||'').trim().toUpperCase(), tomado=0;
+  // Legal y progresivo por separado (si no viene el desglose, todo va a legal como antes)
+  var leg0=(emp.vacLeg!=null?Number(emp.vacLeg):(Number(emp.vacBase)||0));
+  var prg0=(emp.vacProg!=null?Number(emp.vacProg):0);
+  var rl=(emp.vacLegMes!=null?Number(emp.vacLegMes):(Number(emp.vacPorMes)||0));
+  var rp=(emp.vacProgMes!=null?Number(emp.vacProgMes):0);
+  var devengadoL=leg0+rl*meses, devengadoP=prg0+rp*meses;
+  var devengado=devengadoL+devengadoP;
+  var cod=String(emp.c||'').trim().toUpperCase(), tomadoL=0, tomadoP=0;
   (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
     if(String(s.tipo||'')!=='VACACIONES') return;
     if(String(s.codigo||'').trim().toUpperCase()!==cod) return;
@@ -1130,18 +1141,20 @@ function _saldoBaseOficial(emp, excluirId){
     var ini=String(s.inicio||'').slice(0,10);
     if(!ini || ini>hIso) return;                       // programadas a futuro: no descuentan
     if(corte && ini<=corte) return;                    // anteriores al corte: ya vienen descontadas en el saldo de la planilla
-    var d=parseFloat(s.dias_habiles); if(!(d>0)) d=1;
-    tomado+=d;
+    var db_=parseFloat(s.dias_base), dp_=parseFloat(s.dias_progresivo);
+    if(db_>0 || dp_>0){ tomadoL+=(db_>0?db_:0); tomadoP+=(dp_>0?dp_:0); }
+    else { var d=parseFloat(s.dias_habiles); if(!(d>0)) d=1; tomadoL+=d; }
   });
-  var disp=Math.max(0, devengado-tomado);
+  var dispL=Math.max(0, devengadoL-tomadoL), dispP=Math.max(0, devengadoP-tomadoP);
   var anos=_anosServicio(emp.ing);
-  return { base:r(disp), prog:0, sind:0,
-           devengado:{base:r(devengado),prog:0,sind:0}, tomado:{base:r(tomado),prog:0,sind:0},
+  return { base:r(dispL), prog:r(dispP), sind:0,
+           devengado:{base:r(devengadoL),prog:r(devengadoP),sind:0},
+           tomado:{base:r(tomadoL),prog:r(tomadoP),sind:0},
            oficial:true, corte:corte, porMes:(Number(emp.vacPorMes)||0),
            periodos:[{ i:0, enCurso:true, frac:1,
-             derecho:{base:r(devengado),prog:0,sind:0},
-             tomado:{base:r(tomado),prog:0,sind:0},
-             aporte:{base:r(disp),prog:0,sind:0} }],
+             derecho:{base:r(devengadoL),prog:r(devengadoP),sind:0},
+             tomado:{base:r(tomadoL),prog:r(tomadoP),sind:0},
+             aporte:{base:r(dispL),prog:r(dispP),sind:0} }],
            anos:(anos==null?0:anos) };
 }
 
@@ -2258,7 +2271,8 @@ function renderForm(){
     // otro camino de selección), se completan desde la lista de empleados por su código.
     if(f.emp && f.emp.vacBase==null && f.emp.c){
       var _eB=(_EMP||[]).concat(_EMP_EXCL||[]).filter(function(e){ return String(e.c).toUpperCase()===String(f.emp.c).toUpperCase() && e.vacBase!=null; })[0];
-      if(_eB) f.emp=Object.assign({}, f.emp, {vacHab:_eB.vacHab, vacBase:_eB.vacBase, vacCorte:_eB.vacCorte, vacPorMes:_eB.vacPorMes});
+      if(_eB) f.emp=Object.assign({}, f.emp, {vacHab:_eB.vacHab, vacBase:_eB.vacBase, vacCorte:_eB.vacCorte, vacPorMes:_eB.vacPorMes,
+                                              vacLeg:_eB.vacLeg, vacProg:_eB.vacProg, vacLegMes:_eB.vacLegMes, vacProgMes:_eB.vacProgMes});
     }
     var fInfo='', anioSaldo=new Date().getFullYear();
     var _progd=0, _saldoReal=null, _prop=null;
@@ -2527,7 +2541,11 @@ function pickChooseFrom(src,i){
       vacHab:!!it.vacHab,
       vacBase:(it.vacBase!=null?it.vacBase:null),
       vacCorte:it.vacCorte||null,
-      vacPorMes:(it.vacPorMes!=null?it.vacPorMes:null)};
+      vacPorMes:(it.vacPorMes!=null?it.vacPorMes:null),
+      vacLeg:(it.vacLeg!=null?it.vacLeg:null),
+      vacProg:(it.vacProg!=null?it.vacProg:null),
+      vacLegMes:(it.vacLegMes!=null?it.vacLegMes:null),
+      vacProgMes:(it.vacProgMes!=null?it.vacProgMes:null)};
     if(_tab===2){ _form.tipoDias='BASE'; _form.tomarBase=0; _form.tomarProg=0; _form.tomarSind=0; _form.dias=0; }
     // Centro de costo automático desde el empleado
     var cc=null;
