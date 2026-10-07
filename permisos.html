@@ -2283,7 +2283,9 @@ function renderForm(){
         // Diagnóstico visible (temporal): muestra si la persona viene con el saldo de la planilla de RRHH
       fInfo='<div style="font-size:10.5px;color:var(--hint);font-family:var(--mono);margin:-2px 0 8px">diag: '+esc(f.emp.c)
         +' · base RRHH '+(f.emp.vacBase!=null?('sí (saldo '+String(f.emp.vacBase).replace('.',',')+', corte '+esc(f.emp.vacCorte||'—')+')'):'NO')
-        +' · motor '+(saldo.oficial?'planilla':'antiguo')+'</div>'+
+        +' · motor '+(saldo.oficial?'planilla':'antiguo')
+        +' · campos: '+Object.keys(f.emp).filter(function(k){ return k.indexOf('vac')===0; }).join('/')
+        +' · vacBase='+String(f.emp.vacBase)+' vacHab='+String(f.emp.vacHab)+'</div>'+
         _diasRow('base','Feriados Legales','#4B44C9',asig.base,uso.base,dBase,f.tomarBase||0,FERIADO_BASE,true,{dev:saldo.devengado.base,tom:saldo.tomado.base})+
           _diasRow('prog','Progresivo','#16794E',asig.prog,uso.prog,dProg,f.tomarProg||0,progAuto,true,{dev:saldo.devengado.prog,tom:saldo.tomado.prog})+
           _diasRow('sind','Sindicales','#9A6516',asig.sind,uso.sind,dSind,f.tomarSind||0,DIAS_SINDICALES,true,{dev:saldo.devengado.sind,tom:saldo.tomado.sind});
