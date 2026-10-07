@@ -1512,7 +1512,7 @@ body {
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
               <button class="btn btn-primary btn-sm" onclick="buscarInactivosLista()">🔍 Buscar coincidencias</button>
               <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">Turno al reactivar
-                <select class="search-input" id="inacListaTurno" style="min-width:170px;padding:4px 8px;font-size:12px;cursor:pointer"></select>
+                <select class="search-input" id="inacListaTurno" title="Sólo se ofrecen los turnos activos en Horarios de Jornada. Si el turno de la persona está desactivado, se usa uno activo." style="min-width:170px;padding:4px 8px;font-size:12px;cursor:pointer"></select>
               </label>
               <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer"
                      title="Muestra también a los que ya están activos">
@@ -1988,20 +1988,6 @@ body {
               <div class="settings-row-desc">La clave pública (anon/public)</div>
             </div>
             <input class="settings-input" id="cfg-key" type="password" placeholder="eyJhbGci...">
-          </div>
-          <div class="settings-row" style="border:none">
-            <div class="settings-row-info">
-              <div class="settings-row-label">API Vacaciones (Apps Script)</div>
-              <div class="settings-row-desc">URL del Web App de Google Scripts para vacaciones</div>
-            </div>
-            <input class="settings-input" id="cfg-vac" type="text" placeholder="https://script.google.com/macros/s/...">
-          </div>
-          <div class="settings-row" style="border:none">
-            <div class="settings-row-info">
-              <div class="settings-row-label">API Permisos (Apps Script)</div>
-              <div class="settings-row-desc">URL del Web App para permisos médicos/personales/judiciales</div>
-            </div>
-            <input class="settings-input" id="cfg-perm" type="text" placeholder="https://script.google.com/macros/s/...">
           </div>
           <div style="padding:14px 18px;display:flex;gap:10px;border-top:1px solid var(--border)">
             <button class="btn btn-primary" onclick="guardarConfig()">💾 Guardar configuración</button>
@@ -2789,18 +2775,26 @@ function _sufTurno(t){ return t.replace(/é/g,'e').replace(/ó/g,'o').replace(/�
 async function _cargarTurnosActivos(){
   var db = getClient();
   _turnosActivos = [];
+  var todos = [];
   if(db){
     try{
       var res = await db.from('config_turnos').select('turno,emoji,orden,activo');
       if(!res.error && res.data){
+        todos = res.data;
         _turnosActivos = res.data.filter(function(r){ return r.activo !== false; })
           .map(function(r){ return {turno:r.turno, emoji:r.emoji||'🕐', orden:(r.orden!=null?r.orden:99)}; })
           .sort(function(a,b){ return a.orden-b.orden; });
       }
     }catch(e){ console.warn('config_turnos no disponible',e); }
   }
+  // Si no queda ninguno activo se usa el primero de la configuración. Antes se inventaban
+  // Día/Tarde/Noche, así que se podía reactivar a alguien en un turno DESACTIVADO: la persona
+  // quedaba "oculta" (sin pestaña en el menú) y no había forma de encontrarla.
   if(!_turnosActivos.length){
-    _turnosActivos = [{turno:'Día',emoji:'☀️',orden:1},{turno:'Tarde',emoji:'🌅',orden:2},{turno:'Noche',emoji:'🌙',orden:3}];
+    var ref = todos.filter(function(r){ return r.turno === 'Día'; })[0] || todos[0];
+    _turnosActivos = ref
+      ? [{ turno: ref.turno, emoji: ref.emoji || '🕐', orden: (ref.orden != null ? ref.orden : 1) }]
+      : [{ turno:'Día', emoji:'☀️', orden:1 }];
   }
 }
 
@@ -3180,7 +3174,8 @@ function filtrarInactivos(){
       +'<td><strong style="font-family:var(--mono);color:var(--accent2)">'+esc(r.codigo)+'</strong></td>'
       +'<td>'+esc(r.nombre)+'</td>'
       +'<td>'+esc(r.centro_costo)+'</td>'
-      +'<td>'+esc(r.turno)+'</td>'
+      +'<td>'+esc(r.turno)+(_turnosActivos.some(function(x){ return String(x.turno)===String(r.turno||''); }) ? ''
+          : ' <span class="badge" style="background:rgba(224,82,82,.14);color:#c0392b" title="Turno desactivado en Horarios de Jornada">⚠️</span>')+'</td>'
       +'</tr>';
   }).join('');
 }
@@ -3329,7 +3324,8 @@ async function buscarInactivosLista(silencioso){
       var x = (h.x !== undefined) ? h.x : h;
       var par = (h.par !== undefined) ? h.par : 0;
       var k = String(x.emp.id == null ? x.emp.codigo : x.emp.id);
-      if (!porId[k]) porId[k] = { emp: x.emp, lineas: [], activo: !!x.activo, par: par };
+      if (!porId[k]) porId[k] = { emp: x.emp, lineas: [], activo: !!x.activo, par: par,
+                                  turnoInactivo: !_turnosActivos.some(function(t){ return String(t.turno) === String(x.emp.turno || ''); }) };
       else if (par < porId[k].par) porId[k].par = par;
       if (porId[k].lineas.indexOf(texto) < 0) porId[k].lineas.push(texto);
     });
@@ -3377,7 +3373,9 @@ function _pintarMatchesInac(sin, total, incluirActivos){
             + '<td><strong style="font-family:var(--mono);color:var(--accent2)">' + esc(m.emp.codigo) + '</strong></td>'
             + '<td>' + esc(m.emp.nombre) + '</td>'
             + '<td>' + esc(m.emp.centro_costo) + '</td>'
-            + '<td>' + esc(m.emp.turno) + '</td>'
+            + '<td>' + esc(m.emp.turno) + (m.turnoInactivo
+                ? ' <span class="badge" style="background:rgba(224,82,82,.14);color:#c0392b" title="Ese turno está desactivado en Horarios de Jornada: al reactivar se usará un turno activo">⚠️ desactivado</span>'
+                : '') + '</td>'
             + '<td>' + est + '</td>'
             + '<td style="font-size:11px;color:var(--muted)">' + esc(m.lineas.join(' · ')) + marca + '</td>'
           + '</tr>';
@@ -3436,12 +3434,22 @@ async function reactivarSeleccionadosLista(){
 
   var btn = document.getElementById('btnInacReactivar');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Activando…'; }
-  var ok = 0, err = 0, errMsg = '';
+  var ok = 0, err = 0, errMsg = '', reasignados = 0, turnoActivo0 = _turnosActivos.length ? _turnosActivos[0].turno : '';
+  function _esTurnoActivo(t){
+    return _turnosActivos.some(function(x){ return String(x.turno) === String(t == null ? '' : t); });
+  }
   for (var i = 0; i < ids.length; i++) {
     var emp = _inactivosData.filter(function(r){ return String(r.id) === String(ids[i]); })[0];
     var payload = { activo: true, licencia_inicio: null, licencia_fin: null };
-    if (turnoSel) payload.turno = turnoSel;
-    else if (emp) payload.turno = emp.turno || '';
+    if (turnoSel) {
+      payload.turno = turnoSel;
+    } else {
+      // "El turno de cada uno" sólo si ese turno sigue ACTIVO; si está desactivado quedaría
+      // oculto en el menú, así que se usa el primer turno activo y se avisa en el resumen.
+      var propio = emp ? (emp.turno || '') : '';
+      if (_esTurnoActivo(propio)) payload.turno = propio;
+      else { payload.turno = turnoActivo0 || propio; if (turnoActivo0 && String(propio) !== String(turnoActivo0)) reasignados++; }
+    }
     var res = await db.from('empleados').update(payload).eq('id', ids[i]);
     if (res.error) { err++; errMsg = res.error.message; } else { ok++; }
     if (btn) btn.innerHTML = '<span class="spinner"></span>' + ok + '/' + ids.length;
@@ -3449,7 +3457,8 @@ async function reactivarSeleccionadosLista(){
   if (btn) { btn.disabled = false; btn.innerHTML = '✅ Activar seleccionados'; }
 
   toast((err ? '⚠️ ' : '✅ ') + ok + ' reactivado' + (ok === 1 ? '' : 's') +
-        (err ? ' · ' + err + ' con error: ' + errMsg : ''), err ? 'warn' : 'success', 8000);
+        (reasignados ? ' · ' + reasignados + ' pas' + (reasignados === 1 ? 'ó' : 'aron') + ' a ' + turnoActivo0 + ' (su turno estaba desactivado)' : '') +
+        (err ? ' · ' + err + ' con error: ' + errMsg : ''), err ? 'warn' : 'success', 9000);
 
   // Quitar de la vista de inactivos, invalidar la caché de activos y repintar
   _inactivosData = _inactivosData.filter(function(r){ return ids.indexOf(String(r.id)) < 0; });
@@ -6437,8 +6446,6 @@ function cargarSettings() {
   const cfg = getCfg();
   document.getElementById('cfg-url').value  = cfg.url  || _DEFAULT_URL;
   document.getElementById('cfg-key').value  = cfg.key  || _DEFAULT_KEY;
-  document.getElementById('cfg-vac').value  = cfg.vac  ?? '';
-  document.getElementById('cfg-perm').value = cfg.perm ?? '';
 }
 
 // ── TEMAS ──────────────────────────────────────────────────────
@@ -6463,8 +6470,6 @@ function guardarConfig() {
   const cfg = {
     url:  document.getElementById('cfg-url').value.trim(),
     key:  document.getElementById('cfg-key').value.trim(),
-    vac:  document.getElementById('cfg-vac').value.trim(),
-    perm: document.getElementById('cfg-perm').value.trim(),
   };
   if (!cfg.url || !cfg.key) { toast('URL y Anon Key son obligatorias','error'); return; }
   saveCfg(cfg);

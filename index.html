@@ -42,20 +42,56 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
     });
   }
 })();
-const SHEETS_API_VACACIONES = 'https://script.google.com/macros/s/AKfycbw2meDcRnusRCJmI-IzBmPfk7CWgigQzp_Uy2Dt7KmLB4u_CZ6mvLa1-ihFQjvvABhm4g/exec?tipo=vacaciones';
-const SHEETS_API_PERMISOS   = 'https://script.google.com/macros/s/AKfycbwMnLr8CmkQVw4oS2Myct7njFQjAfbWZLBUn6uR8mL96lslWNdUy04GheM9dgapiOh5/exec?tipo=permisos';
-
-// Permisos del día EN VIVO desde el Apps Script (refleja borrados de la planilla al instante).
-// Si falla (CORS/offline), devuelve null y la app usa la base de datos como respaldo.
+// Permisos del día, directo de la base (antes se leían en vivo de una planilla de Google Sheets).
+// Misma información que entregaban las planillas:
+//   · solicitudes_permiso → permisos de DÍA COMPLETO del día (pendientes o aprobados)
+//   · permisos            → histórico ya cargado de la planilla
+// Las vacaciones se leen aparte y las medias jornadas NO cuentan como conflicto con el
+// registro del día (la persona trabajó parte de la jornada).
+// Devuelve {personal:[codigos], medico:[codigos], judicial:[codigos]}; null sólo si hubo error.
 async function _apiPermsDia(fecha){
   try{
-    var url = SHEETS_API_PERMISOS + (SHEETS_API_PERMISOS.indexOf('?')>=0 ? '&' : '?') + 'fecha=' + encodeURIComponent(fecha);
-    var res = await fetch(url, { cache:'no-store' });
-    if(!res.ok) return null;
-    var j = await res.json();
-    if(j && (j.personal || j.medico || j.judicial)) return { personal:(j.personal||[]), medico:(j.medico||[]), judicial:(j.judicial||[]) };
-    return null;
-  }catch(e){ console.warn('[API permisos]', e && e.message); return null; }
+    const db = _sbDb();
+    const P = { personal:new Set(), medico:new Set(), judicial:new Set() };
+    const _clasif = function(tipo, cod){
+      const c = String(cod == null ? '' : cod).trim();
+      if(!c) return;
+      const t = String(tipo == null ? '' : tipo).toLowerCase();
+      if(t.includes('judicial')) P.judicial.add(c);
+      else if(t.includes('medic')) P.medico.add(c);      // médico / medico / médica
+      else P.personal.add(c);
+    };
+    // 1) Sistema nuevo: solicitudes de permiso del día (día completo y media jornada)
+    let pag = 0, mas = true, filas = 0;
+    while(mas){
+      const { data, error } = await db.from('solicitudes_permiso')
+        .select('codigo,tipo,tipo_permiso,estado')
+        .eq('inicio', fecha)
+        .range(pag*1000, pag*1000+999);
+      if(error) return null;                              // error real → la app usa su respaldo
+      const lote = data || [];
+      filas += lote.length;
+      lote.forEach(function(r){
+        if(String(r.tipo || '') !== 'COMPLETO') return;    // vacaciones y medias jornadas van aparte
+        if(r.estado !== 'PENDIENTE' && r.estado !== 'APROBADO') return;
+        _clasif(r.tipo_permiso, r.codigo);
+      });
+      if(lote.length < 1000) mas = false; else pag++;
+    }
+    // 2) Histórico de la planilla (misma información, ya en Supabase)
+    pag = 0; mas = true;
+    while(mas){
+      const { data, error } = await db.from('permisos')
+        .select('codigo,tipo').eq('fecha', fecha).range(pag*1000, pag*1000+999);
+      if(error) break;                                    // el histórico es opcional
+      const lote = data || [];
+      lote.forEach(function(r){ _clasif(r.tipo, r.codigo); });
+      if(lote.length < 1000) mas = false; else pag++;
+    }
+    const out = { personal:[...P.personal], medico:[...P.medico], judicial:[...P.judicial] };
+    _cPut('ext_perm_'+fecha, out, _SB_CONFIG.CACHE_EXT);
+    return out;
+  }catch(e){ console.warn('[permisos del día]', e && e.message); return null; }
 }
 // ────────────────────────────────────────────────────────────────
 
@@ -4027,7 +4063,7 @@ let _empFiltrada = [];   // lista actualmente visible
 let _empFoco     = -1;   // índice con foco de teclado
 let _empAbierto  = false;
 
-// ── 1. Cargar lista completa desde Sheets ─────────────────
+// ── 1. Cargar lista completa desde Supabase ───────────────
 function empCargar(forzar){
   const cnt = document.getElementById('empContador');
   if(cnt) cnt.textContent = 'Cargando empleados…';
@@ -4758,7 +4794,7 @@ function guardarRegistro(){
     return;
   }
 
-  // ── Con conexión → enviar a Sheets ────────────────────────
+  // ── Con conexión → enviar a Supabase ──────────────────────
   const btn=document.getElementById('btnGuardar');
   btn.classList.add('loading');
   btn.innerHTML='<span class="spinner"></span> GUARDANDO...';
@@ -7070,7 +7106,7 @@ function offlineOcultarBanner(){
   if(b) b.classList.remove('visible','syncing');
 }
 
-// ── Sincronizar pendientes con Sheets ────────────────────
+// ── Sincronizar pendientes con Supabase ──────────────────
 async function offlineSync(){
   const todos = await dbLeerTodos();
   if(!todos.length){ offlineOcultarBanner(); return; }
