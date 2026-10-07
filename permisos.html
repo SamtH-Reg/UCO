@@ -312,6 +312,14 @@ textarea{resize:vertical}
 .tbl tbody td{padding:6px 16px;border-bottom:1px solid var(--border);white-space:nowrap;font-variant-numeric:tabular-nums}
 .tbl .btn-icon{width:24px;height:24px;border-radius:7px;font-size:11px;padding:0}
 .tbl tbody tr:hover td{background:color-mix(in srgb,var(--text) 4%,transparent)}
+/* Registro recién enviado: se resalta con un pulso suave (una sola fila, una sola vez) */
+.tbl tbody tr.fila-nueva td{animation:_filaNueva 2.8s ease-out 1 both}
+.tbl tbody tr.fila-nueva td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+@keyframes _filaNueva{
+  0%  {background:color-mix(in srgb,var(--accent) 46%,transparent)}
+  55% {background:color-mix(in srgb,var(--accent) 20%,transparent)}
+  100%{background:color-mix(in srgb,var(--accent) 13%,transparent)}
+}
 .tbl tbody tr.fecha-head td{background:color-mix(in srgb,var(--text) 9%,transparent);font-weight:800;font-size:12.5px;color:var(--text);border-top:2px solid color-mix(in srgb,var(--text) 16%,transparent);border-bottom:1px solid color-mix(in srgb,var(--text) 12%,transparent);cursor:pointer;padding:6px 18px}
 .tbl tbody tr.fecha-head:hover td{background:color-mix(in srgb,var(--text) 12%,transparent)}
 .tbl tbody tr.res-anio td{background:color-mix(in srgb,var(--text) 13%,transparent);font-weight:800;font-size:12.5px;color:var(--text);border-top:2px solid color-mix(in srgb,var(--text) 20%,transparent);border-bottom:1px solid color-mix(in srgb,var(--text) 16%,transparent);cursor:pointer;padding:8px 18px}
@@ -1654,6 +1662,8 @@ function go(p){ _page=p; if(document.body) document.body.setAttribute('data-page
   // Al entrar a la vista de registros, marcar para hacer scroll al día actual UNA sola vez
   if(p==='rec' && _recIdx===0){ window._scrollARef=true; }
   render();
+  if(p==='rec' && _nuevoResaltado){ setTimeout(_revelarRegistroNuevo, 30); }   // deja a la vista el recién enviado
+  if(p!=='rec'){ _nuevoResaltado=null; }                                      // al salir, se apaga el resaltado
   _autoConectarCarpetas();
 }
 function setTab(t){ _tab=t; _editSolId=null; resetForm(true); if(document.body) document.body.setAttribute('data-formtab', String(t)); go('form'); }
@@ -2805,17 +2815,26 @@ async function submitForm(){
   var rotulo=btn? btn.innerHTML : '';
   if(btn){ btn.disabled=true; btn.classList.add('enviando'); btn.innerHTML='Enviando…'; }
   try{
+    // La fecha del registro se toma ANTES de limpiar el formulario
+    var _fechaNueva = (_tab===2) ? (_form.start || '')
+                                 : ((_form.dates && _form.dates[0]) || '');
     var r=await _guardarSolicitud();
     if(!r || !r.ok) return;                       // _guardarSolicitud ya avisó el motivo
     if(r.tipo==='update'){
       toast('✅ Cambios guardados','success');
       try{ await cargarSolicitudes(); }catch(e){ console.warn('[SOLIC]',e); }
-      go('rec'); return;
+      _marcarRegistroNuevo(r.id, _fechaNueva);    // también se resalta al editar
+      setRecIdx(_tab);
+      _encuadrarRegistroNuevo(); return;
     }
     toast('✅ Solicitud enviada correctamente','success');
     resetForm();
     try{ await cargarSolicitudes(); }catch(e){ console.warn('[SOLIC]',e); }
-    go('home');
+    // En vez del Panel: Registros en la pestaña del permiso enviado, con la fila recién creada
+    // resaltada y centrada, para comprobar al instante que quedó cargada.
+    _marcarRegistroNuevo(r.id, _fechaNueva);
+    setRecIdx(_tab);
+    _encuadrarRegistroNuevo();      // si el permiso es de otro mes, se agrega al filtro para verlo
   }catch(e){
     toast('Error al enviar: '+((e&&e.message)||e),'error',7000);
   }finally{
@@ -2980,6 +2999,72 @@ function toggleDiaMes(k){ k=String(k); _diaExpandMes[k]=(_diaExpandMes[k]===true
 function toggleDiasPrevMes(k){ k=String(k); _diasPrevMes[k]=(_diasPrevMes[k]===true)?false:true; render(); }
 // Estado de colapso por fecha en vista Media jornada
 var _diaExpandMJ = {};
+// Registro recién enviado: para ir a Registros y dejar a la vista la fila que se acaba de crear
+var _nuevoResaltado = null;      // {id, fecha}
+var _resaltarTimer = null;
+function _marcarRegistroNuevo(id, fechaIso){
+  if(!id) return;
+  _nuevoResaltado = { id:String(id), fecha:String(fechaIso||'').slice(0,10) };
+  if(_resaltarTimer) clearTimeout(_resaltarTimer);
+  // El resaltado se apaga solo: si el usuario sigue navegando, la fila vuelve a la normalidad.
+  _resaltarTimer = setTimeout(function(){ _nuevoResaltado = null; _quitarResaltadoFila(); }, 10000);
+}
+function _quitarResaltadoFila(){
+  var els = document.querySelectorAll('.fila-nueva');
+  for(var i=0;i<els.length;i++) els[i].classList.remove('fila-nueva');
+}
+// La fila se ubica por el id que llevan sus botones de acción (Editar / Eliminar)
+function _filaRegistroNuevo(){
+  if(!_nuevoResaltado) return null;
+  var b = document.querySelector('#contentBox [onclick*="'+_nuevoResaltado.id+'"]');
+  return b ? b.closest('tr') : null;
+}
+// Asegura que el registro recién enviado entre en los filtros de Registros (mes, rango, tipo y
+// turno): así se ve aunque la solicitud sea para un mes que no estaba en pantalla.
+function _encuadrarRegistroNuevo(){
+  if(!_nuevoResaltado || _recIdx===2) return;      // la vista de vacaciones no filtra por mes/turno
+  var f=_nuevoResaltado.fecha; if(!f) return;
+  var y=parseInt(f.slice(0,4),10), m=parseInt(f.slice(5,7),10);
+  if(!y || !m) return;
+  var pad=function(n){ return String(n).padStart(2,'0'); };
+  var ini=y+'-'+pad(m)+'-01';
+  var fin=y+'-'+pad(m)+'-'+pad(new Date(y, m, 0).getDate());
+  var cambia=false;
+  if(_recAnio && _recAnio!==String(y)){ _recAnio=''; cambia=true; }
+  if(_recMeses.length && _recMeses.indexOf(m)<0){ _recMeses=_recMeses.concat([m]).sort(function(a,b){ return a-b; }); cambia=true; }
+  if(!_recDesde || _recDesde>ini){ _recDesde=ini; cambia=true; }
+  if(!_recHasta || _recHasta<fin){ _recHasta=fin; cambia=true; }
+  if(_recTipo){ _recTipo=''; cambia=true; }
+  if(_recTurno){ _recTurno=''; cambia=true; }
+  if(cambia) render();
+}
+
+// Si estaba plegada abre el mes/día que corresponde, y después la resalta y la deja centrada
+function _revelarRegistroNuevo(intento){
+  if(!_nuevoResaltado) return;
+  _quitarResaltadoFila();
+  var tr = _filaRegistroNuevo();
+  if(!tr && !intento){
+    var f = _nuevoResaltado.fecha, mk = f.slice(0,7);
+    _diaExpandC[f] = true; _diaExpand[f] = true; _diaExpandMJ[f] = true;
+    _diasPrevMes[mk] = true; _diaExpandMes[mk] = true;
+    _resVacExpand[f] = true; _resVacExpand[mk] = true;
+    render();
+    setTimeout(function(){ _revelarRegistroNuevo(true); }, 60);
+    return;
+  }
+  if(!tr) return;
+  tr.classList.add('fila-nueva');
+  try{
+    var rect = tr.getBoundingClientRect();
+    var actual = window.pageYOffset || document.documentElement.scrollTop || 0;
+    var altura = window.innerHeight || document.documentElement.clientHeight || 800;
+    var destino = actual + rect.top - (altura/2) + (rect.height/2 || 20);
+    if(destino < 0) destino = 0;
+    try{ window.scrollTo({ top:destino, behavior:'smooth' }); }
+    catch(e){ window.scrollTo(0, destino); }
+  }catch(e){}
+}
 function toggleDiaMJ(dk){ _diaExpandMJ[dk]=!_diaExpandMJ[dk]; render(); }
 // Número de semana ISO (YYYY-Www) de una fecha YYYY-MM-DD
 function semNum(dk){
