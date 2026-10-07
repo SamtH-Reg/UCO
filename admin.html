@@ -1496,6 +1496,31 @@ body {
           <select class="search-input" id="inacFiltroCC" onchange="filtrarInactivos()" style="min-width:200px;cursor:pointer"><option value="">Todos los centros de costo</option></select>
           <span class="count-badge" id="inacCountBadge">— inactivos</span>
         </div>
+
+        <!-- Buscar un listado (incompleto) dentro de los inactivos y reactivar las coincidencias -->
+        <div class="settings-section" style="margin:0 0 14px">
+          <div class="settings-section-title"><span class="sticon">📋</span> Buscar un listado en los inactivos</div>
+          <div style="padding:14px 18px">
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+              Pega el listado, una persona por línea (basta el código, un apellido o el nombre completo en cualquier orden).
+              El listado <b>puede estar incompleto</b>: se busca la coincidencia contra los <b>inactivos</b> cargados.
+            </div>
+            <textarea id="inacLista" class="form-input" rows="5" spellcheck="false"
+              placeholder="M1234&#10;HUENCHUR VALDERAS&#10;PEREZ SOTO JUAN"
+              style="width:100%;font-family:var(--mono);font-size:12px;resize:vertical"></textarea>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
+              <button class="btn btn-primary btn-sm" onclick="buscarInactivosLista()">🔍 Buscar coincidencias</button>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">Turno al reactivar
+                <select class="search-input" id="inacListaTurno" style="min-width:170px;padding:4px 8px;font-size:12px;cursor:pointer"></select>
+              </label>
+              <button class="btn btn-primary btn-sm" id="btnInacReactivar" onclick="reactivarSeleccionadosLista()" style="display:none">✅ Activar seleccionados</button>
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('inacLista').value='';buscarInactivosLista()">✕ Limpiar</button>
+              <span id="inacListaResumen" style="font-size:12px;color:var(--muted)"></span>
+            </div>
+            <div id="inacListaResultado" style="margin-top:12px"></div>
+          </div>
+        </div>
+
         <div class="data-table-wrap">
           <table class="data-table">
             <thead>
@@ -1609,9 +1634,13 @@ body {
                 <table id="importPreviewTable" style="border-collapse:collapse;font-size:12px;min-width:100%"></table>
                 <div id="importInfo" style="font-size:12px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"></div>
               </div>
+              <div id="importAviso" style="display:none;margin-bottom:14px;padding:11px 14px;border-radius:10px;background:rgba(224,82,82,.10);border:1px solid rgba(224,82,82,.35);color:#c0392b;font-size:12.5px;line-height:1.55"></div>
               <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
                 <button class="btn btn-primary" id="btnImportar" onclick="ejecutarImport()">📥 Importar a Supabase</button>
                 <button class="btn btn-secondary" onclick="cancelarImport()">✕ Cancelar</button>
+                <label id="importActualizarWrap" style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);cursor:pointer" title="Actualiza nombre, centro de costo y contrato de los empleados que ya existen (buscados por código). Apagado: los que ya existen se omiten.">
+                  <input type="checkbox" id="importActualizar" style="width:15px;height:15px;cursor:pointer"> Actualizar los que ya existen
+                </label>
                 <span id="importProgress" style="font-size:12px;color:var(--muted)"></span>
               </div>
             </div>
@@ -3086,6 +3115,13 @@ async function loadInactivos(){
       ccs.map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+'</option>'; }).join('');
     selCC.value = actualCC;
   }
+  var selL = document.getElementById('inacListaTurno');
+  if(selL){
+    var actualL = selL.value;
+    selL.innerHTML = '<option value="">El turno de cada uno</option>' +
+      _turnosActivos.map(function(t){ return '<option value="'+esc(t.turno)+'">'+t.emoji+' '+esc(t.turno)+'</option>'; }).join('');
+    selL.value = actualL;
+  }
   var cnt = document.getElementById('cnt-inactivos'); if(cnt) cnt.textContent = _inactivosData.length;
   filtrarInactivos();
 }
@@ -3125,6 +3161,138 @@ function filtrarInactivos(){
       +'<td>'+esc(r.turno)+'</td>'
       +'</tr>';
   }).join('');
+}
+
+// ════════════════════════════════════════════════════
+//  INACTIVOS — buscar un listado (incompleto) y reactivar las coincidencias
+// ════════════════════════════════════════════════════
+var _inacListaMatches = [];   // [{emp, lineas:[...]}]
+
+// Normaliza texto para comparar: mayúsculas, sin tildes/ñ, sin signos
+function _normTxt(s){
+  return String(s == null ? '' : s).toUpperCase()
+    .replace(/[ÁÀÄÂ]/g,'A').replace(/[ÉÈËÊ]/g,'E').replace(/[ÍÌÏÎ]/g,'I')
+    .replace(/[ÓÒÖÔ]/g,'O').replace(/[ÚÙÜÛ]/g,'U').replace(/Ñ/g,'N')
+    .replace(/[^A-Z0-9]+/g,' ').trim();
+}
+
+function buscarInactivosLista(){
+  var ta = document.getElementById('inacLista');
+  var lineas = ((ta && ta.value) || '').split(/\r?\n/)
+    .map(function(l){ return l.trim(); })
+    .filter(function(l){ return l.length > 1; });
+  if (!lineas.length) { toast('Pega primero el listado (una persona por línea)', 'warn'); return; }
+  if (!_inactivosData.length) { toast('No hay inactivos cargados — pulsa 🔄 Recargar', 'warn'); return; }
+
+  var porId = {}, sin = [];
+  lineas.forEach(function(linea){
+    var toks = _normTxt(linea).split(' ').filter(Boolean);
+    if (!toks.length) return;
+    var esCodigo = (toks.length === 1) && /^[A-Z]{0,2}\d{3,}$/.test(toks[0]);
+    var hits;
+    if (esCodigo) {
+      hits = _inactivosData.filter(function(r){
+        var cod = _normTxt(r.codigo);
+        return cod === toks[0] || cod.replace(/[^0-9]/g,'') === toks[0].replace(/[^0-9]/g,'');
+      });
+    } else {
+      // Listado incompleto: basta que TODAS las palabras del listado aparezcan en código+nombre.
+      // Las palabras muy cortas ("DE", "LA") se ignoran si hay alguna palabra significativa.
+      var largas = toks.filter(function(t){ return t.length >= 3; });
+      var usa = largas.length ? largas : toks;
+      hits = _inactivosData.filter(function(r){
+        var todo = _normTxt(r.codigo) + ' ' + _normTxt(r.nombre);
+        return usa.every(function(t){ return todo.indexOf(t) >= 0; });
+      });
+    }
+    if (!hits.length) { sin.push(linea); return; }
+    hits.forEach(function(r){
+      var k = String(r.id == null ? r.codigo : r.id);
+      if (!porId[k]) porId[k] = { emp: r, lineas: [] };
+      if (porId[k].lineas.indexOf(linea) < 0) porId[k].lineas.push(linea);
+    });
+  });
+
+  _inacListaMatches = Object.keys(porId).map(function(k){ return porId[k]; })
+    .sort(function(a,b){ return String(a.emp.codigo||'').localeCompare(String(b.emp.codigo||'')); });
+  _pintarMatchesInac(sin, lineas.length);
+}
+
+function _pintarMatchesInac(sin, totalLineas){
+  var cont = document.getElementById('inacListaResultado'); if (!cont) return;
+  var resum = document.getElementById('inacListaResumen');
+  var btn = document.getElementById('btnInacReactivar');
+  if (btn) btn.style.display = _inacListaMatches.length ? '' : 'none';
+  if (resum) resum.textContent = _inacListaMatches.length + ' coincidencia' + (_inacListaMatches.length === 1 ? '' : 's') +
+    ' de ' + totalLineas + ' línea' + (totalLineas === 1 ? '' : 's') +
+    (sin.length ? ' · ' + sin.length + ' sin coincidencia' : '');
+
+  var html = '';
+  if (_inacListaMatches.length) {
+    html += '<div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.8px;margin-bottom:8px">COINCIDENCIAS EN INACTIVOS (' + _inacListaMatches.length + ')</div>'
+      + '<div class="data-table-wrap" style="max-height:360px;overflow:auto"><table class="data-table"><thead><tr>'
+      + '<th style="width:38px"><input type="checkbox" id="chkInacTodos" checked onchange="toggleTodosInacLista(this.checked)" style="width:15px;height:15px;cursor:pointer" title="Marcar/desmarcar todos"></th>'
+      + '<th>Código</th><th>Nombre</th><th>Centro de Costo</th><th>Turno</th><th>Coincide con</th></tr></thead><tbody>'
+      + _inacListaMatches.map(function(m){
+          return '<tr>'
+            + '<td><input type="checkbox" class="chk-inac-lista" value="' + esc(String(m.emp.id)) + '" checked style="width:15px;height:15px;cursor:pointer"></td>'
+            + '<td><strong style="font-family:var(--mono);color:var(--accent2)">' + esc(m.emp.codigo) + '</strong></td>'
+            + '<td>' + esc(m.emp.nombre) + '</td>'
+            + '<td>' + esc(m.emp.centro_costo) + '</td>'
+            + '<td>' + esc(m.emp.turno) + '</td>'
+            + '<td style="font-size:11px;color:var(--muted)">' + esc(m.lineas.join(' · ')) + '</td>'
+          + '</tr>';
+        }).join('')
+      + '</tbody></table></div>';
+  }
+  if (sin.length) {
+    html += '<div style="margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);font-size:12px;color:var(--muted);line-height:1.6">'
+      + '<b>Sin coincidencia en inactivos (' + sin.length + '):</b> ' + esc(sin.join(' · ')) + '</div>';
+  }
+  if (!_inacListaMatches.length && !sin.length) {
+    html = '<div style="font-size:12.5px;color:var(--muted)">Pega el listado y pulsa «Buscar coincidencias».</div>';
+  }
+  cont.innerHTML = html;
+}
+
+function toggleTodosInacLista(on){
+  [].slice.call(document.querySelectorAll('.chk-inac-lista')).forEach(function(c){ c.checked = !!on; });
+}
+
+async function reactivarSeleccionadosLista(){
+  const db = getClient(); if (!db) return;
+  var ids = [].slice.call(document.querySelectorAll('.chk-inac-lista'))
+    .filter(function(c){ return c.checked; }).map(function(c){ return c.value; });
+  if (!ids.length) { toast('Marca al menos una persona de la lista', 'warn'); return; }
+  var turnoSel = (document.getElementById('inacListaTurno') || {}).value || '';
+  if (!confirm('¿Reactivar ' + ids.length + ' trabajador' + (ids.length === 1 ? '' : 'es') + '?\n\n' +
+               (turnoSel ? 'Turno: ' + turnoSel : 'Se mantiene el turno de cada uno') +
+               '\nMotivo: reingreso' )) return;
+
+  var btn = document.getElementById('btnInacReactivar');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Activando…'; }
+  var ok = 0, err = 0, errMsg = '';
+  for (var i = 0; i < ids.length; i++) {
+    var emp = _inactivosData.filter(function(r){ return String(r.id) === String(ids[i]); })[0];
+    var payload = { activo: true, licencia_inicio: null, licencia_fin: null };
+    if (turnoSel) payload.turno = turnoSel;
+    else if (emp) payload.turno = emp.turno || '';
+    var res = await db.from('empleados').update(payload).eq('id', ids[i]);
+    if (res.error) { err++; errMsg = res.error.message; } else { ok++; }
+    if (btn) btn.innerHTML = '<span class="spinner"></span>' + ok + '/' + ids.length;
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = '✅ Activar seleccionados'; }
+
+  toast((err ? '⚠️ ' : '✅ ') + ok + ' reactivado' + (ok === 1 ? '' : 's') +
+        (err ? ' · ' + err + ' con error: ' + errMsg : ''), err ? 'warn' : 'success', 8000);
+
+  // Quitar de la vista de inactivos y volver a pintar
+  _inactivosData = _inactivosData.filter(function(r){ return ids.indexOf(String(r.id)) < 0; });
+  var cnt = document.getElementById('cnt-inactivos'); if (cnt) cnt.textContent = _inactivosData.length;
+  filtrarInactivos();
+  buscarInactivosLista();
+  _centrosCostoCache = null;
+  if (typeof loadCounts === 'function') loadCounts();
 }
 
 async function reactivarEmpleado(id){
@@ -4328,7 +4496,7 @@ var _importFileName = '';
 
 var COLUMNAS_TABLA = {
   empleados: {
-    'codigo': 'codigo', 'nombre': 'nombre',
+    'codigo': 'codigo', 'código': 'codigo', 'cod': 'codigo', 'nombre': 'nombre',
     'centro_costo': 'centro_costo', 'centro costo': 'centro_costo',
     'centrocosto': 'centro_costo', 'contrato': 'contrato',
     'tipo_contrato': 'contrato', 'tipo contrato': 'contrato', 'activo': 'activo',
@@ -4363,12 +4531,38 @@ function handleFileDrop(e) {
 }
 
 function cancelarImport() {
+  _importFaltan = { clave: [], otras: [] };
+  var av = document.getElementById('importAviso'); if (av) { av.style.display = 'none'; av.innerHTML = ''; }
+  var chk = document.getElementById('importActualizar'); if (chk) chk.checked = false;
   _importData = null;
   _importFileName = '';
   document.getElementById('importPreview').style.display = 'none';
   document.getElementById('fileInput').value = '';
   document.getElementById('importProgress').textContent = '';
 }
+
+// Codificación del archivo: los CSV exportados desde Google Sheets son UTF-8 SIN BOM y, leídos
+// con el codepage por defecto (Windows-1252), llegan con las tildes rotas ("JOSÃ MUÃOZ") y hasta
+// rompen el nombre de las columnas ("cÃ³digo" en vez de "codigo"). Se detecta BOM / UTF-8 válido
+// y si no lo es se usa Windows-1252 (lo que exporta Excel en español).
+function _detectaCodificacion(buf) {
+  var b = new Uint8Array(buf);
+  var off = (b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF) ? 3 : 0;      // BOM UTF-8
+  try {
+    return { txt: new TextDecoder('utf-8', { fatal: true }).decode(b.subarray(off)), enc: 'UTF-8' };
+  } catch (e) {
+    try { return { txt: new TextDecoder('windows-1252').decode(b), enc: 'Windows-1252' }; }
+    catch (e2) { return { txt: new TextDecoder('utf-8').decode(b), enc: 'UTF-8 (con reemplazos)' }; }
+  }
+}
+
+// Columnas que se esperan según la tabla destino: las "clave" son obligatorias (sin ellas la
+// importación no haría nada útil), las demás se avisan para que no pasen desapercibidas.
+var IMPORT_ESPERADAS = {
+  empleados:  { clave: ['codigo'], otras: ['nombre', 'centro_costo', 'contrato'] },
+  produccion: { clave: [],         otras: ['especie', 'funcion', 'proceso', 'operacion', 'responsable', 'linea'] },
+};
+var _importFaltan = { clave: [], otras: [] };
 
 function procesarArchivo(file) {
   if (!file) return;
@@ -4380,7 +4574,16 @@ function procesarArchivo(file) {
   var reader = new FileReader();
   reader.onload = function(ev) {
     try {
-      var wb = XLSX.read(ev.target.result, { type: 'array', cellDates: false });
+      var buf = ev.target.result;
+      var esTexto = /\.(csv|txt)$/i.test(file.name) || String(file.type || '').indexOf('csv') >= 0;
+      var wb, enc = '';
+      if (esTexto) {
+        var cod = _detectaCodificacion(buf);            // CSV: se decodifica a texto antes de leerlo
+        enc = cod.enc;
+        wb = XLSX.read(cod.txt, { type: 'string', cellDates: false });
+      } else {
+        wb = XLSX.read(buf, { type: 'array', cellDates: false });
+      }
       var ws = wb.Sheets[wb.SheetNames[0]];
       var rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
 
@@ -4425,9 +4628,31 @@ function procesarArchivo(file) {
         if(_dupCount > 0)
           _dupInfo = ' &nbsp;<span style="color:#c0392b;font-weight:700">⚠️ '+_dupCount+' filas duplicadas en el archivo (se omitirán)</span>';
       }
+      // ¿Están las columnas esperadas? Sin la clave no se importa nada (antes fallaba en
+      // silencio: la columna se perdía y el mensaje decía que ya existían todos).
+      var esp = IMPORT_ESPERADAS[tabla] || { clave: [], otras: [] };
+      _importFaltan = {
+        clave: esp.clave.filter(function(c) { return cols.indexOf(c) < 0; }),
+        otras: esp.otras.filter(function(c) { return cols.indexOf(c) < 0; }),
+      };
+      var aviso = document.getElementById('importAviso');
+      if (aviso) {
+        var msg = '';
+        if (_importFaltan.clave.length) {
+          msg = '⛔ <strong>Falta la columna clave «' + _importFaltan.clave.join('», «') + '»</strong> en el archivo.' +
+                ' Así no se puede importar: revisa que el encabezado diga exactamente eso, sin tildes ni espacios de más' +
+                ' (las columnas leídas fueron: ' + cols.join(', ') + ').';
+        } else if (_importFaltan.otras.length) {
+          msg = '⚠️ <strong>No aparece' + (_importFaltan.otras.length > 1 ? 'n' : '') + ' en el archivo: ' +
+                _importFaltan.otras.join(', ') + '.</strong> Se importará igual, pero esos datos quedarán vacíos.';
+        }
+        aviso.innerHTML = msg;
+        aviso.style.display = msg ? 'block' : 'none';
+      }
       document.getElementById('importInfo').innerHTML =
         '<strong>Archivo:</strong> ' + esc(file.name) + ' &nbsp;·&nbsp; <strong>Filas:</strong> ' + _importData.length +
-        ' &nbsp;·&nbsp; <strong>Columnas:</strong> ' + cols.join(', ') + _dupInfo;
+        ' &nbsp;·&nbsp; <strong>Columnas:</strong> ' + cols.join(', ') +
+        (enc ? ' &nbsp;·&nbsp; <strong>Codificación:</strong> ' + enc : '') + _dupInfo;
       document.getElementById('importPreview').style.display = 'block';
     } catch(err) {
       toast('Error al leer el archivo: ' + err.message, 'error', 5000);
@@ -4441,6 +4666,13 @@ function toggleImportTurno() {
   var tabla = document.getElementById('importTabla').value;
   var wrap  = document.getElementById('importTurnoWrap');
   if (wrap) wrap.style.display = tabla === 'empleados' ? '' : 'none';
+  var chkW = document.getElementById('importActualizarWrap');
+  if (chkW) chkW.style.display = tabla === 'empleados' ? '' : 'none';
+  // El mapeo depende de la tabla destino: si había un archivo cargado, su vista previa ya no vale.
+  if (_importData) {
+    cancelarImport();
+    toast('Cambiaste la tabla destino — vuelve a cargar el archivo', 'warn', 4000);
+  }
 }
 
 // Centros de costo excluidos: sus empleados no entran a la lista maestra
@@ -4480,6 +4712,16 @@ async function ejecutarImport() {
   };
   var colsValidas = COLS_VALIDAS[tabla] || null;
 
+  // Sin la columna clave la importación no haría nada: se corta con un mensaje claro
+  // (antes fallaba en silencio diciendo que todos los registros ya existían).
+  if (_importFaltan.clave.length) {
+    btn.disabled = false;
+    btn.innerHTML = '📥 Importar a Supabase';
+    toast('⛔ Falta la columna «' + _importFaltan.clave.join('», «') + '» en el archivo — revisa los encabezados', 'error', 8000);
+    return;
+  }
+  var actualizar = !!(document.getElementById('importActualizar') || {}).checked;
+
   // ── Limpiar filas del archivo ──────────────────────────────
   var turnoImport = (document.getElementById('importTurno')||{}).value || 'Día';
   var dataLimpia = _importData.map(function(row) {
@@ -4513,14 +4755,21 @@ async function ejecutarImport() {
     dataLimpia = _resto;
   }
 
-  // ── Deduplicar dentro del propio archivo (mismos códigos repetidos) ──
+  // ── Deduplicar dentro del propio archivo ──
+  // Empleados: por código. Producción: por la firma de sus datos (antes no se deduplicaba
+  // nada y volver a subir el mismo archivo duplicaba todo).
+  var CAMPOS_PROD = ['especie','funcion','producto','proceso','operacion','responsable','linea','linea_especial','funcion_especial'];
+  function _claveFila(r) {
+    if (tabla === 'empleados') return String((r && r.codigo) || '').trim().toLowerCase();
+    return CAMPOS_PROD.map(function(c){ return String((r && r[c] == null) ? '' : r[c]).trim().toLowerCase(); }).join('|');
+  }
   function _dedupFilas(arr) {
     var vistos = new Set(), dups = 0;
     var out = arr.filter(function(r) {
-      if (tabla !== 'empleados') return true;
-      var cod = String(r.codigo||'').trim().toLowerCase();
-      if (vistos.has(cod)) { dups++; return false; }
-      vistos.add(cod);
+      var k = _claveFila(r);
+      if (!k.replace(/\|/g, '')) return true;        // fila sin datos: la deja pasar al filtro de abajo
+      if (vistos.has(k)) { dups++; return false; }
+      vistos.add(k);
       return true;
     });
     return { out: out, dups: dups };
@@ -4529,7 +4778,7 @@ async function ejecutarImport() {
   var _dEx   = _dedupFilas(excluidosImport); excluidosImport = _dEx.out;
   var dupsArchivo = _dMain.dups + _dEx.dups;
 
-  // ── Verificar contra Supabase: qué códigos ya existen ──────
+  // ── Verificar contra Supabase: qué registros ya existen ──────
   var yaExisten = new Set();
   if (tabla === 'empleados') {
     var codigos = dataLimpia.map(function(r){ return String(r.codigo||'').trim(); }).filter(Boolean);
@@ -4539,10 +4788,24 @@ async function ejecutarImport() {
       var { data: existData } = await db.from('empleados').select('codigo').in('codigo', bloque);
       (existData||[]).forEach(function(e){ yaExisten.add(String(e.codigo||'').trim().toLowerCase()); });
     }
+  } else if (tabla === 'produccion') {
+    // Producción no tiene código: se compara la firma de los datos, paginando para pasar el
+    // límite de 1000 filas de Supabase.
+    var PAGE_P = 1000, pagP = 0, masP = true;
+    while (masP) {
+      var resP = await db.from('produccion').select(CAMPOS_PROD.join(',')).range(pagP*PAGE_P, pagP*PAGE_P + PAGE_P - 1);
+      if (resP.error) { console.warn('[IMPORT] no se pudo comparar con producción:', resP.error.message); break; }
+      var filasP = resP.data || [];
+      filasP.forEach(function(e){ yaExisten.add(_claveFila(e)); });
+      if (filasP.length < PAGE_P) masP = false; else pagP++;
+    }
   }
 
-  var nuevos   = dataLimpia.filter(function(r){ return !yaExisten.has(String(r.codigo||'').trim().toLowerCase()); });
+  var nuevos   = dataLimpia.filter(function(r){ return !yaExisten.has(_claveFila(r)); });
   var skipped  = dataLimpia.length - nuevos.length;
+  // Filas que ya están en la base y que el archivo trae de nuevo (para "Actualizar los que ya existen")
+  var aActualizar = (actualizar && tabla === 'empleados')
+    ? dataLimpia.filter(function(r){ return yaExisten.has(_claveFila(r)); }) : [];
 
   // ── Excluidos: qué códigos ya están en unidades_excluidas ──
   var exYa = new Set();
@@ -4561,10 +4824,11 @@ async function ejecutarImport() {
     (exNuevos.length ? exNuevos.length + ' excluidos | ' : '') +
     dupsArchivo + ' duplicados en archivo';
 
-  if (!nuevos.length && !exNuevos.length) {
+  if (!nuevos.length && !exNuevos.length && !aActualizar.length) {
     btn.disabled = false;
     btn.innerHTML = '📥 Importar a Supabase';
-    toast('⚠️ Todos los registros del archivo ya existen (' + (skipped + dupsArchivo + exSkipped) + ' omitidos)', 'warn', 6000);
+    toast('⚠️ Todos los registros del archivo ya existen (' + (skipped + dupsArchivo + exSkipped) + ' omitidos)' +
+          (skipped && tabla === 'empleados' ? ' — si querías refrescar sus datos, marca «Actualizar los que ya existen»' : ''), 'warn', 8000);
     return;
   }
 
@@ -4607,6 +4871,25 @@ async function ejecutarImport() {
     btn.innerHTML = '<span class="spinner"></span>' + progNum + '/' + nuevos.length;
   }
 
+  // ── Actualizar los que ya existen (opcional, solo empleados) ──
+  var upOk = 0, upErr = 0, upErrMsg = '';
+  if (aActualizar.length) {
+    prog.textContent = 'Actualizando ' + aActualizar.length + ' que ya existen…';
+    for (var ui = 0; ui < aActualizar.length; ui++) {
+      var ru = aActualizar[ui];
+      var upd = {};
+      ['nombre', 'centro_costo', 'contrato'].forEach(function(c) {
+        if (ru[c] !== undefined && String(ru[c]).trim() !== '') upd[c] = ru[c];   // no borra datos con celdas vacías
+      });
+      if (ru.turno) upd.turno = ru.turno;
+      if (!Object.keys(upd).length) continue;
+      var resU = await db.from('empleados').update(upd).eq('codigo', String(ru.codigo).trim());
+      if (resU.error) { upErr++; upErrMsg = resU.error.message; } else { upOk++; }
+      btn.innerHTML = '<span class="spinner"></span>' + (upOk + upErr) + '/' + aActualizar.length + ' actualizados';
+    }
+    prog.textContent = (okCount + ' nuevos') + ' — ' + upOk + ' actualizados' + (upErr ? ' — ' + upErr + ' con error' : '');
+  }
+
   btn.disabled = false;
   btn.innerHTML = '📥 Importar a Supabase';
 
@@ -4615,16 +4898,18 @@ async function ejecutarImport() {
   if (dupsArchivo) resumen += ' · ' + dupsArchivo + ' duplicados en el archivo';
   if (exNuevos.length) resumen += ' · ' + exOk + ' unidades excluidas';
   if (exSkipped)  resumen += ' · ' + exSkipped + ' excluidos ya existían';
+  if (upOk)       resumen += ' · ' + upOk + ' actualizados';
+  if (upErr)      resumen += ' · ' + upErr + ' no se pudieron actualizar';
 
-  if (errCount === 0 && exErr === 0) {
+  if (errCount === 0 && exErr === 0 && upErr === 0) {
     toast('✅ ' + resumen, 'success', 7000);
     cancelarImport();
     if (tabla === 'empleados')  { loadEmpleados(); loadUnidadesExcluidas(); }
     if (tabla === 'produccion') { loadProdPage('procesos'); loadProdPage('responsables'); loadProdPage('lineas'); loadProdPage('especiales'); }
-  } else if (okCount > 0 || exOk > 0) {
-    toast('⚠️ ' + resumen + ' · errores: ' + (errMsg || exErrMsg), 'warn', 8000);
+  } else if (okCount > 0 || exOk > 0 || upOk > 0) {
+    toast('⚠️ ' + resumen + ' · errores: ' + (errMsg || exErrMsg || upErrMsg), 'warn', 9000);
   } else {
-    toast('❌ Error al importar: ' + (errMsg || exErrMsg), 'error', 8000);
+    toast('❌ Error al importar: ' + (errMsg || exErrMsg || upErrMsg), 'error', 9000);
   }
   loadCounts();
 }
