@@ -1497,23 +1497,33 @@ body {
           <span class="count-badge" id="inacCountBadge">— inactivos</span>
         </div>
 
-        <!-- Buscar un listado (incompleto) dentro de los inactivos y reactivar las coincidencias -->
+        <!-- Buscar un listado (incompleto) dentro de los inactivos, rellenar los datos que faltan
+             con lo que hay en la base y reactivar las coincidencias -->
         <div class="settings-section" style="margin:0 0 14px">
           <div class="settings-section-title"><span class="sticon">📋</span> Buscar un listado en los inactivos</div>
           <div style="padding:14px 18px">
             <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
-              Pega el listado, una persona por línea (basta el código, un apellido o el nombre completo en cualquier orden).
-              El listado <b>puede estar incompleto</b>: se busca la coincidencia contra los <b>inactivos</b> cargados.
+              Pega el listado tal como lo copiaste de Excel o Google Sheets: sirve una persona por línea
+              (código, un apellido o el nombre completo) o una <b>tabla</b> con varias columnas — se toma la
+              columna del nombre y las demás (por ejemplo <i>activo</i>) se ignoran.
+              El listado <b>puede estar incompleto</b>: cada coincidencia se completa con lo que hay en la
+              base (código, nombre y centro de costo).
             </div>
             <textarea id="inacLista" class="form-input" rows="5" spellcheck="false"
-              placeholder="M1234&#10;HUENCHUR VALDERAS&#10;PEREZ SOTO JUAN"
+              placeholder="Palmenia Cheuqueman&#10;Marco Valderrama&#10;Andres Ojeda&#10;… (o pega la tabla completa)"
               style="width:100%;font-family:var(--mono);font-size:12px;resize:vertical"></textarea>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
               <button class="btn btn-primary btn-sm" onclick="buscarInactivosLista()">🔍 Buscar coincidencias</button>
               <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">Turno al reactivar
                 <select class="search-input" id="inacListaTurno" style="min-width:170px;padding:4px 8px;font-size:12px;cursor:pointer"></select>
               </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer"
+                     title="Útil para ver si alguien del listado ya está activo (no se puede reactivar dos veces)">
+                <input type="checkbox" id="inacListaIncluirActivos" onchange="buscarInactivosLista()" style="width:14px;height:14px;cursor:pointer">
+                Buscar también entre los activos
+              </label>
               <button class="btn btn-primary btn-sm" id="btnInacReactivar" onclick="reactivarSeleccionadosLista()" style="display:none">✅ Activar seleccionados</button>
+              <button class="btn btn-secondary btn-sm" id="btnInacCopiar" onclick="copiarResultadoInac()" style="display:none" title="Copia las filas completadas (código, nombre, centro de costo, turno) para pegarlas en tu planilla">📋 Copiar resultado</button>
               <button class="btn btn-secondary btn-sm" onclick="document.getElementById('inacLista').value='';buscarInactivosLista()">✕ Limpiar</button>
               <span id="inacListaResumen" style="font-size:12px;color:var(--muted)"></span>
             </div>
@@ -3182,7 +3192,8 @@ function filtrarInactivos(){
 // ════════════════════════════════════════════════════
 //  INACTIVOS — buscar un listado (incompleto) y reactivar las coincidencias
 // ════════════════════════════════════════════════════
-var _inacListaMatches = [];   // [{emp, lineas:[...]}]
+var _inacListaMatches = [];   // [{emp, lineas:[], activo:bool}]
+var _activosParaMatch = null; // cache de empleados activos (sólo si se pide buscarlos)
 
 // Normaliza texto para comparar: mayúsculas, sin tildes/ñ, sin signos
 function _normTxt(s){
@@ -3192,70 +3203,142 @@ function _normTxt(s){
     .replace(/[^A-Z0-9]+/g,' ').trim();
 }
 
-function buscarInactivosLista(){
-  var ta = document.getElementById('inacLista');
-  var lineas = ((ta && ta.value) || '').split(/\r?\n/)
-    .map(function(l){ return l.trim(); })
-    .filter(function(l){ return l.length > 1; });
-  if (!lineas.length) { toast('Pega primero el listado (una persona por línea)', 'warn'); return; }
-  if (!_inactivosData.length) { toast('No hay inactivos cargados — pulsa 🔄 Recargar', 'warn'); return; }
+// Lee el pegado: acepta una persona por línea o una tabla con varias columnas.
+// Devuelve las filas y en qué columna está el nombre (la de más letras; "activo", códigos y
+// columnas de true/false quedan descartadas).
+function _inacParsearLista(txt){
+  var lineas = String(txt || '').replace(/\r/g, '').split('\n')
+    .map(function(l){ return l.replace(/[ \t]+$/, ''); })
+    .filter(function(l){ return l.trim().length; });
+  if (!lineas.length) return { filas: [], colNombre: 0, encabezado: false };
+  var filas = lineas.map(function(l){
+    if (l.indexOf('\t') >= 0) return l.split('\t');
+    if (l.indexOf(';') >= 0)  return l.split(';');
+    if (l.indexOf('|') >= 0)  return l.split('|');
+    return [l];
+  });
+  var nc = 0; filas.forEach(function(f){ nc = Math.max(nc, f.length); });
+  var CABECERAS = ['nombre','nombres','nombre completo','codigo','código','activo','estado','turno',
+                   'centro de costo','centro costo','centro_costo','centrocosto','contrato'];
+  var encabezado = filas[0].some(function(c){ return CABECERAS.indexOf(_normTxt(c).toLowerCase()) >= 0; });
+  var colNombre = 0;
+  if (nc > 1) {
+    var datos = encabezado ? filas.slice(1) : filas;
+    var mejor = { i: 0, puntaje: -1 };
+    for (var c = 0; c < nc; c++) {
+      var letras = 0, vals = 0;
+      datos.slice(0, 15).forEach(function(f){
+        var v = String(f[c] == null ? '' : f[c]).trim();
+        if (!v) return;
+        vals++;
+        letras += v.replace(/[^A-Za-zÁÉÍÓÚÑñáéíóú ]/g, '').trim().length;
+      });
+      var puntaje = vals ? letras / vals : 0;
+      if (puntaje > mejor.puntaje) mejor = { i: c, puntaje: puntaje };
+    }
+    colNombre = mejor.i;
+  }
+  return { filas: filas, colNombre: colNombre, encabezado: encabezado, nc: nc };
+}
 
-  var porId = {}, sin = [];
-  lineas.forEach(function(linea){
-    var toks = _normTxt(linea).split(' ').filter(Boolean);
+async function _cargarActivosParaMatch(){
+  if (_activosParaMatch) return _activosParaMatch;
+  var db = getClient(); if (!db) return [];
+  var res = await db.from('empleados').select('id,codigo,nombre,centro_costo,turno,activo')
+    .neq('activo','false').limit(2000);
+  _activosParaMatch = (res && !res.error && res.data) ? res.data : [];
+  return _activosParaMatch;
+}
+
+async function buscarInactivosLista(silencioso){
+  var ta = document.getElementById('inacLista');
+  var parsed = _inacParsearLista(ta && ta.value);
+  var conEnc = parsed.encabezado ? parsed.filas.slice(1) : parsed.filas;
+  if (!conEnc.length) { if (!silencioso) toast('Pega primero el listado (una persona por línea o la tabla completa)', 'warn'); return; }
+  if (!_inactivosData.length) {
+    if (!silencioso) toast('No hay inactivos para buscar (si acabas de entrar, pulsa 🔄 Recargar)', 'warn');
+    var cont0 = document.getElementById('inacListaResultado'); if (cont0) cont0.innerHTML = '';
+    return;
+  }
+
+  var incluirActivos = !!(document.getElementById('inacListaIncluirActivos') || {}).checked;
+  var universo = _inactivosData.map(function(r){ return { emp: r, activo: false }; });
+  if (incluirActivos) {
+    var activos = await _cargarActivosParaMatch();
+    var vistos = {};
+    universo.forEach(function(x){ vistos[String(x.emp.id)] = 1; });
+    activos.forEach(function(r){ if (!vistos[String(r.id)]) universo.push({ emp: r, activo: true }); });
+  }
+
+  var porId = {}, sin = [], total = 0;
+  conEnc.forEach(function(fila){
+    var texto = String(fila[parsed.colNombre] == null ? '' : fila[parsed.colNombre]).trim();
+    if (texto.length < 2) return;
+    total++;
+    var toks = _normTxt(texto).split(' ').filter(Boolean);
     if (!toks.length) return;
     var esCodigo = (toks.length === 1) && /^[A-Z]{0,2}\d{3,}$/.test(toks[0]);
     var hits;
     if (esCodigo) {
-      hits = _inactivosData.filter(function(r){
-        var cod = _normTxt(r.codigo);
+      hits = universo.filter(function(x){
+        var cod = _normTxt(x.emp.codigo);
         return cod === toks[0] || cod.replace(/[^0-9]/g,'') === toks[0].replace(/[^0-9]/g,'');
       });
     } else {
-      // Listado incompleto: basta que TODAS las palabras del listado aparezcan en código+nombre.
-      // Las palabras muy cortas ("DE", "LA") se ignoran si hay alguna palabra significativa.
       var largas = toks.filter(function(t){ return t.length >= 3; });
       var usa = largas.length ? largas : toks;
-      hits = _inactivosData.filter(function(r){
-        var todo = _normTxt(r.codigo) + ' ' + _normTxt(r.nombre);
+      hits = universo.filter(function(x){
+        var todo = _normTxt(x.emp.codigo) + ' ' + _normTxt(x.emp.nombre);
         return usa.every(function(t){ return todo.indexOf(t) >= 0; });
       });
     }
-    if (!hits.length) { sin.push(linea); return; }
-    hits.forEach(function(r){
-      var k = String(r.id == null ? r.codigo : r.id);
-      if (!porId[k]) porId[k] = { emp: r, lineas: [] };
-      if (porId[k].lineas.indexOf(linea) < 0) porId[k].lineas.push(linea);
+    if (!hits.length) { sin.push(texto); return; }
+    hits.forEach(function(x){
+      var k = String(x.emp.id == null ? x.emp.codigo : x.emp.id);
+      if (!porId[k]) porId[k] = { emp: x.emp, lineas: [], activo: !!x.activo };
+      if (porId[k].lineas.indexOf(texto) < 0) porId[k].lineas.push(texto);
     });
   });
 
   _inacListaMatches = Object.keys(porId).map(function(k){ return porId[k]; })
-    .sort(function(a,b){ return String(a.emp.codigo||'').localeCompare(String(b.emp.codigo||'')); });
-  _pintarMatchesInac(sin, lineas.length);
+    .sort(function(a, b){ return String(a.emp.codigo || '').localeCompare(String(b.emp.codigo || '')); });
+  _pintarMatchesInac(sin, total, incluirActivos);
 }
 
-function _pintarMatchesInac(sin, totalLineas){
+function _pintarMatchesInac(sin, total, incluirActivos){
   var cont = document.getElementById('inacListaResultado'); if (!cont) return;
   var resum = document.getElementById('inacListaResumen');
   var btn = document.getElementById('btnInacReactivar');
-  if (btn) btn.style.display = _inacListaMatches.length ? '' : 'none';
+  var btnCop = document.getElementById('btnInacCopiar');
+  var nInac = _inacListaMatches.filter(function(m){ return !m.activo; }).length;
+
+  if (btn) btn.style.display = nInac ? '' : 'none';
+  if (btnCop) btnCop.style.display = _inacListaMatches.length ? '' : 'none';
   if (resum) resum.textContent = _inacListaMatches.length + ' coincidencia' + (_inacListaMatches.length === 1 ? '' : 's') +
-    ' de ' + totalLineas + ' línea' + (totalLineas === 1 ? '' : 's') +
+    ' de ' + total + ' línea' + (total === 1 ? '' : 's') +
+    (incluirActivos ? ' · ' + nInac + ' por reactivar' : '') +
     (sin.length ? ' · ' + sin.length + ' sin coincidencia' : '');
 
   var html = '';
   if (_inacListaMatches.length) {
-    html += '<div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.8px;margin-bottom:8px">COINCIDENCIAS EN INACTIVOS (' + _inacListaMatches.length + ')</div>'
-      + '<div class="data-table-wrap" style="max-height:360px;overflow:auto"><table class="data-table"><thead><tr>'
-      + '<th style="width:38px"><input type="checkbox" id="chkInacTodos" checked onchange="toggleTodosInacLista(this.checked)" style="width:15px;height:15px;cursor:pointer" title="Marcar/desmarcar todos"></th>'
-      + '<th>Código</th><th>Nombre</th><th>Centro de Costo</th><th>Turno</th><th>Coincide con</th></tr></thead><tbody>'
+    html += '<div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.8px;margin-bottom:8px">COINCIDENCIAS (' + _inacListaMatches.length + ') — datos completados desde la base</div>'
+      + '<div class="data-table-wrap" style="max-height:380px;overflow:auto"><table class="data-table"><thead><tr>'
+      + '<th style="width:38px"><input type="checkbox" id="chkInacTodos" checked onchange="toggleTodosInacLista(this.checked)" style="width:15px;height:15px;cursor:pointer" title="Marcar/desmarcar los reactivables"></th>'
+      + '<th>Código</th><th>Nombre</th><th>Centro de Costo</th><th>Turno</th><th>Estado</th><th>Coincide con</th></tr></thead><tbody>'
       + _inacListaMatches.map(function(m){
+          var est = m.activo
+            ? '<span class="badge badge-dia">Ya activo</span>'
+            : '<span class="badge badge-noche">Inactivo</span>';
+          var chk = m.activo
+            ? '<input type="checkbox" disabled style="width:15px;height:15px" title="Ya está activo: no hace falta reactivarlo">'
+            : '<input type="checkbox" class="chk-inac-lista" value="' + esc(String(m.emp.id)) + '" checked style="width:15px;height:15px;cursor:pointer">';
           return '<tr>'
-            + '<td><input type="checkbox" class="chk-inac-lista" value="' + esc(String(m.emp.id)) + '" checked style="width:15px;height:15px;cursor:pointer"></td>'
+            + '<td>' + chk + '</td>'
             + '<td><strong style="font-family:var(--mono);color:var(--accent2)">' + esc(m.emp.codigo) + '</strong></td>'
             + '<td>' + esc(m.emp.nombre) + '</td>'
             + '<td>' + esc(m.emp.centro_costo) + '</td>'
             + '<td>' + esc(m.emp.turno) + '</td>'
+            + '<td>' + est + '</td>'
             + '<td style="font-size:11px;color:var(--muted)">' + esc(m.lineas.join(' · ')) + '</td>'
           + '</tr>';
         }).join('')
@@ -3263,7 +3346,7 @@ function _pintarMatchesInac(sin, totalLineas){
   }
   if (sin.length) {
     html += '<div style="margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);font-size:12px;color:var(--muted);line-height:1.6">'
-      + '<b>Sin coincidencia en inactivos (' + sin.length + '):</b> ' + esc(sin.join(' · ')) + '</div>';
+      + '<b>Sin coincidencia (' + sin.length + '):</b> ' + esc(sin.join(' · ')) + '</div>';
   }
   if (!_inacListaMatches.length && !sin.length) {
     html = '<div style="font-size:12.5px;color:var(--muted)">Pega el listado y pulsa «Buscar coincidencias».</div>';
@@ -3275,6 +3358,31 @@ function toggleTodosInacLista(on){
   [].slice.call(document.querySelectorAll('.chk-inac-lista')).forEach(function(c){ c.checked = !!on; });
 }
 
+// Copia las filas completadas para pegarlas en la planilla
+function copiarResultadoInac(){
+  if (!_inacListaMatches.length) { toast('No hay coincidencias para copiar', 'warn'); return; }
+  var lineas = ['codigo\tnombre\tcentro_costo\tturno\testado'];
+  _inacListaMatches.forEach(function(m){
+    lineas.push([m.emp.codigo||'', m.emp.nombre||'', m.emp.centro_costo||'', m.emp.turno||'', (m.activo?'activo':'inactivo')].join('\t'));
+  });
+  var txt = lineas.join('\n');
+  var ok = function(){ toast('✅ ' + _inacListaMatches.length + ' filas copiadas — pégalas donde quieras', 'success', 6000); };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(ok, function(){ _copiarTextoFallback(txt, ok); });
+    } else _copiarTextoFallback(txt, ok);
+  } catch (e) { _copiarTextoFallback(txt, ok); }
+}
+function _copiarTextoFallback(txt, ok){
+  try {
+    var t = document.createElement('textarea');
+    t.value = txt; t.style.position = 'fixed'; t.style.opacity = '0';
+    document.body.appendChild(t); t.select();
+    document.execCommand('copy'); document.body.removeChild(t); ok();
+  } catch (e) { toast('No se pudo copiar: selecciona la tabla y copia a mano', 'warn', 6000); }
+}
+
+// Reactiva las coincidencias marcadas (respeta el turno elegido o el de cada uno)
 async function reactivarSeleccionadosLista(){
   const db = getClient(); if (!db) return;
   var ids = [].slice.call(document.querySelectorAll('.chk-inac-lista'))
@@ -3283,7 +3391,7 @@ async function reactivarSeleccionadosLista(){
   var turnoSel = (document.getElementById('inacListaTurno') || {}).value || '';
   if (!confirm('¿Reactivar ' + ids.length + ' trabajador' + (ids.length === 1 ? '' : 'es') + '?\n\n' +
                (turnoSel ? 'Turno: ' + turnoSel : 'Se mantiene el turno de cada uno') +
-               '\nMotivo: reingreso' )) return;
+               '\nMotivo: reingreso')) return;
 
   var btn = document.getElementById('btnInacReactivar');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Activando…'; }
@@ -3302,11 +3410,12 @@ async function reactivarSeleccionadosLista(){
   toast((err ? '⚠️ ' : '✅ ') + ok + ' reactivado' + (ok === 1 ? '' : 's') +
         (err ? ' · ' + err + ' con error: ' + errMsg : ''), err ? 'warn' : 'success', 8000);
 
-  // Quitar de la vista de inactivos y volver a pintar
+  // Quitar de la vista de inactivos, invalidar la caché de activos y repintar
   _inactivosData = _inactivosData.filter(function(r){ return ids.indexOf(String(r.id)) < 0; });
+  _activosParaMatch = null;
   var cnt = document.getElementById('cnt-inactivos'); if (cnt) cnt.textContent = _inactivosData.length;
   filtrarInactivos();
-  buscarInactivosLista();
+  buscarInactivosLista(true);            // silencioso: no avisa si ya no quedan inactivos
   _centrosCostoCache = null;
   if (typeof loadCounts === 'function') loadCounts();
 }
@@ -4658,6 +4767,10 @@ function procesarArchivo(file) {
           msg = '⛔ <strong>Falta la columna clave «' + _importFaltan.clave.join('», «') + '»</strong> en el archivo.' +
                 ' Así no se puede importar: revisa que el encabezado diga exactamente eso, sin tildes ni espacios de más' +
                 ' (las columnas leídas fueron: ' + cols.join(', ') + ').';
+          if (cols.indexOf('nombre') >= 0 && cols.indexOf('codigo') < 0) {
+            msg += '<br>Si lo que tienes es una lista <b>sólo con nombres</b> de personas que ya existen' +
+                   ' (por ejemplo para reactivarlas), no va por aquí: usa <b>Inactivos → «Buscar un listado en los inactivos»</b>,';
+          }
         } else if (_importFaltan.otras.length) {
           msg = '⚠️ <strong>No aparece' + (_importFaltan.otras.length > 1 ? 'n' : '') + ' en el archivo: ' +
                 _importFaltan.otras.join(', ') + '.</strong> Se importará igual, pero esos datos quedarán vacíos.';
