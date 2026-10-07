@@ -853,7 +853,12 @@ async function cargarDatosBase(){
   var empRes=base[0], ueRes=base[1], autRes=base[2];
   if(empRes.error) console.error('[EMPLEADOS]', empRes.error.message||empRes.error);
   if(empRes.error) toast('Error al cargar empleados: '+(empRes.error.message||empRes.error),'error',8000);
-  function _mapEmp(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO',ing:e.fecha_ingreso||null,baseOverride:(e.dias_base!=null?e.dias_base:null),progOverride:(e.dias_progresivos!=null?e.dias_progresivos:null),sindOverride:(e.dias_sindicales!=null?e.dias_sindicales:null)}; }
+  function _mapEmp(e){ return {c:e.codigo,n:e.nombre,cc:e.centro_costo,tipo:e.contrato||'INDEFINIDO',ing:e.fecha_ingreso||null,baseOverride:(e.dias_base!=null?e.dias_base:null),progOverride:(e.dias_progresivos!=null?e.dias_progresivos:null),sindOverride:(e.dias_sindicales!=null?e.dias_sindicales:null),
+    // Base oficial de vacaciones (planilla de RRHH): quién puede vacacionar y su saldo real
+    vacHab:!!e.habilitado_vacaciones,
+    vacBase:(e.vacaciones_saldo_base!=null?Number(e.vacaciones_saldo_base):null),
+    vacCorte:e.vacaciones_corte?String(e.vacaciones_corte).slice(0,10):null,
+    vacPorMes:(e.vacaciones_dias_por_mes!=null?Number(e.vacaciones_dias_por_mes):null)}; }
   _EMP=(empRes.data||[]).map(_mapEmp);
   _EMP_EXCL=(!ueRes.error&&ueRes.data)?ueRes.data.map(_mapEmp):[];
   // Responsables (jefaturas directas) desde la tabla 'autorizadores'
@@ -1105,7 +1110,42 @@ function _tomadosEnPeriodo(emp, i, excluirId){
 // «Períodos de vacaciones» usan esta misma función, para que nunca muestren ni
 // permitan cifras distintas (antes el formulario usaba el devengo del período en
 // curso sin descontar lo tomado, y el modal el acumulado de períodos cerrados).
+// ── Saldo de las personas de la BASE OFICIAL de vacaciones (planilla de RRHH) ──────────
+// Arranca en el saldo real al corte y sigue devengando con los días por mes de la planilla.
+// Las vacaciones PROGRAMADAS (con inicio futuro) NO se descuentan: no afectan el cálculo.
+function _saldoBaseOficial(emp, excluirId){
+  var r=function(x){ return Math.round(x*100)/100; };
+  var corte=emp.vacCorte?String(emp.vacCorte).slice(0,10):null;
+  var hIso=hoy(), meses=0;
+  if(corte){
+    var c=new Date(corte+'T12:00:00'), h=new Date(hIso+'T12:00:00');
+    if(!isNaN(c.getTime())) meses=Math.max(0,(h.getFullYear()-c.getFullYear())*12+(h.getMonth()-c.getMonth())+(h.getDate()-c.getDate())/30);
+  }
+  var devengado=(Number(emp.vacBase)||0)+(Number(emp.vacPorMes)||0)*meses;
+  var cod=String(emp.c||'').trim().toUpperCase(), tomado=0;
+  (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
+    if(String(s.tipo||'')!=='VACACIONES') return;
+    if(String(s.codigo||'').trim().toUpperCase()!==cod) return;
+    if(excluirId && String(s.id)===String(excluirId)) return;
+    var ini=String(s.inicio||'').slice(0,10);
+    if(!ini || ini>hIso) return;                       // programadas a futuro: no descuentan
+    var d=parseFloat(s.dias_habiles); if(!(d>0)) d=1;
+    tomado+=d;
+  });
+  var disp=Math.max(0, devengado-tomado);
+  var anos=_anosServicio(emp.ing);
+  return { base:r(disp), prog:0, sind:0,
+           devengado:{base:r(devengado),prog:0,sind:0}, tomado:{base:r(tomado),prog:0,sind:0},
+           oficial:true, corte:corte, porMes:(Number(emp.vacPorMes)||0),
+           periodos:[{ i:0, enCurso:true, frac:1,
+             derecho:{base:r(devengado),prog:0,sind:0},
+             tomado:{base:r(tomado),prog:0,sind:0},
+             aporte:{base:r(disp),prog:0,sind:0} }],
+           anos:(anos==null?0:anos) };
+}
+
 function _saldoPorBolsa(emp, excluirId){
+  if(emp && emp.vacBase!=null) return _saldoBaseOficial(emp, excluirId);   // base oficial de vacaciones
   if(!emp || !emp.ing) return null;
   var N=_anosServicio(emp.ing); if(N==null) return null;
   var r=function(x){ return Math.round(x*100)/100; };
@@ -1324,6 +1364,14 @@ function _addAnios(isoStr,n){
 // devengado a la fecha (fracción del período transcurrida).
 function _periodosVacaciones(emp){
   if(!emp || !emp.ing) return null;
+  if(emp.vacBase!=null){
+    var so=_saldoPorBolsa(emp, null); if(!so) return null;
+    return { periodos:[{ i:0, desde:_fmtCorto(emp.vacCorte), hasta:_fmtCorto(emp.vacCorte),
+                         derecho:so.devengado.base, tomados:so.tomado.base, saldo:so.base,
+                         disponibleEn:emp.vacCorte, usable:true, actual:true, enCurso:true, fraccion:1 }],
+             saldoDisponible:+so.base.toFixed(2), proximo:emp.vacCorte||'', anosHoy:so.anos,
+             totalDerecho:so.devengado.base, totalTomado:so.tomado.base, oficial:true };
+  }
   var ing=String(emp.ing).slice(0,10);
   var sal=_saldoPorBolsa(emp, null);
   if(!sal) return null;
@@ -2407,6 +2455,14 @@ function _unidadVac(cc){
 //    unidades excluidas (1110-1114) también INDEFINIDO.
 function _empListaPicker(){
   if(_tab===2){
+    // BASE OFICIAL DE VACACIONES: solo las personas de la planilla de RRHH pueden vacacionar.
+    // El resto (otras áreas) queda fuera. Si la base aún no está cargada se usa el criterio anterior.
+    var hab=_EMP.concat(_EMP_EXCL||[]).filter(function(e){ return e.vacHab; });
+    if(hab.length){
+      var vh={}, out=[];
+      hab.forEach(function(e){ var k=String(e.c).toUpperCase(); if(vh[k]) return; vh[k]=true; out.push(e); });
+      return out;
+    }
     var base=_EMP.filter(function(e){ return String(e.tipo||'').toUpperCase().indexOf('INDEFINID')>=0; });
     var vistos={}; base.forEach(function(e){ vistos[String(e.c).toUpperCase()]=true; });
     (_EMP_EXCL||[]).forEach(function(e){
