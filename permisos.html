@@ -1129,6 +1129,7 @@ function _saldoBaseOficial(emp, excluirId){
     if(excluirId && String(s.id)===String(excluirId)) return;
     var ini=String(s.inicio||'').slice(0,10);
     if(!ini || ini>hIso) return;                       // programadas a futuro: no descuentan
+    if(corte && ini<=corte) return;                    // anteriores al corte: ya vienen descontadas en el saldo de la planilla
     var d=parseFloat(s.dias_habiles); if(!(d>0)) d=1;
     tomado+=d;
   });
