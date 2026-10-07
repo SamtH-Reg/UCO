@@ -866,6 +866,11 @@ async function cargarDatosBase(){
     vacProgMes:(e.vacaciones_progresivo_por_mes!=null?Number(e.vacaciones_progresivo_por_mes):null)}; }
   _EMP=(empRes.data||[]).map(_mapEmp);
   _EMP_EXCL=(!ueRes.error&&ueRes.data)?ueRes.data.map(_mapEmp):[];
+  // Empleados INACTIVOS: para vacaciones también aplican (los indefinidos y los de la base de RRHH)
+  try{
+    var inactRes=await d.from('empleados').select('*').eq('activo', false);
+    window._EMP_INACT=(inactRes.data||[]).map(_mapEmp);
+  }catch(e){ window._EMP_INACT=[]; }
   // Responsables (jefaturas directas) desde la tabla 'autorizadores'
   if(autRes.error && autRes.data===null){
     // Tabla aún no creada: caer a usuarios con rol != operario
@@ -2270,7 +2275,7 @@ function renderForm(){
     // Si el empleado del formulario llegó sin los datos de la base oficial (por ejemplo desde
     // otro camino de selección), se completan desde la lista de empleados por su código.
     if(f.emp && f.emp.vacBase==null && f.emp.c){
-      var _eB=(_EMP||[]).concat(_EMP_EXCL||[]).filter(function(e){ return String(e.c).toUpperCase()===String(f.emp.c).toUpperCase() && e.vacBase!=null; })[0];
+      var _eB=(_EMP||[]).concat(_EMP_EXCL||[], window._EMP_INACT||[]).filter(function(e){ return String(e.c).toUpperCase()===String(f.emp.c).toUpperCase() && e.vacBase!=null; })[0];
       if(_eB) f.emp=Object.assign({}, f.emp, {vacHab:_eB.vacHab, vacBase:_eB.vacBase, vacCorte:_eB.vacCorte, vacPorMes:_eB.vacPorMes,
                                               vacLeg:_eB.vacLeg, vacProg:_eB.vacProg, vacLegMes:_eB.vacLegMes, vacProgMes:_eB.vacProgMes});
     }
@@ -2484,7 +2489,8 @@ function _empListaPicker(){
     var UND_VAC=['1110','1111','1112','1113','1114','1117'];
     var _ccCod=function(cc){ var m=String(cc||'').match(/^\s*(\d{3,4})/); return m? m[1] : ''; };
     var _esIndef=function(e){ return String(e.tipo||'').toUpperCase().indexOf('INDEFINID')>=0; };
-    var hab=_EMP.concat(_EMP_EXCL||[]).filter(function(e){
+    // Incluye a los INACTIVOS: para vacaciones también aplican (indefinidos y base de RRHH)
+    var hab=_EMP.concat(_EMP_EXCL||[], window._EMP_INACT||[]).filter(function(e){
       if(e.vacHab) return true;                                    // 1) base oficial de RRHH
       return UND_VAC.indexOf(_ccCod(e.cc))>=0 && _esIndef(e);      // 2) unidades + contrato indefinido
     });
