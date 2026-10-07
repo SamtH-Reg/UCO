@@ -1628,6 +1628,22 @@ body {
               <div class="import-zone-title">Arrastra tu archivo Excel o CSV aquí</div>
               <div class="import-zone-sub">Formatos: .xlsx · .xls · .csv — o haz clic para seleccionar</div>
             </div>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--border)">
+              <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+                <b>O pega las personas desde el portapapeles.</b> Copia las filas desde Excel o Google Sheets
+                (con o sin encabezados) y pégalas aquí: se arma la misma vista previa que con un archivo,
+                respetando la <b>tabla destino</b> y el <b>turno</b> elegidos arriba.
+              </div>
+              <textarea id="pegaTexto" class="form-input" rows="5" spellcheck="false"
+                placeholder="M1234&#9;PEREZ SOTO JUAN&#9;1110 -PRODUCCIÓN (FS)&#9;PLANTA&#10;M1235&#9;GOMEZ DIAZ ANA&#9;1111 -SERVICIOS DE PROD (FS)&#9;PLANTA"
+                style="width:100%;font-family:var(--mono);font-size:12px;resize:vertical"></textarea>
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
+                <button class="btn btn-primary btn-sm" onclick="procesarPegado()">📋 Leer lo pegado</button>
+                <button class="btn btn-secondary btn-sm" onclick="pegarPortapapeles()" title="El navegador pedirá permiso para leer el portapapeles">📥 Pegar del portapapeles</button>
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('pegaTexto').value=''">✕ Limpiar texto</button>
+                <span style="font-size:11.5px;color:var(--hint)">También puedes hacer Ctrl+V dentro del cuadro.</span>
+              </div>
+            </div>
             <div id="importPreview" style="display:none;margin-top:16px">
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;overflow-x:auto">
                 <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:10px;font-family:var(--mono);letter-spacing:.8px">VISTA PREVIA — PRIMERAS 5 FILAS</div>
@@ -4660,6 +4676,120 @@ function procesarArchivo(file) {
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+// ════════════════════════════════════════════════════
+//  PEGAR DESDE EL PORTAPAPELES — mismos controles que el archivo
+// ════════════════════════════════════════════════════
+function _lineasPegado(txt) {
+  return String(txt || '').replace(/\r/g, '').split('\n')
+    .map(function(l) { return l.replace(/[ \t]+$/g, ''); })
+    .filter(function(l) { return l.trim().length; });
+}
+function _celdasPegado(linea) {
+  if (linea.indexOf('\t') >= 0) return linea.split('\t');
+  if (linea.indexOf(';') >= 0)  return linea.split(';');
+  if (linea.indexOf('|') >= 0)  return linea.split('|');
+  if (linea.indexOf(',') >= 0)  return linea.split(',');
+  return [linea];
+}
+// ¿La primera fila es un encabezado? (alguna celda calza con una columna conocida)
+function _pareceEncabezado(celdas, tabla) {
+  var mapeo = COLUMNAS_TABLA[tabla] || {};
+  return (celdas || []).some(function(c) {
+    var v = String(c == null ? '' : c).trim().toLowerCase();
+    if (!v || v.length > 24) return false;
+    return !!mapeo[v] || !!mapeo[v.replace(/\s+/g, ' ')] ||
+           ['codigo','código','nombre','centro_costo','centro de costo','contrato','turno','especie','funcion','función','producto','proceso','operacion','operación','responsable','linea','línea'].indexOf(v) >= 0;
+  });
+}
+// Sin encabezados: se adivina qué columna es cada cosa mirando los datos.
+// Los centros de costo vienen de dos formas ("1110 -PRODUCCIÓN (FS)" y "1112 CONTROL PROD(FS)"),
+// así que se puntúa cada columna en vez de exigir que TODAS las celdas calcen.
+function _adivinaEncabezado(filas, tabla) {
+  var nc = 0;
+  filas.forEach(function(f) { nc = Math.max(nc, f.length); });
+  if (tabla !== 'empleados') {
+    var ordenProd = ['especie','funcion','producto','proceso','operacion','responsable','linea','linea_especial','funcion_especial'];
+    var encP = []; for (var i = 0; i < nc; i++) encP.push(ordenProd[i] || ('c' + (i + 1)));
+    return encP;
+  }
+  var norm = function(v) { return String(v == null ? '' : v).trim().toUpperCase(); };
+  var esCodigo   = function(v) { return /^[A-Z]{0,2}[- ]?\d{3,}$/.test(norm(v)); };
+  var esCC       = function(v) { return /^\d{3,5}(\s|$|-)/.test(String(v == null ? '' : v).trim()); };
+  var CONTRATOS  = ['PLANTA','HONORARIO','CONTRATISTA','INDEFINIDO','PLAZO FIJO','TEMPORAL','APRENDIZ','PART','PROYECTO','REEMPLAZO'];
+  var esContrato = function(v) { var s = norm(v); return !!s && CONTRATOS.some(function(c) { return s.indexOf(c) >= 0; }); };
+
+  var pct = function(vals, f) { return vals.length ? vals.filter(f).length / vals.length : 0; };
+  var letras = function(vals) { return vals.reduce(function(m, v) { return Math.max(m, String(v == null ? '' : v).replace(/[^A-Za-zÁÉÍÓÚÑñáéíóú ]/g, '').trim().length); }, 0); };
+
+  var cols = [];
+  for (var c = 0; c < nc; c++) {
+    var vals = filas.slice(0, 10).map(function(f) { return f[c]; }).filter(function(v) { return String(v == null ? '' : v).trim(); });
+    cols.push({ i: c, codigo: pct(vals, esCodigo), cc: pct(vals, esCC), contrato: pct(vals, esContrato), letras: letras(vals), usado: null });
+  }
+  var enc = new Array(nc);
+
+  // Código: la columna con más códigos
+  var mejor = null;
+  cols.forEach(function(x) { if (x.codigo >= 0.5 && (!mejor || x.codigo > mejor.codigo)) mejor = x; });
+  if (mejor) { mejor.usado = 'codigo'; enc[mejor.i] = 'codigo'; }
+
+  // Centro de costo: la columna (libre) que más se parece a un CC
+  mejor = null;
+  cols.forEach(function(x) { if (!x.usado && x.cc >= 0.3 && (!mejor || x.cc > mejor.cc)) mejor = x; });
+  if (mejor) { mejor.usado = 'centro_costo'; enc[mejor.i] = 'centro_costo'; }
+
+  // Contrato
+  mejor = null;
+  cols.forEach(function(x) { if (!x.usado && x.contrato >= 0.3 && (!mejor || x.contrato > mejor.contrato)) mejor = x; });
+  if (mejor) { mejor.usado = 'contrato'; enc[mejor.i] = 'contrato'; }
+
+  // Lo que queda: la columna con más letras es el nombre
+  var resto = cols.filter(function(x) { return !x.usado; }).sort(function(a, b) { return b.letras - a.letras; });
+  resto.forEach(function(x, k) {
+    var nom = (k === 0 && x.letras >= 5) ? 'nombre' : ('dato' + (k + 1));
+    x.usado = nom; enc[x.i] = nom;
+  });
+
+  for (var j = 0; j < nc; j++) if (!enc[j]) enc[j] = 'c' + (j + 1);
+  var vistos = {};
+  for (var m = 0; m < nc; m++) { if (vistos[enc[m]]) enc[m] = enc[m] + '2'; vistos[enc[m]] = 1; }
+  return enc;
+}
+// Toma el texto pegado y lo hace pasar por el MISMO camino del archivo (validación, dedup, resumen)
+function procesarPegado() {
+  var ta = document.getElementById('pegaTexto');
+  var lineas = _lineasPegado((ta && ta.value) || '');
+  if (!lineas.length) { toast('Pega primero las filas (Ctrl+V en el cuadro)', 'warn'); return; }
+  var tabla = document.getElementById('importTabla').value;
+  var filas = lineas.map(_celdasPegado);
+  var enc, datos;
+  if (_pareceEncabezado(filas[0], tabla)) { enc = filas[0].map(function(c) { return String(c == null ? '' : c).trim(); }); datos = filas.slice(1); }
+  else { enc = _adivinaEncabezado(filas, tabla); datos = filas; }
+  if (!datos.length) { toast('El texto pegado no tiene filas de datos', 'warn'); return; }
+  // Se arma un CSV en memoria y se reutiliza procesarArchivo()
+  var csv = [enc.join(',')].concat(datos.map(function(f) {
+    return f.map(function(c) {
+      var s = String(c == null ? '' : c).trim();
+      return (s.indexOf(',') >= 0 || s.indexOf('"') >= 0) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',');
+  })).join('\n');
+  procesarArchivo(new File([csv], 'pegado del portapapeles (columnas: ' + enc.join(' · ') + ').csv', { type: 'text/csv' }));
+  setTimeout(function() {
+    var p = document.getElementById('importPreview');
+    if (p && p.style.display !== 'none') p.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 700);
+}
+async function pegarPortapapeles() {
+  try {
+    var t = await navigator.clipboard.readText();
+    if (!t || !t.trim()) { toast('El portapapeles está vacío', 'warn'); return; }
+    document.getElementById('pegaTexto').value = t;
+    procesarPegado();
+  } catch (e) {
+    toast('El navegador no dio acceso al portapapeles — pega con Ctrl+V en el cuadro', 'warn', 7000);
+  }
 }
 
 function toggleImportTurno() {
