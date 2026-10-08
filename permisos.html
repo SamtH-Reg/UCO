@@ -1663,7 +1663,16 @@ async function _fetchAll(d, table, cols, pageSize, orden){
     x=x.order('id',{ascending:(orden&&orden.asc===false)?false:true});
     return x;
   };
-  var q=function(r1,r2){ var x=d.from(table).select(cols||'*', r1===0?{count:'exact'}:undefined); return _ord(x).range(r1,r2); };
+  var q=async function(r1,r2,sinId){
+    var x=d.from(table).select(cols||'*', r1===0?{count:'exact'}:undefined);
+    x=(sinId&&orden&&orden.c) ? x.order(orden.c,{ascending:orden.asc!==false}) : _ord(x);
+    var r=await x.range(r1,r2);
+    if(r && r.error && !sinId && String(r.error.message||'').toLowerCase().indexOf('column')>=0){
+      // El orden por 'id' no existe en esta tabla: se reintenta sin el desempate
+      return await q(r1,r2,true);
+    }
+    return r;
+  };
   var first=await q(0,pageSize-1);
   if(first.error) return {data:[],error:first.error};
   var all=first.data||[];
@@ -1736,7 +1745,7 @@ async function cargarSolicitudes(refresco){
   //       Sus datos se migraron a `solicitudes_permiso` (ver vacaciones_migracion.sql).
   var out=await Promise.all([
     _fetchAll(d,'solicitudes_permiso','*',1000,{c:'created_at',asc:false}),
-    _fetchAll(d,'permisos','id,codigo,nombre,fecha,tipo,autorizador,autorizador_sub,autoriza,updated_at'),
+    _fetchAll(d,'permisos','*'),
     _fetchAll(d,'empleados','codigo,nombre,centro_costo,turno,fecha_ingreso')
   ]);
   var res=out[0], permAll=(out[1]&&out[1].data)||[], empAll=(out[2]&&out[2].data)||[];
