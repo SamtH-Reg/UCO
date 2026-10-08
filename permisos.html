@@ -573,6 +573,11 @@ input:focus,select:focus,textarea:focus{background:var(--surface);border-color:v
 /* ── Entrada de la aplicación tras el login ── */
 .app:not(.hidden){animation:animFadeIn .5s var(--ease-out) backwards}
 </style>
+<!-- Anticipar conexiones: ahorra DNS+TLS en el arranque -->
+<link rel="preconnect" href="https://qvtztwqbbbzortkodtla.supabase.co" crossorigin>
+<link rel="dns-prefetch" href="//cdn.jsdelivr.net">
+<link rel="dns-prefetch" href="//fonts.googleapis.com">
+<link rel="dns-prefetch" href="//fonts.gstatic.com">
 </head>
 <body data-theme="claro">
 
@@ -1673,7 +1678,7 @@ async function cargarSolicitudes(){
   //       Sus datos se migraron a `solicitudes_permiso` (ver vacaciones_migracion.sql).
   var out=await Promise.all([
     d.from('solicitudes_permiso').select('*').order('created_at',{ascending:false}).limit(1000),
-    _fetchAll(d,'permisos','*'),
+    _fetchAll(d,'permisos','id,codigo,nombre,fecha,tipo,autorizador,autorizador_sub,autoriza,updated_at'),
     _fetchAll(d,'empleados','codigo,nombre,centro_costo,turno,fecha_ingreso')
   ]);
   var res=out[0], permAll=(out[1]&&out[1].data)||[], empAll=(out[2]&&out[2].data)||[];
