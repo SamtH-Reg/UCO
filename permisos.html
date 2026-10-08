@@ -643,6 +643,10 @@ input:focus,select:focus,textarea:focus{background:var(--surface);border-color:v
       <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="4.4" width="17.2" height="4.8" rx="1.6"/><path d="M5.2 9.2v9.4a1.4 1.4 0 0 0 1.4 1.4h10.8a1.4 1.4 0 0 0 1.4-1.4V9.2M10 13.2h4"/></svg></span>
       <span class="lb">Vacaciones</span>
     </button>
+        <button class="sb-item" onclick="verEliminaciones()" id="sb-audit" title="Permisos eliminados">
+          <span class="ico">🗑</span>
+          <span class="lb">Eliminados</span>
+        </button>
 
     <div class="sb-foot">
       <div class="sb-avatar" id="sbAvatar">…</div>
@@ -4128,6 +4132,36 @@ function _buscarRegistro(id){
   return _SOLIC.find(function(s){ return s.id===id; });
 }
 
+// ── Auditoría: permisos eliminados (lee audit_log) ──────────────────────────
+async function verEliminaciones(){
+  try{
+    var d=await dbReady();
+    var r=await d.from('audit_log').select('created_at,usuario,email,detalle')
+                       .eq('accion','ELIMINAR_PERMISO').order('created_at',{ascending:false}).limit(60);
+    if(r.error){ toast('No se pudo leer la auditoría: '+(r.error.message||r.error),'error',9000); return; }
+    var filas=r.data||[];
+    var body=filas.length? filas.map(function(x){
+      var f=String(x.created_at||'').replace('T',' ').slice(0,16);
+      return '<tr><td style="padding:6px 8px;white-space:nowrap;color:var(--hint);font-size:11.5px">'+esc(f)+'</td>'+
+             '<td style="padding:6px 8px;font-size:12px">'+esc(x.usuario||'—')+'</td>'+
+             '<td style="padding:6px 8px;font-size:12px">'+esc(x.detalle||'')+'</td></tr>';
+    }).join('') : '<tr><td colspan="3" style="padding:14px;color:var(--hint)">Todavía no hay eliminaciones registradas.</td></tr>';
+    var html='<div id="auditOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px" onclick="if(event.target===this)this.remove()">'+
+      '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:940px;width:100%;max-height:82vh;overflow:auto;padding:16px 18px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">'+
+          '<b style="font-size:15px">🗑 Permisos eliminados ('+filas.length+')</b>'+
+          '<button class="btn btn-secondary btn-sm" onclick="document.getElementById(\'auditOverlay\').remove()">✕ Cerrar</button>'+
+        '</div>'+
+        '<table style="width:100%;border-collapse:collapse"><thead><tr>'+
+          '<th style="text-align:left;padding:6px 8px;font-size:10.5px;color:var(--hint);letter-spacing:.6px">FECHA</th>'+
+          '<th style="text-align:left;padding:6px 8px;font-size:10.5px;color:var(--hint);letter-spacing:.6px">USUARIO</th>'+
+          '<th style="text-align:left;padding:6px 8px;font-size:10.5px;color:var(--hint);letter-spacing:.6px">PERMISO ELIMINADO</th>'+
+        '</tr></thead><tbody>'+body+'</tbody></table>'+
+        '<div style="margin-top:10px;font-size:11.5px;color:var(--hint)">Cada fila corresponde a un permiso borrado desde la app (queda registrado quién y cuándo).</div>'+
+      '</div></div>';
+    document.body.insertAdjacentHTML('beforeend', html);
+  }catch(e){ toast('Error al leer la auditoría: '+(e.message||e),'error',8000); }
+}
 function eliminarRegistroPermiso(id){
   var s=_buscarRegistro(id); if(!s){ toast('Registro no encontrado','error'); return; }
   var nombre=(s.codigo||'')+' '+(s.nombre||'');
