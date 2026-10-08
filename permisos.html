@@ -4240,45 +4240,6 @@ async function verEliminaciones(){
     document.body.insertAdjacentHTML('beforeend', html);
   }catch(e){ toast('Error al leer la auditoría: '+(e.message||e),'error',8000); }
 }
-// ── Comentario del permiso: burbuja 💬 en la fila (pasa el mouse y se lee completo) ──
-function _burbujasComentario(){
-  try{
-    var trs=document.querySelectorAll('#contentBox .tbl tbody tr');
-    if(!trs.length) return;
-    // Un solo recorrido de los datos para saber qué ids tienen comentario (antes se recorría
-    // TODO _SOLIC por cada render y con 3.500 permisos dejaba la vista pegada al cambiar de pestaña)
-    var mapa={}, hay=false;
-    (_SOLIC||[]).forEach(function(s){
-      var com=String(s.comentario||'').trim();
-      if(com){ mapa[String(s.id)]={com:com, cod:String(s.codigo||'')}; hay=true; }
-    });
-    if(!hay) return;
-    for(var i=0;i<trs.length;i++){
-      var tr=trs[i];
-      if(tr.querySelector('.com-bubble')) continue;
-      var btn=tr.querySelector('[onclick*="editarRegistroPermiso("]');
-      if(!btn) continue;
-      var m=String(btn.getAttribute('onclick')||'').match(/editarRegistroPermiso\('([^']+)'\)/);
-      if(!m) continue;
-      var dat=mapa[m[1]]; if(!dat) continue;
-      var celdas=[].slice.call(tr.querySelectorAll('td'));
-      var celda=(dat.cod? celdas.filter(function(td){ return td.innerText.indexOf(dat.cod)>=0; })[0] : null)
-               || celdas[Math.min(3, celdas.length-1)] || celdas[0];
-      if(!celda) continue;
-      var sp=document.createElement('span');
-      sp.className='com-bubble'; sp.textContent=' 💬'; sp.title=dat.com;
-      sp.style.cssText='cursor:help;font-size:12px';
-      celda.appendChild(sp);
-    }
-  }catch(e){ console.warn('[COM]', e && e.message); }
-}
-// Se engancha al render: después de pintar, se agregan las burbujas
-(function(){
-  if(window._comHook) return; window._comHook=true;
-  var _r=render;
-  window.render=function(){ var x=_r.apply(this,arguments); _burbujasComentario(); return x; };
-})();
-
 function eliminarRegistroPermiso(id){
   var s=_buscarRegistro(id); if(!s){ toast('Registro no encontrado','error'); return; }
   var nombre=(s.codigo||'')+' '+(s.nombre||'');
