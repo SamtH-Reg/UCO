@@ -1673,7 +1673,17 @@ async function _fetchAll(d, table, cols, pageSize, orden){
     var reqs=[];
     for(var p=1;p<paginas;p++){ reqs.push(_ord(d.from(table).select(cols||'*')).range(p*pageSize, p*pageSize+pageSize-1)); }
     var res=await Promise.all(reqs);
-    res.forEach(function(r){ if(!r.error && r.data) all=all.concat(r.data); });
+    var fallidas=[];
+    res.forEach(function(r,i){ if(!r.error && r.data) all=all.concat(r.data); else fallidas.push(i+1); });
+    // Reintento secuencial: antes una página con error se perdía en silencio (faltaban filas)
+    for(var k=0;k<fallidas.length;k++){
+      var pg=fallidas[k];
+      try{
+        var rr=await _ord(d.from(table).select(cols||'*')).range(pg*pageSize, pg*pageSize+pageSize-1);
+        if(!rr.error && rr.data) all=all.concat(rr.data);
+      }catch(e){ console.warn('[PAG] reintento falló', table, pg, e && e.message); }
+    }
+    if(all.length<total) console.warn('[PAG] '+table+': llegaron '+all.length+' de '+total+' filas');
   }
   return {data:all,error:null};
 }
