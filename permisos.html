@@ -4138,12 +4138,18 @@ function _buscarRegistro(id){
 async function verEliminaciones(){
   try{
     var d=await dbReady();
-    var r=await d.from('audit_log').select('created_at,usuario,email,detalle')
-                       .eq('accion','ELIMINAR_PERMISO').order('created_at',{ascending:false}).limit(60);
+    // Se leen TODAS las columnas: la tabla audit_log no tiene created_at (su esquema es otro)
+    var r=await d.from('audit_log').select('*').eq('accion','ELIMINAR_PERMISO').limit(60);
+    if(!r.error && r.data){
+      r.data.sort(function(a,b){
+        var fa=a.fecha||a.created_at||a.ts||a.fecha_hora||'', fb=b.fecha||b.created_at||b.ts||b.fecha_hora||'';
+        return String(fb).localeCompare(String(fa));   // más recientes primero (si hay fecha)
+      });
+    }
     if(r.error){ toast('No se pudo leer la auditoría: '+(r.error.message||r.error),'error',9000); return; }
     var filas=r.data||[];
     var body=filas.length? filas.map(function(x){
-      var f=String(x.created_at||'').replace('T',' ').slice(0,16);
+      var f=String(x.fecha||x.created_at||x.ts||x.fecha_hora||'').replace('T',' ').slice(0,16)||'—';
       return '<tr><td style="padding:6px 8px;white-space:nowrap;color:var(--hint);font-size:11.5px">'+esc(f)+'</td>'+
              '<td style="padding:6px 8px;font-size:12px">'+esc(x.usuario||'—')+'</td>'+
              '<td style="padding:6px 8px;font-size:12px">'+esc(x.detalle||'')+'</td></tr>';
