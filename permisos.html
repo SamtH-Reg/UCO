@@ -1680,7 +1680,7 @@ async function _fetchAll(d, table, cols, pageSize, orden){
 
 // ── Caché de la última carga (IndexedDB) para que la app abra al instante ──
 //  La primera vez carga de la base como siempre; después pinta con lo guardado y refresca por detrás.
-var _CACHE_DB='friosur_cache', _CACHE_ST='snap';
+var _CACHE_DB='friosur_cache', _CACHE_ST='snap_v2';   // v2: descarta la copia vieja (la que traia solo 1000 solicitudes)
 function _idbOpen(){
   return new Promise(function(res,rej){ try{
     if(typeof indexedDB==='undefined'){ rej(new Error('sin indexedDB')); return; }
