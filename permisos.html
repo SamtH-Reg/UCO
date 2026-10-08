@@ -4224,6 +4224,31 @@ async function verEliminaciones(){
     document.body.insertAdjacentHTML('beforeend', html);
   }catch(e){ toast('Error al leer la auditoría: '+(e.message||e),'error',8000); }
 }
+// ── Comentario del permiso: burbuja 💬 en la fila (pasa el mouse y se lee completo) ──
+function _burbujasComentario(){
+  try{
+    (_SOLIC||[]).forEach(function(s){
+      var com=String(s.comentario||'').trim(); if(!com) return;
+      var b=document.querySelector('#contentBox [onclick*="'+String(s.id)+'"]'); if(!b) return;
+      var tr=b.closest('tr'); if(!tr) return;
+      var celdas=[].slice.call(tr.querySelectorAll('td'));
+      var cod=String(s.codigo||'');
+      var celda=celdas.filter(function(td){ return cod && td.innerText.indexOf(cod)>=0; })[0] || celdas[celdas.length-2];
+      if(!celda || celda.querySelector('.com-bubble')) return;
+      var sp=document.createElement('span');
+      sp.className='com-bubble'; sp.textContent=' 💬'; sp.title=com;
+      sp.style.cssText='cursor:help;font-size:12px';
+      celda.appendChild(sp);
+    });
+  }catch(e){ console.warn('[COM]', e && e.message); }
+}
+// Se engancha al render: después de pintar, se agregan las burbujas
+(function(){
+  if(window._comHook) return; window._comHook=true;
+  var _r=render;
+  window.render=function(){ var x=_r.apply(this,arguments); _burbujasComentario(); return x; };
+})();
+
 function eliminarRegistroPermiso(id){
   var s=_buscarRegistro(id); if(!s){ toast('Registro no encontrado','error'); return; }
   var nombre=(s.codigo||'')+' '+(s.nombre||'');
@@ -4320,6 +4345,8 @@ function abrirEditarModal(id){
     '<div style="padding:8px 20px 20px">'+campos+'</div>'+
     '<div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px">'+
     '<button class="btn btn-ghost" onclick="cerrarEditarModal()">Cancelar</button>'+
+    '<div style="padding:0 20px 12px"><label class="form-label">Archivo adjunto (opcional)</label>'+
+      '<input type="file" id="e_archivo" style="font-size:12px;color:var(--muted)"></div>'+
     '<button class="btn btn-primary" onclick="guardarEdicion()">💾 Guardar</button></div>'+
     '</div></div>';
   var cont=document.createElement('div'); cont.id='editModalWrap'; cont.innerHTML=html;
@@ -4357,6 +4384,17 @@ function guardarEdicion(){
     }
     else if(tabla==='permisos'){ upd.fecha=fecha; upd.tipo=_tipoTexto(tipo); }
     else { upd.fecha_inicio=fecha; upd.codigo=codigo; upd.nombre=nombre; }
+    // Adjunto: si se eligió un archivo en el editor, se guarda con el registro
+    try{
+      var inpA=document.getElementById('e_archivo');
+      var fileObj=inpA && inpA.files && inpA.files[0] ? inpA.files[0] : null;
+      if(fileObj){
+        var meta={codigo:codigo, nombre:nombre, fecha:fecha||'', tipo:'PERMISO', tipo_permiso:tipo||''};
+        await guardarDocumentoLocal(pk, fileObj, codigo, nombre, meta, (typeof _dt!=='undefined'&&_dt)?_dt.handle:null);
+        _docIds[pk]=true;
+      }
+    }catch(e){ toast('El registro se guarda, pero no se pudo adjuntar el archivo: '+(e.message||e),'warn',8000); }
+
     var res=await d.from(tabla).update(upd).eq('id',pk);
     if(res.error){ toast('Error al actualizar: '+(res.error.message||res.error),'error'); return; }
     toast('Registro actualizado correctamente','success');
