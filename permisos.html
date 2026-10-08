@@ -1821,12 +1821,18 @@ async function cargarSolicitudes(refresco){
   if(!todo.length && window._cacheSolic){   // respuesta vacía: se conserva lo que ya se veía
     window._cacheSolic=false; console.warn('[SOLIC] refresco vacío: se mantiene la copia mostrada'); return;
   }
+  // Si los datos que llegaron son los mismos que ya se estaban mostrando, no se repinta de nuevo
+  var _mismo=(_SOLIC.length===todo.length)
+           && (String((_SOLIC[0]||{}).id)===String((todo[0]||{}).id))
+           && (String((_SOLIC[_SOLIC.length-1]||{}).id)===String((todo[todo.length-1]||{}).id));
   _SOLIC=todo;
   _solError=null;
   try{ if(todo.length) _idbPut({t:Date.now(), data:_SOLIC}); }catch(e){}
-  if(window._cacheSolic && typeof render==='function'){   // se estaba viendo la copia guardada: se repinta con lo fresco
+  if(window._cacheSolic){          // se estaba viendo la copia guardada
     window._cacheSolic=false;
-    try{ render(); }catch(e){}
+    if(!_mismo && typeof render==='function'){
+      try{ render(); }catch(e){}    // se repinta solo si algo cambió de verdad
+    }
   }
 }
 var _solError=null;
