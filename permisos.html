@@ -2434,7 +2434,7 @@ function renderForm(){
             '<span style="font-size:11px;font-weight:600;color:var(--green);background:var(--green-soft);padding:3px 9px;border-radius:20px">📅 Vacaciones programadas</span>'+
           '</div>'+
           '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'+
-            '<button class="btn btn-primary btn-sm" onclick="generarPapeletaRegistro(\''+esc(proxRec.id||'')+'\')">📄 Generar papeleta</button>'+
+            '<button class="btn btn-primary btn-sm" title="Genera la papeleta de ESTA vacación programada, no de lo que tengas en el formulario" onclick="generarPapeletaRegistro(\''+esc(proxRec.id||'')+'\')">📄 Papeleta de esta programada'+(proxRec.inicio?(' ('+_fmtCorto(proxRec.inicio)+(proxRec.termino?(' al '+_fmtCorto(proxRec.termino)):'')+')'):'')+'</button>'+
             '<button class="btn btn-secondary btn-sm" onclick="editarRegistroPermiso(\''+esc(proxRec.id||'')+'\')">Editar programada</button>'+
           '</div>';
       }
