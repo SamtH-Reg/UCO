@@ -1683,7 +1683,18 @@ async function _fetchAll(d, table, cols, pageSize, orden){
         if(!rr.error && rr.data) all=all.concat(rr.data);
       }catch(e){ console.warn('[PAG] reintento falló', table, pg, e && e.message); }
     }
+    // Independiente del conteo: mientras la última página haya venido LLENA puede haber más filas.
+    // (Si el total informado viniera mal, antes se cortaba en la primera página y se perdían datos.)
+    var p2=paginas;
+    while(all.length>0 && (all.length % pageSize)===0 && p2<200){
+      var rq2=await _ord(d.from(table).select(cols||'*')).range(p2*pageSize, p2*pageSize+pageSize-1);
+      if(rq2.error || !rq2.data || !rq2.data.length) break;
+      all=all.concat(rq2.data);
+      if(rq2.data.length < pageSize) break;
+      p2++;
+    }
     if(all.length<total) console.warn('[PAG] '+table+': llegaron '+all.length+' de '+total+' filas');
+    else if(p2>paginas) console.warn('[PAG] '+table+': el conteo venía corto, se trajeron '+all.length+' filas');
   }
   return {data:all,error:null};
 }
