@@ -1656,7 +1656,14 @@ function _mapTipoPermisoTexto(t){
 // Trae TODAS las filas de una tabla paginando EN PARALELO (más rápido que secuencial)
 async function _fetchAll(d, table, cols, pageSize, orden){
   pageSize=pageSize||1000;
-  var q=function(r1,r2){ var x=d.from(table).select(cols||'*', r1===0?{count:'exact'}:undefined); if(orden&&orden.c) x=x.order(orden.c,{ascending:orden.asc!==false}); return x.range(r1,r2); };
+  // El orden DEBE ser único (created_at + id): si no, las páginas traídas en paralelo se solapan
+  // y se saltan filas cuando muchas comparten la misma marca de tiempo (importaciones masivas).
+  var _ord=function(x){
+    if(orden&&orden.c){ x=x.order(orden.c,{ascending:orden.asc!==false}); }
+    x=x.order('id',{ascending:(orden&&orden.asc===false)?false:true});
+    return x;
+  };
+  var q=function(r1,r2){ var x=d.from(table).select(cols||'*', r1===0?{count:'exact'}:undefined); return _ord(x).range(r1,r2); };
   var first=await q(0,pageSize-1);
   if(first.error) return {data:[],error:first.error};
   var all=first.data||[];
@@ -1664,7 +1671,7 @@ async function _fetchAll(d, table, cols, pageSize, orden){
   var paginas=Math.ceil(total/pageSize);
   if(paginas>1){
     var reqs=[];
-    for(var p=1;p<paginas;p++){ reqs.push(d.from(table).select(cols||'*').order((orden&&orden.c)||'created_at',{ascending:!(orden&&orden.asc===false)}).range(p*pageSize, p*pageSize+pageSize-1)); }
+    for(var p=1;p<paginas;p++){ reqs.push(_ord(d.from(table).select(cols||'*')).range(p*pageSize, p*pageSize+pageSize-1)); }
     var res=await Promise.all(reqs);
     res.forEach(function(r){ if(!r.error && r.data) all=all.concat(r.data); });
   }
