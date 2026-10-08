@@ -1150,16 +1150,31 @@ function _saldoBaseOficial(emp, excluirId){
     if(db_>0 || dp_>0){ tomadoL+=(db_>0?db_:0); tomadoP+=(dp_>0?dp_:0); }
     else { var d=parseFloat(s.dias_habiles); if(!(d>0)) d=1; tomadoL+=d; }
   });
+  // SINDICALES: no vienen en la planilla, son un acuerdo (5 días al año). Se respeta lo que se
+  // escriba con el lápiz (sindOverride) y se descuentan los días sindicales ya pedidos tras el corte.
+  var sindAsig=(emp.sindOverride!=null?Number(emp.sindOverride):DIAS_SINDICALES);
+  if(!(sindAsig>=0)) sindAsig=DIAS_SINDICALES;
+  var tomadoS=0;
+  (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
+    if(String(s.tipo||'')!=='VACACIONES') return;
+    if(String(s.codigo||'').trim().toUpperCase()!==cod) return;
+    if(excluirId && String(s.id)===String(excluirId)) return;
+    var ini=String(s.inicio||'').slice(0,10);
+    if(!ini || ini>hIso) return;
+    if(corte && ini<=corte) return;
+    var ds=parseFloat(s.dias_sindical); if(ds>0) tomadoS+=ds;
+  });
+  var dispS=Math.max(0, sindAsig-tomadoS);
   var dispL=Math.max(0, devengadoL-tomadoL), dispP=Math.max(0, devengadoP-tomadoP);
   var anos=_anosServicio(emp.ing);
-  return { base:r(dispL), prog:r(dispP), sind:0,
-           devengado:{base:r(devengadoL),prog:r(devengadoP),sind:0},
-           tomado:{base:r(tomadoL),prog:r(tomadoP),sind:0},
+  return { base:r(dispL), prog:r(dispP), sind:r(dispS),
+           devengado:{base:r(devengadoL),prog:r(devengadoP),sind:r(sindAsig)},
+           tomado:{base:r(tomadoL),prog:r(tomadoP),sind:r(tomadoS)},
            oficial:true, corte:corte, porMes:(Number(emp.vacPorMes)||0),
            periodos:[{ i:0, enCurso:true, frac:1,
-             derecho:{base:r(devengadoL),prog:r(devengadoP),sind:0},
-             tomado:{base:r(tomadoL),prog:r(tomadoP),sind:0},
-             aporte:{base:r(dispL),prog:r(dispP),sind:0} }],
+             derecho:{base:r(devengadoL),prog:r(devengadoP),sind:r(sindAsig)},
+             tomado:{base:r(tomadoL),prog:r(tomadoP),sind:r(tomadoS)},
+             aporte:{base:r(dispL),prog:r(dispP),sind:r(dispS)} }],
            anos:(anos==null?0:anos) };
 }
 
