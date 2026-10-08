@@ -885,6 +885,16 @@ async function cargarDatosBase(){
     var inactRes=await d.from('empleados').select('*').eq('activo', false);
     window._EMP_INACT=(inactRes.data||[]).map(_mapEmp);
   }catch(e){ window._EMP_INACT=[]; }
+  // Horarios de colación y desayuno de cada turno (los mismos que configura el admin)
+  try{
+    var ctRes=await d.from('config_turnos').select('turno,col_ini,col_fin,des_ini,des_fin,aplica_des');
+    (ctRes.data||[]).forEach(function(r){
+      var t=_turnoNorm(r.turno);
+      _TURNO_BREAKS[t]={ col:(r.col_ini&&r.col_fin)?[String(r.col_ini).slice(0,5),String(r.col_fin).slice(0,5)]:null,
+                         des:(r.des_ini&&r.des_fin)?[String(r.des_ini).slice(0,5),String(r.des_fin).slice(0,5)]:null,
+                         aplicaDes:(r.aplica_des!=null?!!r.aplica_des:false) };
+    });
+  }catch(e){ console.warn('[PAUSAS]', e && e.message); }
   // Responsables (jefaturas directas) desde la tabla 'autorizadores'
   if(autRes.error && autRes.data===null){
     // Tabla aún no creada: caer a usuarios con rol != operario
@@ -2873,21 +2883,65 @@ function _titulo(s){
   return String(s==null?'':s).toLowerCase()
     .replace(/(^|[\s\-\.\'/])([a-záéíóúüñç])/g, function(m,a,b){ return a+b.toUpperCase(); });
 }
-var _TURNOS_H={DIA:[8*60,17*60], TARDE:[15*60,1*60], NOCHE:[20*60+30,5*60+30]};
+var _TURNOS_H={DIA:[8*60,17*60], TARDE:[15*60,1*60], NOCHE:[20*60+30,5*60+30], MADRUGADA:[0,8*60]};
 function _min(s){ var p=String(s).split(':'); return (+p[0]||0)*60+(+p[1]||0); }
 function _hm(mins){ var h=Math.floor(mins/60), m=mins%60; return h+':'+String(m).padStart(2,'0'); }
 function _r2(n){ return Math.round(n*100)/100; }
+// ── PAUSAS DEL TURNO: colación (30 min) y desayuno (15 min, solo turno Día) ──────────
+// No son tiempo trabajado ni tiempo de permiso: se descuentan cuando caen DENTRO del permiso.
+var _TURNO_BREAKS_DEF={
+  DIA:      { col:['12:00','12:30'], des:['10:00','10:15'], aplicaDes:true  },
+  TARDE:    { col:['20:00','20:30'], des:null,              aplicaDes:false },
+  NOCHE:    { col:['23:00','23:30'], des:null,              aplicaDes:false },
+  MADRUGADA:{ col:['03:00','03:30'], des:null,              aplicaDes:false }
+};
+var _TURNO_BREAKS={};
+function _pausasDe(turno){
+  var t=_turnoNorm(turno);
+  var cfg=_TURNO_BREAKS[t], def=_TURNO_BREAKS_DEF[t]||_TURNO_BREAKS_DEF.DIA, out=[];
+  var col=(cfg&&cfg.col)?cfg.col:def.col;
+  if(col&&col[0]&&col[1]) out.push([_min(col[0]),_min(col[1])]);
+  var aplica=(cfg&&cfg.aplicaDes!=null)?cfg.aplicaDes:def.aplicaDes;
+  var des=(cfg&&cfg.des)?cfg.des:def.des;
+  if(aplica&&des&&des[0]&&des[1]) out.push([_min(des[0]),_min(des[1])]);
+  return out;
+}
+// Minutos de una pausa que caen dentro de la ventana [w1,w2) (ventana que puede cruzar medianoche)
+function _minutosPausaDentro(w1,w2,p1,p2){
+  var best=0;
+  [0,1440,-1440].forEach(function(off){
+    var ov=Math.min(w2,p2+off)-Math.max(w1,p1+off);
+    if(ov>best) best=ov;
+  });
+  return best;
+}
 function calcularHorasPermiso(s){
-  if(s.horas_permiso!=null&&s.horas_permiso!=='') return s.horas_permiso;
   var reg=String(s.tipo_regreso||'').toUpperCase();
   var turno=_turnoNorm(s.turno); var ho=_TURNOS_H[turno]||_TURNOS_H.DIA;
-  if(reg==='CON'){ if(s.hora_salida&&s.hora_ingreso){ var d=_min(s.hora_ingreso)-_min(s.hora_salida); if(d<0)d+=1440; return _r2(d/60); } return 0; }
-  if(reg==='SIN'){ if(s.hora_salida){ var d2=ho[1]-_min(s.hora_salida); if(d2<0)d2+=1440; return _r2(d2/60); } return 0; }
-  if(_esIngreso(reg)){ if(s.hora_ingreso){ var d3=_min(s.hora_ingreso)-ho[0]; if(d3<0)d3+=1440; return _r2(d3/60); } return 0; }
-  return 0;
+  var w1=null,w2=null;
+  if(reg==='CON'){ if(s.hora_salida&&s.hora_ingreso){ w1=_min(s.hora_salida); w2=_min(s.hora_ingreso); } }
+  else if(reg==='SIN'){ if(s.hora_salida){ w1=_min(s.hora_salida); w2=ho[1]; } }
+  else if(_esIngreso(reg)){ if(s.hora_ingreso){ w1=ho[0]; w2=_min(s.hora_ingreso); } }
+  if(w1==null||w2==null){
+    return (s.horas_permiso!=null&&s.horas_permiso!=='')? s.horas_permiso : 0;   // sin horas: se usa lo guardado
+  }
+  if(w2<w1) w2+=1440;
+  var bruto=w2-w1;
+  var pausas=_pausasDe(turno), desc=0;
+  pausas.forEach(function(p){ desc+=_minutosPausaDentro(w1,w2,p[0],p[1]); });
+  var neto=Math.max(0, bruto-desc);
+  return _r2(neto/60);
 }
 // Horas trabajadas de un registro = 9 − horas de permiso (con tope de 8,5 al superar 5 h)
-function calcularHorasTrabajadas(s){ return _horasTrabajadasDe(parseFloat(calcularHorasPermiso(s))||0); }
+function calcularHorasTrabajadas(s){
+  // Jornada del turno menos sus pausas (colación y desayuno), menos el permiso ya neteado
+  var turno=_turnoNorm(s && s.turno), ho=_TURNOS_H[turno]||_TURNOS_H.DIA;
+  var largura=ho[1]-ho[0]; if(largura<=0) largura+=1440;
+  var pausas=_pausasDe(turno).reduce(function(a,p){ return a+Math.max(0,p[1]-p[0]); },0);
+  var base=(largura-pausas)/60;
+  var h=parseFloat(calcularHorasPermiso(s))||0;
+  return Math.max(0, Math.round((base-h)*100)/100);
+}
 // Estado de vacaciones según fórmula del sheet:
 //   SI(DIAS_HABILES="";"POR TOMAR"; SI(INICIO>HOY();"POR TOMAR";
 //     SI(TERMINO<HOY();"FINALIZADAS";"EN CURSO")))
