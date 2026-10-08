@@ -1750,7 +1750,9 @@ async function cargarSolicitudes(refresco){
   //       Sus datos se migraron a `solicitudes_permiso` (ver vacaciones_migracion.sql).
   var out=await Promise.all([
     _fetchAll(d,'solicitudes_permiso','*',1000,{c:'created_at',asc:false}),
-    _fetchAll(d,'permisos','*'),
+    // UNIFICADO: los permisos viven en solicitudes_permiso (la planilla se copió en
+    // unificar_permisos_paso1_copiar.sql). Se deja de leer `permisos` para que nada se duplique.
+    {data:[],error:null},
     _fetchAll(d,'empleados','codigo,nombre,centro_costo,turno,fecha_ingreso')
   ]);
   var res=out[0], permAll=(out[1]&&out[1].data)||[], empAll=(out[2]&&out[2].data)||[];
