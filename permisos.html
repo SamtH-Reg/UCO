@@ -4130,16 +4130,43 @@ function _buscarRegistro(id){
 function eliminarRegistroPermiso(id){
   var s=_buscarRegistro(id); if(!s){ toast('Registro no encontrado','error'); return; }
   var nombre=(s.codigo||'')+' '+(s.nombre||'');
-  if(!confirm('Eliminar el permiso de '+nombre+'?')) return;
+  if(!confirm('Eliminar el permiso de '+nombre+'?\n\nEs definitivo: si el mismo permiso está cargado dos veces (en la app y en la planilla), se borran las dos copias y queda el registro en la auditoría.')) return;
   (async function(){
     var d=await dbReady();
     var tabla='solicitudes_permiso', pk_id=id;
     if(String(id).indexOf('perm_')===0){ tabla='permisos'; pk_id=String(id).replace('perm_',''); }
     else if(String(id).indexOf('vac_')===0){ tabla='vacaciones'; pk_id=String(id).replace('vac_',''); }
-    var res=await d.from(tabla).delete().eq('id',pk_id);
+    var cod=String(s.codigo||'').trim().toUpperCase();
+    var fecha=String(s.inicio||s.fecha||'').slice(0,10);
+    var borradas=0, det=[];
+    var res=await d.from(tabla).delete().eq('id',pk_id).select('id');
     if(res.error){ toast('Error al eliminar: '+(res.error.message||res.error),'error'); return; }
+    borradas+=((res.data&&res.data.length)||1); det.push(tabla);
+    // El mismo permiso puede estar en la OTRA tabla (app y planilla): se borra también, para que no reaparezca
+    if(cod && fecha){
+      try{
+        if(tabla==='solicitudes_permiso'){
+          var r2=await d.from('permisos').delete().eq('codigo',cod).eq('fecha',fecha).select('id');
+          var n2=(!r2.error && r2.data)?r2.data.length:0; if(n2){ borradas+=n2; det.push('permisos'); }
+        } else if(tabla==='permisos'){
+          var r3=await d.from('solicitudes_permiso').delete().eq('codigo',cod).eq('inicio',fecha).select('id');
+          var n3=(!r3.error && r3.data)?r3.data.length:0; if(n3){ borradas+=n3; det.push('solicitudes_permiso'); }
+        }
+      }catch(e){ console.warn('[DEL] copia en la otra tabla', e && e.message); }
+    }
     if(tabla==='solicitudes_permiso'){ try{ await docEliminar(pk_id); delete _docIds[pk_id]; }catch(e){} }
-    toast('Permiso eliminado correctamente','success');
+    // Auditoría: queda el registro de qué se eliminó, quién y cuándo
+    try{
+      await d.from('audit_log').insert({
+        accion:'ELIMINAR_PERMISO',
+        detalle:(cod||'')+' '+(s.nombre||'')+' · '+(fecha||'sin fecha')+' · '+String(s.tipo_permiso||s.tipo||'')+
+                ' · filas borradas: '+borradas+' ('+det.join(' + ')+')',
+        usuario:(_sesion&&_sesion.nombre)||'operario',
+        email:(_sesion&&_sesion.email)||'',
+        sesion:Math.random().toString(36).slice(2)
+      });
+    }catch(e){ console.warn('[DEL] auditoría', e && e.message); }
+    toast('Permiso eliminado de forma definitiva — '+borradas+' fila'+(borradas!==1?'s':'')+' ('+det.join(' + ')+')','success',6500);
     _diaExpand={};_diaExpandC={}; await cargarSolicitudes(); render();
   })();
 }
