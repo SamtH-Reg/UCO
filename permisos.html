@@ -3008,7 +3008,18 @@ async function _guardarSolicitud(){
     archivo:f.file||null, comentario:f.com||null,
     creado_por:_sesion?_sesion.id:null, creado_por_email:_sesion?_sesion.email:null
   };
-  var res=await d.from('solicitudes_permiso').insert(payload);
+  // VARIOS DÍAS: un registro por cada día seleccionado (antes se guardaba uno solo con rango y
+  // en los registros aparecía únicamente el primer día).
+  var _filas=[payload];
+  if(t===0 && f.dates && f.dates.length>1){
+    _filas=f.dates.map(function(fd, ix){
+      var o=Object.assign({}, payload);
+      o.id=(ix===0? newId : _uuid());
+      o.inicio=fd; o.termino=null;
+      return o;
+    });
+  }
+  var res=await d.from('solicitudes_permiso').insert(_filas);
   if(res.error){ toast('Error al guardar: '+(res.error.message||res.error),'error'); return {ok:false}; }
   if(f.fileObj){
     var meta={codigo:f.emp.c,nombre:f.emp.n,centro_costo:f.cc.n,fecha:payload.inicio,tipo:payload.tipo,tipo_permiso:payload.tipo_permiso};
