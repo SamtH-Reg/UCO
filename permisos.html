@@ -2434,7 +2434,7 @@ function renderForm(){
             '<span style="font-size:11px;font-weight:600;color:var(--green);background:var(--green-soft);padding:3px 9px;border-radius:20px">📅 Vacaciones programadas</span>'+
           '</div>'+
           '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'+
-            '<button class="btn btn-primary btn-sm" title="Genera la papeleta de ESTA vacación programada, no de lo que tengas en el formulario" onclick="generarPapeletaRegistro(\''+esc(proxRec.id||'')+'\')">📄 Papeleta de esta programada'+(proxRec.inicio?(' ('+_fmtCorto(proxRec.inicio)+(proxRec.termino?(' al '+_fmtCorto(proxRec.termino)):'')+')'):'')+'</button>'+
+
             '<button class="btn btn-secondary btn-sm" onclick="editarRegistroPermiso(\''+esc(proxRec.id||'')+'\')">Editar programada</button>'+
           '</div>';
       }
@@ -2484,7 +2484,7 @@ function renderForm(){
         '<div style="background:var(--green-soft);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--green)">Quedan</div><div style="font-size:19px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums">'+_chartVal(f.maxDias)+'</div></div>'+
       '</div><div style="font-size:10.5px;color:var(--hint);margin-top:6px">Programadas = vacaciones futuras · Proporcional = devengado del período en curso (Art. 67/68) · Devengado = acumulado de todos los períodos · Quedan = disponible que puedes solicitar hoy</div>'):'')+
       '<div style="font-size:11px;color:var(--hint);margin-top:8px">Lunes a viernes, sin feriados. El día 1 cuenta. El ✎ permite editar los días negociables.</div>'+
-      '<button class="btn btn-secondary" style="width:100%;margin-top:10px" onclick="generarPapeletas()">📄 Generar papeleta(s) Word</button>'+
+      '<button class="btn btn-secondary" style="width:100%;margin-top:10px" onclick="generarPapeletas()" title="Genera la papeleta con lo que tienes en el formulario: empleado, inicio y días marcados">📄 Generar papeleta</button>'+
       '</div>'+
       '<div class="card" style="background:color-mix(in srgb, var(--acc) 14%, var(--surface));border-color:var(--acc-bd)">'+
         '<div class="card-h" style="color:var(--acc)">Resumen de vacaciones</div>'+
