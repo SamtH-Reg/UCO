@@ -1654,30 +1654,60 @@ function _mapTipoPermisoTexto(t){
 }
 
 // Trae TODAS las filas de una tabla paginando EN PARALELO (más rápido que secuencial)
-async function _fetchAll(d, table, cols, pageSize){
+async function _fetchAll(d, table, cols, pageSize, orden){
   pageSize=pageSize||1000;
-  var first=await d.from(table).select(cols||'*',{count:'exact'}).range(0,pageSize-1);
+  var q=function(r1,r2){ var x=d.from(table).select(cols||'*', r1===0?{count:'exact'}:undefined); if(orden&&orden.c) x=x.order(orden.c,{ascending:orden.asc!==false}); return x.range(r1,r2); };
+  var first=await q(0,pageSize-1);
   if(first.error) return {data:[],error:first.error};
   var all=first.data||[];
   var total=(typeof first.count==='number')?first.count:all.length;
   var paginas=Math.ceil(total/pageSize);
   if(paginas>1){
     var reqs=[];
-    for(var p=1;p<paginas;p++){ reqs.push(d.from(table).select(cols||'*').range(p*pageSize, p*pageSize+pageSize-1)); }
+    for(var p=1;p<paginas;p++){ reqs.push(d.from(table).select(cols||'*').order((orden&&orden.c)||'created_at',{ascending:!(orden&&orden.asc===false)}).range(p*pageSize, p*pageSize+pageSize-1)); }
     var res=await Promise.all(reqs);
     res.forEach(function(r){ if(!r.error && r.data) all=all.concat(r.data); });
   }
   return {data:all,error:null};
 }
 
-async function cargarSolicitudes(){
+// ── Caché de la última carga (IndexedDB) para que la app abra al instante ──
+//  La primera vez carga de la base como siempre; después pinta con lo guardado y refresca por detrás.
+var _CACHE_DB='friosur_cache', _CACHE_ST='snap';
+function _idbOpen(){
+  return new Promise(function(res,rej){ try{
+    if(typeof indexedDB==='undefined'){ rej(new Error('sin indexedDB')); return; }
+    var rq=indexedDB.open(_CACHE_DB,1);
+    rq.onupgradeneeded=function(){ try{ if(!rq.result.objectStoreNames.contains(_CACHE_ST)) rq.result.createObjectStore(_CACHE_ST); }catch(e){} };
+    rq.onsuccess=function(){ res(rq.result); }; rq.onerror=function(){ rej(rq.error||new Error('idb')); };
+  }catch(e){ rej(e); } });
+}
+function _idbGet(){ return _idbOpen().then(function(db){ return new Promise(function(res){ try{
+    var t=db.transaction(_CACHE_ST,'readonly').objectStore(_CACHE_ST).get('u'); t.onsuccess=function(){ res(t.result||null); }; t.onerror=function(){ res(null); };
+  }catch(e){ res(null); } }); }).catch(function(){ return null; }); }
+function _idbPut(v){ return _idbOpen().then(function(db){ return new Promise(function(res){ try{
+    var t=db.transaction(_CACHE_ST,'readwrite').objectStore(_CACHE_ST).put(v,'u'); t.onsuccess=function(){ res(true); }; t.onerror=function(){ res(false); };
+  }catch(e){ res(false); } }); }).catch(function(){ return false; }); }
+
+async function cargarSolicitudes(refresco){
+  // 1) Con caché disponible: se usa YA (abre al instante) y se sigue con el refresco por detrás
+  if(!refresco){
+    try{
+      var snap=await _idbGet();
+      if(snap && snap.data && snap.data.length){
+        _SOLIC=snap.data; _solError=null; window._cacheSolic=true;
+        cargarSolicitudes(true);            // refresco en segundo plano
+        return;
+      }
+    }catch(e){}
+  }
   var d=await dbReady();
   var todo=[];
   // 1) solicitudes de la app, 2) permisos, 3) empleados: EN PARALELO
   // NOTA: ya NO se lee la tabla `vacaciones` (origen formulario Google Sheets).
   //       Sus datos se migraron a `solicitudes_permiso` (ver vacaciones_migracion.sql).
   var out=await Promise.all([
-    d.from('solicitudes_permiso').select('*').order('created_at',{ascending:false}).limit(1000),
+    _fetchAll(d,'solicitudes_permiso','*',1000,{c:'created_at',asc:false}),
     _fetchAll(d,'permisos','id,codigo,nombre,fecha,tipo,autorizador,autorizador_sub,autoriza,updated_at'),
     _fetchAll(d,'empleados','codigo,nombre,centro_costo,turno,fecha_ingreso')
   ]);
@@ -1734,8 +1764,16 @@ async function cargarSolicitudes(){
     }
   });
 
+  if(!todo.length && window._cacheSolic){   // respuesta vacía: se conserva lo que ya se veía
+    window._cacheSolic=false; console.warn('[SOLIC] refresco vacío: se mantiene la copia mostrada'); return;
+  }
   _SOLIC=todo;
   _solError=null;
+  try{ if(todo.length) _idbPut({t:Date.now(), data:_SOLIC}); }catch(e){}
+  if(window._cacheSolic && typeof render==='function'){   // se estaba viendo la copia guardada: se repinta con lo fresco
+    window._cacheSolic=false;
+    try{ render(); }catch(e){}
+  }
 }
 var _solError=null;
 
