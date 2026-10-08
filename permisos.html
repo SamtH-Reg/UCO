@@ -4227,19 +4227,34 @@ async function verEliminaciones(){
 // ── Comentario del permiso: burbuja 💬 en la fila (pasa el mouse y se lee completo) ──
 function _burbujasComentario(){
   try{
+    var trs=document.querySelectorAll('#contentBox .tbl tbody tr');
+    if(!trs.length) return;
+    // Un solo recorrido de los datos para saber qué ids tienen comentario (antes se recorría
+    // TODO _SOLIC por cada render y con 3.500 permisos dejaba la vista pegada al cambiar de pestaña)
+    var mapa={}, hay=false;
     (_SOLIC||[]).forEach(function(s){
-      var com=String(s.comentario||'').trim(); if(!com) return;
-      var b=document.querySelector('#contentBox [onclick*="'+String(s.id)+'"]'); if(!b) return;
-      var tr=b.closest('tr'); if(!tr) return;
+      var com=String(s.comentario||'').trim();
+      if(com){ mapa[String(s.id)]=com; hay=true; }
+    });
+    if(!hay) return;
+    for(var i=0;i<trs.length;i++){
+      var tr=trs[i];
+      if(tr.querySelector('.com-bubble')) continue;
+      var btn=tr.querySelector('[onclick*="editarRegistroPermiso("]');
+      if(!btn) continue;
+      var m=String(btn.getAttribute('onclick')||'').match(/editarRegistroPermiso\('([^']+)'\)/);
+      if(!m) continue;
+      var com=mapa[m[1]]; if(!com) continue;
       var celdas=[].slice.call(tr.querySelectorAll('td'));
-      var cod=String(s.codigo||'');
-      var celda=celdas.filter(function(td){ return cod && td.innerText.indexOf(cod)>=0; })[0] || celdas[celdas.length-2];
-      if(!celda || celda.querySelector('.com-bubble')) return;
+      var cod=(m[1]||'');
+      var celda=celdas.filter(function(td){ return td.innerText.indexOf(String((_SOLIC||[]).filter(function(x){return String(x.id)===m[1];})[0]||{}).codigo||'###')>=0; })[0]
+               || celdas[Math.min(3, celdas.length-2)] || celdas[0];
+      if(!celda) continue;
       var sp=document.createElement('span');
       sp.className='com-bubble'; sp.textContent=' 💬'; sp.title=com;
       sp.style.cssText='cursor:help;font-size:12px';
       celda.appendChild(sp);
-    });
+    }
   }catch(e){ console.warn('[COM]', e && e.message); }
 }
 // Se engancha al render: después de pintar, se agregan las burbujas
