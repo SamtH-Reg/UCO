@@ -4234,7 +4234,7 @@ function _burbujasComentario(){
     var mapa={}, hay=false;
     (_SOLIC||[]).forEach(function(s){
       var com=String(s.comentario||'').trim();
-      if(com){ mapa[String(s.id)]=com; hay=true; }
+      if(com){ mapa[String(s.id)]={com:com, cod:String(s.codigo||'')}; hay=true; }
     });
     if(!hay) return;
     for(var i=0;i<trs.length;i++){
@@ -4244,14 +4244,13 @@ function _burbujasComentario(){
       if(!btn) continue;
       var m=String(btn.getAttribute('onclick')||'').match(/editarRegistroPermiso\('([^']+)'\)/);
       if(!m) continue;
-      var com=mapa[m[1]]; if(!com) continue;
+      var dat=mapa[m[1]]; if(!dat) continue;
       var celdas=[].slice.call(tr.querySelectorAll('td'));
-      var cod=(m[1]||'');
-      var celda=celdas.filter(function(td){ return td.innerText.indexOf(String((_SOLIC||[]).filter(function(x){return String(x.id)===m[1];})[0]||{}).codigo||'###')>=0; })[0]
-               || celdas[Math.min(3, celdas.length-2)] || celdas[0];
+      var celda=(dat.cod? celdas.filter(function(td){ return td.innerText.indexOf(dat.cod)>=0; })[0] : null)
+               || celdas[Math.min(3, celdas.length-1)] || celdas[0];
       if(!celda) continue;
       var sp=document.createElement('span');
-      sp.className='com-bubble'; sp.textContent=' 💬'; sp.title=com;
+      sp.className='com-bubble'; sp.textContent=' 💬'; sp.title=dat.com;
       sp.style.cssText='cursor:help;font-size:12px';
       celda.appendChild(sp);
     }
