@@ -1689,6 +1689,14 @@ async function _fetchAll(d, table, cols, pageSize, orden){
     return r;
   };
   var first=await q(0,pageSize-1);
+  if(first && first.error && /column|does not exist/i.test(String(first.error.message||''))){
+    cols=cols||'*';
+    if(cols!=='*'){                                   // la lista tenía una columna inexistente: se piden todas
+      console.warn('[PAG] columnas inválidas en '+table+': se reintenta con *');
+      cols='*';
+      first=await q(0,pageSize-1);
+    }
+  }
   if(first.error) return {data:[],error:first.error};
   var all=first.data||[];
   var total=(typeof first.count==='number')?first.count:all.length;
@@ -1759,7 +1767,9 @@ async function cargarSolicitudes(refresco){
   // NOTA: ya NO se lee la tabla `vacaciones` (origen formulario Google Sheets).
   //       Sus datos se migraron a `solicitudes_permiso` (ver vacaciones_migracion.sql).
   var out=await Promise.all([
-    _fetchAll(d,'solicitudes_permiso','*',1000,{c:'created_at',asc:false}),
+    _fetchAll(d,'solicitudes_permiso',
+      'id,codigo,nombre,centro_costo,turno,tipo,tipo_permiso,tipo_regreso,hora_salida,hora_ingreso,horas_permiso,inicio,termino,dias_habiles,dias_base,dias_progresivo,dias_sindical,tipo_dias,estado,comentario,autorizador,autorizador_sub,archivo,creado_por,creado_por_email,created_at,updated_at',
+      1000,{c:'created_at',asc:false}),
     // UNIFICADO: los permisos viven en solicitudes_permiso (la planilla se copió en
     // unificar_permisos_paso1_copiar.sql). Se deja de leer `permisos` para que nada se duplique.
     {data:[],error:null},
