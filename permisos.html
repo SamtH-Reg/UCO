@@ -1530,7 +1530,8 @@ async function _generarPapeletasDe(f){
   var n=0;
   if(legalProg>0){
     var blobN=await _generarDocx('normales', baseMap);
-    _descargarDocx(blobN,'Solicitud Vacaciones - '+f.emp.c+' '+f.emp.n+'.docx'); n++;
+    var _rango=(startIso? _fechaPapeleta(startIso)+' al '+_fechaPapeleta(finLegal) : '');
+    _descargarDocx(blobN,'Solicitud Vacaciones - '+f.emp.c+' '+f.emp.n+(_rango?(' ('+_rango+')'):'')+'.docx'); n++;
     await new Promise(function(r){ setTimeout(r,700); });
   }
   if(sind>0){
@@ -1542,7 +1543,7 @@ async function _generarPapeletasDe(f){
       'Fin1': sindFin.slice(8,10), 'F23': sindFin.slice(5,7), 'F24': sindFin.slice(0,4)
     });
     var blobS=await _generarDocx('sindicales', mapS);
-    _descargarDocx(blobS,'Solicitud Vacaciones SINDICALES - '+f.emp.c+' '+f.emp.n+'.docx'); n++;
+    _descargarDocx(blobS,'Solicitud Vacaciones SINDICALES - '+f.emp.c+' '+f.emp.n+' ('+_fechaPapeleta(sindStart)+' al '+_fechaPapeleta(sindFin)+').docx'); n++;
   }
   return n;
 }
