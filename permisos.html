@@ -3447,9 +3447,54 @@ function _docBtn(s){
   if(tieneArchivo) return '<button class="btn-icon" onclick="verDocumento(\''+esc(s.id||'')+'\')" title="Documento registrado (no guardado localmente)" style="opacity:.55">'+_icoDoc()+'</button>';
   return '<button class="btn-icon" disabled title="Sin documento adjunto" style="opacity:.3;cursor:default">'+_icoDoc()+'</button>';
 }
+// Panel del comentario (se abre con el ícono 💬 de la fila)
+function verComentario(id){
+  var s=_buscarRegistro(id); if(!s){ toast('Registro no encontrado','error'); return; }
+  var com=String(s.comentario||'').trim();
+  if(!com){ toast('Este permiso no tiene comentario','warn'); return; }
+  var ov=document.getElementById('comOverlay'); if(ov) ov.remove();
+  var h='<div id="comOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px" onclick="if(event.target===this)this.remove()">'+
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:560px;width:100%;padding:16px 18px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">'+
+        '<b style="font-size:14px">💬 Comentario del permiso</b>'+
+        '<button class="btn btn-secondary btn-sm" onclick="document.getElementById(\'comOverlay\').remove()">✕ Cerrar</button>'+
+      '</div>'+
+      '<div style="font-size:12px;color:var(--hint);margin-bottom:8px">'+esc(String(s.codigo||''))+' · '+esc(String(s.nombre||''))+' · '+esc(String(s.inicio||'').slice(0,10))+'</div>'+
+      '<div style="font-size:13.5px;line-height:1.6;white-space:pre-wrap">'+esc(com)+'</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', h);
+}
+// Adjunto del editor: muestra el nombre del archivo elegido y permite quitarlo antes de guardar
+function _eArchivoNombre(){
+  try{
+    var inp=document.getElementById('e_archivo'), nom=document.getElementById('e_archivo_nombre');
+    var q=document.getElementById('e_archivo_quitar');
+    if(!inp||!nom) return;
+    if(inp.files && inp.files[0]){
+      nom.textContent='📎 '+inp.files[0].name;
+      nom.style.color='var(--text)';
+      if(q) q.style.display='';
+    } else {
+      nom.textContent='Elegir archivo… (PDF, Word o imagen, hasta 10 MB)';
+      nom.style.color='var(--muted)';
+      if(q) q.style.display='none';
+    }
+  }catch(e){}
+}
+function _eArchivoQuitar(){
+  try{
+    var inp=document.getElementById('e_archivo'); if(inp) inp.value='';
+    _eArchivoNombre();
+  }catch(e){}
+}
+
 function _accRow(s){
   var docBtn=_docBtn(s);
-  return '<td style="white-space:nowrap"><div style="display:flex;gap:6px;justify-content:flex-end">'+docBtn+
+  // Comentario: solo si el registro lo tiene (los que trae la app). Sin comentario no se pinta nada.
+  var comBtn=String(s.comentario||'').trim()
+    ? '<button class="btn-icon" onclick="verComentario(\''+esc(String(s.id||''))+'\')" title="Ver comentario del permiso">💬</button>'
+    : '';
+  return '<td style="white-space:nowrap"><div style="display:flex;gap:6px;justify-content:flex-end">'+comBtn+docBtn+
     '<button class="btn-icon" title="Editar" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')">'+_icoEdit()+'</button>'+
     '<button class="btn-icon danger" title="Eliminar" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')">'+_icoDel()+'</button>'+
     '</div></td>';
@@ -4334,8 +4379,15 @@ function abrirEditarModal(id){
     '<div style="background:var(--surface);border-radius:16px;max-width:440px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.4)">'+
     '<div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between"><b style="font-size:15px">'+(esVac?'Editar vacaciones':(esMedia?'Editar media jornada':'Editar permiso'))+'</b><button style="border:none;background:var(--surface2);border-radius:8px;width:28px;height:28px;cursor:pointer" onclick="cerrarEditarModal()">✕</button></div>'+
     '<div style="padding:8px 20px 20px">'+campos+'</div>'+
+    '<div style="padding:0 20px 18px"><label class="form-label">Comentario (opcional)</label>'+
+      '<textarea id="e_comentario" class="form-input" rows="3" placeholder="Agrega contexto para quien autoriza…" style="width:100%;resize:vertical;font-size:13px">'+(s.comentario?esc(String(s.comentario)):'')+'</textarea></div>'+
     '<div style="padding:0 20px 18px"><label class="form-label">Archivo adjunto (opcional)</label>'+
-      '<input type="file" id="e_archivo" style="font-size:12px;color:var(--muted)"></div>'+
+      '<input type="file" id="e_archivo" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden" onchange="_eArchivoNombre()">'+
+      '<label for="e_archivo" style="display:flex;align-items:center;justify-content:center;gap:9px;padding:13px;border:1.5px dashed var(--border2);border-radius:13px;background:var(--surface2);cursor:pointer;font-size:12.5px;color:var(--muted);text-align:center">'+
+        '<span style="font-size:16px">📎</span><span id="e_archivo_nombre">Elegir archivo… (PDF, Word o imagen, hasta 10 MB)</span>'+
+      '</label>'+
+      '<div id="e_archivo_quitar" style="display:none;margin-top:8px"><button type="button" class="btn btn-secondary btn-sm" onclick="_eArchivoQuitar()">✕ Quitar archivo</button></div>'+
+    '</div>'+
     '<div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px">'+
     '<button class="btn btn-ghost" onclick="cerrarEditarModal()">Cancelar</button>'+
     '<button class="btn btn-primary" onclick="guardarEdicion()">💾 Guardar</button></div>'+
@@ -4360,6 +4412,8 @@ function guardarEdicion(){
     var upd={codigo:codigo, nombre:nombre};
     if(tabla==='solicitudes_permiso'){
       upd.inicio=fecha; upd.turno=turno; upd.tipo_permiso=tipo; upd.tipo_regreso=reg;
+      var _ta=document.getElementById('e_comentario');
+      if(_ta) upd.comentario=(String(_ta.value||'').trim()||null);
       upd.hora_salida=hsal||null; upd.hora_ingreso=(reg==='SIN')?null:(hing||null);
       // MEDIA JORNADA: recalcular HORAS DE PERMISO con la fórmula al editar (antes quedaba el valor viejo).
       // Se llama con horas_permiso en null para que calcularHorasPermiso() calcule en vez de devolver lo guardado.
