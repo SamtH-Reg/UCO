@@ -313,12 +313,17 @@ textarea{resize:vertical}
 .tbl .btn-icon{width:24px;height:24px;border-radius:7px;font-size:11px;padding:0}
 .tbl tbody tr:hover td{background:color-mix(in srgb,var(--text) 4%,transparent)}
 /* Registro recién enviado: se resalta con un pulso suave (una sola fila, una sola vez) */
-.tbl tbody tr.fila-nueva td{animation:_filaNueva 2.8s ease-out 1 both}
-.tbl tbody tr.fila-nueva td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.tbl tbody tr.fila-nueva td{animation:_filaNueva 3.6s ease-in-out 1 both}
+.tbl tbody tr.fila-nueva td:first-child{box-shadow:inset 4px 0 0 var(--accent)}
+/* Pulsaciones: la fila recién enviada late tres veces para que salte a la vista al llegar a Registros */
 @keyframes _filaNueva{
-  0%  {background:color-mix(in srgb,var(--accent) 46%,transparent)}
-  55% {background:color-mix(in srgb,var(--accent) 20%,transparent)}
-  100%{background:color-mix(in srgb,var(--accent) 13%,transparent)}
+  0%  {background:color-mix(in srgb,var(--accent) 58%,transparent);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 55%,transparent)}
+  12% {background:color-mix(in srgb,var(--accent) 26%,transparent);box-shadow:inset 0 0 0 0 transparent}
+  26% {background:color-mix(in srgb,var(--accent) 48%,transparent);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 50%,transparent)}
+  40% {background:color-mix(in srgb,var(--accent) 22%,transparent);box-shadow:inset 0 0 0 0 transparent}
+  54% {background:color-mix(in srgb,var(--accent) 38%,transparent);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 45%,transparent)}
+  70% {background:color-mix(in srgb,var(--accent) 20%,transparent);box-shadow:inset 0 0 0 0 transparent}
+  100%{background:color-mix(in srgb,var(--accent) 14%,transparent);box-shadow:inset 0 0 0 0 transparent}
 }
 .tbl tbody tr.fecha-head td{background:color-mix(in srgb,var(--text) 9%,transparent);font-weight:800;font-size:12.5px;color:var(--text);border-top:2px solid color-mix(in srgb,var(--text) 16%,transparent);border-bottom:1px solid color-mix(in srgb,var(--text) 12%,transparent);cursor:pointer;padding:6px 18px}
 .tbl tbody tr.fecha-head:hover td{background:color-mix(in srgb,var(--text) 12%,transparent)}
@@ -2143,6 +2148,14 @@ async function elegirCarpetaObligatoria(){
   }catch(e){ if(err) err.textContent=('Error: '+((e&&e.message)||e)); }
 }
 // Guarda el adjunto: navegador (siempre) + carpeta (si está configurada y permitida)
+// Quitar el archivo adjunto antes de enviar la solicitud
+function quitarFormFile(){
+  _form.file=''; _form.fileObj=null;
+  try{ var inp=document.getElementById('formFile'); if(inp) inp.value=''; }catch(e){}
+  render();
+  toast('Archivo adjunto quitado','info',3000);
+}
+
 async function guardarDocumentoLocal(id, fileObj, cod, nombre, meta, dirHandle){
   var nom=_docNombre(cod,nombre,fileObj.name);
   var okNav=false, okDir=false;
@@ -2422,6 +2435,9 @@ function renderForm(){
     '<label for="formFile" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:22px;border:1.5px dashed var(--border2);border-radius:13px;background:var(--surface2);cursor:pointer">'+
     '<span id="formFileName" style="font-size:13px;font-weight:500;color:'+(f.file?'var(--text)':'var(--muted)')+'">'+(f.file||'Haz clic para adjuntar un archivo')+'</span>'+
     '<span style="font-size:11.5px;color:var(--hint)">PDF, Word o imagen · hasta 10 MB</span></label>'+
+    (f.file?'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:9px 12px;border:1px solid var(--border);border-radius:11px;background:var(--surface2)">'+
+      '<span style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(f.file)+'">📎 '+esc(f.file)+'</span>'+
+      '<button class="btn btn-secondary btn-sm" onclick="quitarFormFile()" title="Quitar el archivo adjunto antes de enviar">✕ Quitar</button></div>':'')+
     '<div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap">'+dirHtml+
       '<span style="font-size:11px;color:var(--hint)">'+dirHint+'</span>'+
     '</div></div>';
