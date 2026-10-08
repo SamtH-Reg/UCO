@@ -109,7 +109,7 @@ t('calcularHoras(): ingreso a planta (DIA) 10:00 -> 2,00 h (desde 08:00)', () =>
 _form = { hs:'09:00', hi:'', reg:'CON' };
 t('calcularHoras(): con regreso sin hora ingreso -> —', () => calcularHoras() === '—');
 t('_horasTrabajadasDe: fórmula del sheet (9−L, tope 8,5 si >5)', () => _horasTrabajadasDe(4)===5 && _horasTrabajadasDe(0.67)===7.83 && _horasTrabajadasDe(7.25)===1.75 && _horasTrabajadasDe(0)===8.5);
-t('calcularHorasTrabajadas: SIN DIA 14:00 -> 5,5 trabajadas', () => calcularHorasTrabajadas({turno:'DIA',tipo_regreso:'SIN',hora_salida:'14:00'})===5.5);
+t('calcularHorasTrabajadas: SIN DIA 14:00 -> jornada 8,25 menos 3,00 de permiso = 5,25', () => calcularHorasTrabajadas({turno:'DIA',tipo_regreso:'SIN',hora_salida:'14:00'})===5.25);
 t('calcularHorasPermiso: redondea a 2 decimales (14:38 -> 2,37)', () => calcularHorasPermiso({turno:'DIA',tipo_regreso:'SIN',hora_salida:'14:38'})===2.37);
 t('reporte media jornada: HORAS TRABAJADAS y subtotales solo con datos', () => {
   _SOLIC=[{id:'m1',tipo:'MEDIA_JORNADA',codigo:'M1',nombre:'X',inicio:'2026-10-01',turno:'DIA',tipo_regreso:'SIN',hora_salida:'11:20',estado:'APROBADO'}];
@@ -191,7 +191,8 @@ t('recMesesLbl sin meses = "Mes"', () => { recSetTodo(); return recMesesLbl()===
 t('calcularHorasPermiso: SIN DIA 14:00 -> 3 (17-14)', () => calcularHorasPermiso({turno:'DIA',tipo_regreso:'SIN',hora_salida:'14:00'})===3);
 t('calcularHorasPermiso: CON 10:30-11:00 -> 0.5', () => calcularHorasPermiso({turno:'DIA',tipo_regreso:'CON',hora_salida:'10:30',hora_ingreso:'11:00'})===0.5);
 t('calcularHorasPermiso: INGRESO 10:00 DIA -> 2 (10-8)', () => calcularHorasPermiso({turno:'DIA',tipo_regreso:'INGRESO',hora_ingreso:'10:00'})===2);
-t('calcularHorasPermiso: usa horas_permiso si existe', () => calcularHorasPermiso({turno:'DIA',tipo_regreso:'SIN',hora_salida:'14:00',horas_permiso:3.5})===3.5);
+t('calcularHorasPermiso: con horas calcula (14:00 -> 3,00; sin colación dentro) y sin horas usa lo guardado', () => calcularHorasPermiso({turno:'DIA',tipo_regreso:'SIN',hora_salida:'14:00',horas_permiso:3.5})===3 && calcularHorasPermiso({turno:'DIA',tipo_regreso:'SIN',horas_permiso:3.5})===3.5);
+t('pausas: colación 12:00-12:30 y desayuno 10:00-10:15 (solo Día) se descuentan si caen dentro', () => calcularHorasPermiso({turno:'DIA',tipo_regreso:'SIN',hora_salida:'09:00'})===7.25 && calcularHorasPermiso({turno:'DIA',tipo_regreso:'SIN',hora_salida:'14:30'})===2.5 && calcularHorasPermiso({turno:'NOCHE',tipo_regreso:'SIN',hora_salida:'22:00'})===7);
 t('abrirEditarModal/cerrarEditarModal definidos', () => typeof abrirEditarModal==='function' && typeof cerrarEditarModal==='function');
 t('_tipoTexto mapea correctamente', () => _tipoTexto('MEDICO')==='Permiso Medico' && _tipoTexto('JUDICIAL')==='Permiso Judicial');
 t('toggleDiaMJ alterna estado', () => { toggleDiaMJ('2026-08-12'); var a=_diaExpandMJ['2026-08-12']; toggleDiaMJ('2026-08-12'); var b=_diaExpandMJ['2026-08-12']; return a!==b; });
