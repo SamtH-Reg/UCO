@@ -4343,10 +4343,10 @@ function abrirEditarModal(id){
     '<div style="background:var(--surface);border-radius:16px;max-width:440px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.4)">'+
     '<div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between"><b style="font-size:15px">'+(esVac?'Editar vacaciones':(esMedia?'Editar media jornada':'Editar permiso'))+'</b><button style="border:none;background:var(--surface2);border-radius:8px;width:28px;height:28px;cursor:pointer" onclick="cerrarEditarModal()">✕</button></div>'+
     '<div style="padding:8px 20px 20px">'+campos+'</div>'+
+    '<div style="padding:0 20px 18px"><label class="form-label">Archivo adjunto (opcional)</label>'+
+      '<input type="file" id="e_archivo" style="font-size:12px;color:var(--muted)"></div>'+
     '<div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px">'+
     '<button class="btn btn-ghost" onclick="cerrarEditarModal()">Cancelar</button>'+
-    '<div style="padding:0 20px 12px"><label class="form-label">Archivo adjunto (opcional)</label>'+
-      '<input type="file" id="e_archivo" style="font-size:12px;color:var(--muted)"></div>'+
     '<button class="btn btn-primary" onclick="guardarEdicion()">💾 Guardar</button></div>'+
     '</div></div>';
   var cont=document.createElement('div'); cont.id='editModalWrap'; cont.innerHTML=html;
