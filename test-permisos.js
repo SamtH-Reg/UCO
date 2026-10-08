@@ -658,13 +658,18 @@ t('_papeletaInputDeRegistro: fallback por tipo_dias (sin desglose)', () => {
   return a.tomarSind===5 && a.tomarBase===0 && b.tomarBase===5 && b.tomarSind===0;
 });
 t('generarPapeletaRegistro/_generarPapeletasDe definidos', () => typeof generarPapeletaRegistro==='function' && typeof _generarPapeletasDe==='function');
-t('ficha de vacaciones: botón Generar papeleta + Editar', () => {
+t('ficha de vacaciones: un solo botón de papeleta (el del formulario) + Editar programada', () => {
   _tab=2; _dirTabs={}; _dirHandle=null; _dirName=''; _dirConectada=false;
   _SOLIC=[{id:'v1',tipo:'VACACIONES',codigo:'M1',inicio:'2999-01-01',termino:'2999-01-10',dias_habiles:8,estado:'APROBADO'}];
-  _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},aut:null,cc:{c:'1110',n:'x'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',start:null,dias:0,tipoDias:'BASE',maxDias:null,tomarBase:0,tomarProg:0,tomarSind:0};
+  _form={turno:'',tipo:'',emp:{c:'M1',n:'PEREZ',tipo:'INDEFINIDO',ing:'2000-01-01',baseOverride:null,progOverride:null,sindOverride:null},
+         aut:null,cc:{c:'1110',n:'X'},dates:[],com:'',file:'',fileObj:null,reg:'CON',hs:'',hi:'',
+         start:'2999-01-01',dias:8,tipoDias:'BASE',maxDias:20,tomarBase:8,tomarProg:0,tomarSind:0};
   var h=renderForm();
-  var ok=h.indexOf("generarPapeletaRegistro('v1')")>=0 && h.indexOf("editarRegistroPermiso('v1')")>=0;
-  _tab=0; _form={}; _SOLIC=[]; return ok;
+  var botones=(h.match(/Generar papeleta/g)||[]).length;
+  return botones===1                                                  // un solo botón de papeleta
+      && h.indexOf('generarPapeletas()')>=0                           // el del formulario
+      && h.indexOf('Editar programada')>=0                           // la programada se edita, no se duplica el botón
+      && h.indexOf('generarPapeletaRegistro(')<0;                    // ya no hay botón propio de la programada
 });
 t('iniciarEdicionVacacion: mapea el calendario al mes de inicio', () => {
   _tab=0; _cal={y:2000,m:0}; _SOLIC=[];
