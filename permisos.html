@@ -2344,6 +2344,7 @@ async function _docDesdeCarpeta(s){
     var tp=String(s.tipo||'').toUpperCase();
     var pri=(tp==='MEDIA_JORNADA')?['1','0','2']:(tp==='VACACIONES')?['2','0','1']:['0','1','2'];
     var vistos=[];
+    var motivo='';
     var manos=[];
     try{ pri.concat(['0','1','2']).forEach(function(t){
       var i=(typeof _dirInfo==='function')?_dirInfo(t):null;
@@ -2353,8 +2354,15 @@ async function _docDesdeCarpeta(s){
     for(var i=0;i<manos.length;i++){
       var h=manos[i];
       try{
-        if(typeof h.values!=='function') continue;
-        for await (var ent of h.values()){
+        // 1) asegurar permiso de lectura de la carpeta
+        if(typeof _permDir==='function' && !(await _permDir(h))){ motivo='sin permiso de lectura en «'+(h.name||'')+'»'; continue; }
+        // 2) enumerar: se prueban entries() y values() (distintas versiones del navegador)
+        var iter=null;
+        try{ if(typeof h.entries==='function') iter=h.entries(); }catch(e){}
+        if(!iter){ try{ if(typeof h.values==='function') iter=h.values(); }catch(e){} }
+        if(!iter){ motivo='el navegador no permite listar la carpeta «'+(h.name||'')+'»'; continue; }
+        for await (var it of iter){
+          var ent=(it && it.length===2)? it[1] : it;      // entries() da [nombre, handle]
           if(!ent || ent.kind!=='file') continue;
           var nn=String(ent.name||'').toLowerCase();
           var nnN=norm(nn);
@@ -2365,10 +2373,11 @@ async function _docDesdeCarpeta(s){
           if(!calza) continue;
           try{ var f=await ent.getFile(); if(f && f.size>0) return { blob:f, nombre:ent.name, desdeCarpeta:true }; }catch(e){}
         }
-      }catch(e){ console.warn('[DOC carpeta]', e && e.message); }
+      }catch(e){ motivo=(e && e.message)||'error al listar la carpeta'; console.warn('[DOC carpeta]', motivo); }
     }
   }catch(e){ console.warn('[DOC carpeta]', e && e.message); }
-  try{ window._docUltDiag={ cod:cod, nombre:nom, buscado:(cod+' '+nom).trim(), carpetas:manos.length, vistos:vistos }; }catch(e){}
+  try{ window._docUltDiag={ cod:cod, nombre:nom, buscado:(cod+' '+nom).trim(), carpetas:manos.length, vistos:vistos, motivo:motivo,
+                            nombres:(manos||[]).map(function(x){ return x.name||''; }) }; }catch(e){}
   return null;
 }
 
@@ -2383,7 +2392,9 @@ async function verDocumento(id){
     }
     if(!doc||!doc.blob){
       var dg=window._docUltDiag||null;
-      var det=dg? (' · carpetas revisadas: '+dg.carpetas+' · buscaba: «'+dg.buscado+'»'+(dg.vistos&&dg.vistos.length?(' · en la carpeta vi: '+dg.vistos.join(', ')):'')) : '';
+      var det=dg? (' · carpetas revisadas: '+dg.carpetas+(dg.nombres&&dg.nombres.length?(' ('+dg.nombres.join(', ')+')'):'')+
+                     ' · buscaba: «'+dg.buscado+'»'+
+                     (dg.vistos&&dg.vistos.length?(' · vi: '+dg.vistos.join(', ')):(dg.motivo?(' · motivo: '+dg.motivo):' · (la carpeta no devolvió archivos)'))) : '';
       toast('El archivo no está en este equipo ni en la carpeta conectada'+det,'warn',14000);
       console.warn('[DOC] no encontrado', dg);
       return;
