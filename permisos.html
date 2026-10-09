@@ -4271,6 +4271,19 @@ function _buscarRegistro(id){
   return _SOLIC.find(function(s){ return s.id===id; });
 }
 
+// Fecha y hora en horario de Puerto Aysén (GMT-3), sin depender de la zona del navegador.
+// Ojo: la base guarda en UTC, por eso 16:24 era en realidad 13:24 local.
+function _fechaAysen(iso){
+  if(!iso) return '';
+  try{
+    var d=new Date(iso); if(isNaN(d.getTime())) return '';
+    var fmt=new Intl.DateTimeFormat('es-CL',{timeZone:'America/Punta_Arenas',year:'numeric',month:'2-digit',
+                                             day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+    var o={}; fmt.formatToParts(d).forEach(function(p){ o[p.type]=p.value; });
+    return o.year+'-'+o.month+'-'+o.day+' '+o.hour+':'+o.minute;
+  }catch(e){ return String(iso).replace('T',' ').slice(0,16); }
+}
+
 // Auto-test de la auditoría: intenta registrar y leer, y avisa qué paso falla
 async function probarAuditoria(btn){
   var cont=document.getElementById('auditPrueba');
@@ -4307,7 +4320,7 @@ async function verEliminaciones(){
     if(r.error){ toast('No se pudo leer la auditoría: '+(r.error.message||r.error),'error',9000); return; }
     var filas=r.data||[];
     var body=filas.length? filas.map(function(x){
-      var f=String(x.fecha||x.created_at||x.ts||x.fecha_hora||'').replace('T',' ').slice(0,16)||'—';
+      var f=_fechaAysen(x.fecha||x.created_at||x.ts||x.fecha_hora||'')||'—';
       return '<tr><td style="padding:6px 8px;white-space:nowrap;color:var(--hint);font-size:11.5px">'+esc(f)+'</td>'+
              '<td style="padding:6px 8px;font-size:12.5px">'+esc(x.detalle||'')+'</td>'+
              '<td style="padding:6px 8px;font-size:12px;color:var(--muted)">'+esc(x.usuario||'—')+'</td></tr>';
