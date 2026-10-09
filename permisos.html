@@ -577,6 +577,8 @@ input:focus,select:focus,textarea:focus{background:var(--surface);border-color:v
 @keyframes _popCaja{ from{opacity:0;transform:translateY(10px) scale(.97)} to{opacity:1;transform:none} }
 #auditOverlay, #comOverlay{ animation:_popFondo .22s ease-out both }
 #auditOverlay > div, #comOverlay > div{ animation:_popCaja .26s cubic-bezier(.22,.9,.3,1) backwards }
+/* Los modales por ENCIMA del encabezado fijo de la página (antes el header los tapaba) */
+#editModalWrap, #auditOverlay, #comOverlay, #perModal, #docModalWrap, #respModalWrap, #gateCarpeta{z-index:2147483000 !important}
 #editModalWrap{ animation:_popFondo .2s ease-out both }
 #editModalWrap > div > div{ animation:_popCaja .26s cubic-bezier(.22,.9,.3,1) backwards }
 @media (prefers-reduced-motion: reduce){
