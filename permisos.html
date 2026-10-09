@@ -4271,6 +4271,27 @@ function _buscarRegistro(id){
   return _SOLIC.find(function(s){ return s.id===id; });
 }
 
+// Auto-test de la auditoría: intenta registrar y leer, y avisa qué paso falla
+async function probarAuditoria(btn){
+  var cont=document.getElementById('auditPrueba');
+  if(cont) cont.remove();
+  var box=document.createElement('div'); box.id='auditPrueba';
+  box.style.cssText='margin:10px 0;padding:10px 12px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);font-size:12px;line-height:1.6';
+  box.textContent='Probando…';
+  if(btn && btn.parentNode && btn.parentNode.parentNode) btn.parentNode.parentNode.insertBefore(box, btn.parentNode.nextSibling);
+  try{
+    var d=await dbReady();
+    var rW=await d.from('audit_log').insert({accion:'PRUEBA_AUDITORIA', detalle:'Prueba desde la app · se puede borrar',
+                                             usuario:(_sesion&&_sesion.nombre)||'operador'});
+    var rR=await d.from('audit_log').select('*',{count:'exact',head:true});
+    var linea=[];
+    linea.push('Escribir: '+(rW.error? ('❌ '+rW.error.message) : '✅ OK'));
+    linea.push('Leer: '+(rR.error? ('❌ '+rR.error.message) : ('✅ OK · '+((rR.count!=null)?rR.count:'?')+' filas visibles')));
+    box.innerHTML='<b>Resultado del test:</b><br>'+linea.join('<br>')+
+      '<br><span style="color:var(--hint)">Si la escritura falla → faltan las políticas de la tabla. Si escribe pero lee 0 o falla → falta la política de lectura.</span>';
+  }catch(e){ box.textContent='Error: '+String(e&&e.message||e); }
+}
+
 // ── Auditoría: permisos eliminados (lee audit_log) ──────────────────────────
 async function verEliminaciones(){
   try{
@@ -4295,7 +4316,10 @@ async function verEliminaciones(){
       '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:940px;width:100%;max-height:82vh;overflow:auto;padding:16px 18px">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">'+
           '<b style="font-size:15px">🗑 Permisos eliminados ('+filas.length+')</b>'+
-          '<button class="btn btn-secondary btn-sm" onclick="document.getElementById(\'auditOverlay\').remove()">✕ Cerrar</button>'+
+          '<div style="display:flex;gap:8px;align-items:center">'+
+            '<button class="btn btn-secondary btn-sm" onclick="probarAuditoria(this)">🔍 Probar registro</button>'+
+            '<button class="btn btn-secondary btn-sm" onclick="document.getElementById(\'auditOverlay\').remove()">✕ Cerrar</button>'+
+          '</div>'+
         '</div>'+
         '<table style="width:100%;border-collapse:collapse"><thead><tr>'+
           '<th style="text-align:left;padding:6px 8px;font-size:10.5px;color:var(--hint);letter-spacing:.6px">FECHA</th>'+
