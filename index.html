@@ -78,16 +78,9 @@ async function _apiPermsDia(fecha){
       });
       if(lote.length < 1000) mas = false; else pag++;
     }
-    // 2) Histórico de la planilla (misma información, ya en Supabase)
-    pag = 0; mas = true;
-    while(mas){
-      const { data, error } = await db.from('permisos')
-        .select('codigo,tipo').eq('fecha', fecha).range(pag*1000, pag*1000+999);
-      if(error) break;                                    // el histórico es opcional
-      const lote = data || [];
-      lote.forEach(function(r){ _clasif(r.tipo, r.codigo); });
-      if(lote.length < 1000) mas = false; else pag++;
-    }
+    // 2) Ya NO se lee la tabla histórica `permisos`: sus permisos se copiaron a
+    //    `solicitudes_permiso` (unificación) y leerla hacía que un permiso borrado en la app
+    //    siguiera apareciendo como conflicto. Queda como respaldo, sin alimentar la vista.
     const out = { personal:[...P.personal], medico:[...P.medico], judicial:[...P.judicial] };
     _cPut('ext_perm_'+fecha, out, _SB_CONFIG.CACHE_EXT);
     return out;
