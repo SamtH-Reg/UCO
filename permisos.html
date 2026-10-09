@@ -2325,9 +2325,16 @@ async function _docDesdeCarpeta(s){
     var cod=String(s.codigo||'').trim(), nom=String(s.nombre||'').trim();
     if(!cod && !nom) return null;
     var pref=(cod+' '+nom).trim().toLowerCase();
+    // Orden de búsqueda: primero la carpeta del TIPO de permiso (día completo = 0, media jornada = 1,
+    // vacaciones = 2), después las demás y al final la predeterminada. Así un permiso de día completo
+    // se busca en «Permisos» y no en la carpeta de vacaciones (que es la que suele estar por defecto).
+    var tp=String(s.tipo||'').toUpperCase();
+    var pri=(tp==='MEDIA_JORNADA')?['1','0','2']:(tp==='VACACIONES')?['2','0','1']:['0','1','2'];
     var manos=[];
-    try{ ['0','1','2'].forEach(function(t){ var i=(typeof _dirInfo==='function')?_dirInfo(t):null;
-      if(i&&i.handle&&i.conectada&&manos.indexOf(i.handle)<0) manos.push(i.handle); }); }catch(e){}
+    try{ pri.concat(['0','1','2']).forEach(function(t){
+      var i=(typeof _dirInfo==='function')?_dirInfo(t):null;
+      if(i&&i.handle&&i.conectada&&manos.indexOf(i.handle)<0) manos.push(i.handle);
+    }); }catch(e){}
     if(_dirHandle && _dirConectada && manos.indexOf(_dirHandle)<0) manos.push(_dirHandle);
     for(var i=0;i<manos.length;i++){
       var h=manos[i];
