@@ -2245,6 +2245,16 @@ function actualizarFolderBadge(){
   var el=document.getElementById('tbActions'); if(!el) return;
   var e=_carpetaActual(), name=e?(e.name||'carpeta'):'', html;
   if(e && e.conectada){
+    // El indicador muestra la carpeta del CONTEXTO actual: en Registros la que corresponde a la
+    // vista (0 día completo · 1 media jornada · 2 vacaciones) y en el formulario la de su pestaña.
+    // Antes mostraba siempre la predeterminada (vacaciones) aunque la vista fuera otra.
+    try{
+      var _ctx=(_page==='rec')?String(_recIdx):String(_tab);
+      var _ec=(typeof dirDeTab==='function')?dirDeTab(_ctx):null;
+      if(!_ec && typeof dirAlguna==='function') _ec=dirAlguna();
+      if(_ec && _ec.name) name=_ec.name;
+      if(_ec && _ec.conectada) ok=true;
+    }catch(e){}
     html='<span class="folder-badge ok" title="Los documentos se guardan en: '+_attr(name)+'">'+_icoFolderCheck()+'<span>Carpeta conectada</span><span class="fb-nm">'+esc(name)+'</span></span>';
   } else if(e){
     html='<button class="folder-badge warn" onclick="conectarCarpeta()" title="Reconecta la carpeta '+_attr(name)+'">'+_icoFolderWarn()+'<span>Reconectar carpeta</span><span class="fb-nm">'+esc(name)+'</span></button>';
