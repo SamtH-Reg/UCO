@@ -2316,9 +2316,44 @@ function onFormFileChange(inp){
   }catch(e){ console.error('[FILE]',e); }
 }
 function _attr(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// Busca el adjunto en la(s) carpeta(s) conectada(s) por el nombre que usa la app
+// («CÓDIGO NOMBRE.ext»). Sirve para abrir documentos subidos desde OTRO computador,
+// que no están en el almacenamiento de este navegador.
+async function _docDesdeCarpeta(s){
+  try{
+    if(!s) return null;
+    var cod=String(s.codigo||'').trim(), nom=String(s.nombre||'').trim();
+    if(!cod && !nom) return null;
+    var pref=(cod+' '+nom).trim().toLowerCase();
+    var manos=[];
+    try{ ['0','1','2'].forEach(function(t){ var i=(typeof _dirInfo==='function')?_dirInfo(t):null;
+      if(i&&i.handle&&i.conectada&&manos.indexOf(i.handle)<0) manos.push(i.handle); }); }catch(e){}
+    if(_dirHandle && _dirConectada && manos.indexOf(_dirHandle)<0) manos.push(_dirHandle);
+    for(var i=0;i<manos.length;i++){
+      var h=manos[i];
+      try{
+        if(typeof h.values!=='function') continue;
+        for await (var ent of h.values()){
+          if(!ent || ent.kind!=='file') continue;
+          var nn=String(ent.name||'').toLowerCase();
+          if(nn!==pref+'.pdf' && nn.indexOf(pref)!==0) continue;
+          try{ var f=await ent.getFile(); if(f && f.size>0) return { blob:f, nombre:ent.name, desdeCarpeta:true }; }catch(e){}
+        }
+      }catch(e){ console.warn('[DOC carpeta]', e && e.message); }
+    }
+  }catch(e){ console.warn('[DOC carpeta]', e && e.message); }
+  return null;
+}
+
 async function verDocumento(id){
   try{
     var doc=await docObtener(id);
+    if(!doc||!doc.blob){
+      // No está en este navegador: puede ser un adjunto subido desde otro equipo → se busca
+      // en la carpeta conectada (compartida) por el nombre del archivo.
+      var _s=null; try{ _s=_buscarRegistro(id); }catch(e){}
+      if(_s){ doc=await _docDesdeCarpeta(_s); if(doc) toast('📄 Abierto desde la carpeta compartida','info',4000); }
+    }
     if(!doc||!doc.blob){ toast('El archivo no está guardado en este equipo (solo se guardan los adjuntos nuevos)','warn',6500); return; }
     var url=URL.createObjectURL(doc.blob);
     var tipo=doc.blob.type||'', nombre=doc.nombre||'documento';
