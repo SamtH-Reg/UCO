@@ -2464,8 +2464,17 @@ function imprimirDocumento(){
     var d=fr.contentWindow.document; d.open(); d.write(html); d.close();
     var hecho=false;
     function go(){ if(hecho) return; hecho=true; try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){ console.error('[PRINT]',e); } }
-    fr.onload=function(){ setTimeout(go, 500); };
-    setTimeout(go, 1500);
+    // Esperar al marco INTERNO (el que carga el PDF o la imagen): antes se imprimía al cargar el
+    // marco de afuera, cuando el documento todavía no estaba listo → salía una hoja en blanco.
+    try{
+      var inner=fr.contentWindow.document.querySelector('iframe,img');
+      if(inner){
+        inner.onload=function(){ setTimeout(go, 500); };
+        try{ if(inner.contentWindow && inner.contentDocument && inner.contentDocument.readyState==='complete') setTimeout(go, 700); }catch(e){}
+      }
+    }catch(e){ console.warn('[PRINT inner]', e && e.message); }
+    fr.onload=function(){ setTimeout(go, 1200); };      // respaldo: marco externo cargado
+    setTimeout(go, 3000);                               // respaldo final, por si no dispara ningún load
     setTimeout(function(){ try{ fr.remove(); }catch(e){} }, 60000);
   }catch(e){
     var w=window.open(url,'_blank');
