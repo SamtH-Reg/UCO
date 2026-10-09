@@ -577,8 +577,18 @@ input:focus,select:focus,textarea:focus{background:var(--surface);border-color:v
 @keyframes _popCaja{ from{opacity:0;transform:translateY(10px) scale(.97)} to{opacity:1;transform:none} }
 #auditOverlay, #comOverlay{ animation:_popFondo .22s ease-out both }
 #auditOverlay > div, #comOverlay > div{ animation:_popCaja .26s cubic-bezier(.22,.9,.3,1) backwards }
-/* Los modales por ENCIMA del encabezado fijo de la página (antes el header los tapaba) */
-#editModalWrap, #auditOverlay, #comOverlay, #perModal, #docModalWrap, #respModalWrap, #gateCarpeta{z-index:2147483000 !important}
+/* Modales SIEMPRE por encima del encabezado fijo de la página y del thead pegajoso de las tablas.
+   (El z-index va en el fondo del modal, que es position:fixed; en el contenedor sin position no hace nada.) */
+#editModalWrap > div, #auditOverlay, #comOverlay, #perModal, #docModalWrap > div, #respModalWrap > div, #gateCarpeta{z-index:2147483000 !important}
+.tbl thead th{ z-index:1 }
+/* La barra pegajosa del contenido (.anim-in) quedaba por encima de los modales: se le baja la capa */
+/* Con un modal abierto, la barra pegajosa del contenido se oculta: por el contexto de capas
+   de la app quedaba siempre por encima del modal (aunque este use z-index máximo).
+   Usa :has() para que se oculte sola al abrir y vuelva sola al cerrar, sin tocar el JS. */
+body:has(#editModalWrap) #contentBox .anim-in,
+body:has(#editModalWrap) .content .anim-in,
+body:has(#auditOverlay) #contentBox .anim-in,
+body:has(#comOverlay) #contentBox .anim-in{ visibility:hidden !important }
 #editModalWrap{ animation:_popFondo .2s ease-out both }
 #editModalWrap > div > div{ animation:_popCaja .26s cubic-bezier(.22,.9,.3,1) backwards }
 @media (prefers-reduced-motion: reduce){
@@ -4387,7 +4397,7 @@ function abrirEditarModal(id){
     '<div style="display:flex;gap:10px"><input id="e_hsal" type="time" value="'+esc((s.hora_salida||'').substring(0,5))+'" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--surface2)">'+
     '<input id="e_hing" type="time" value="'+esc((s.hora_ingreso||'').substring(0,5))+'" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:var(--surface2)"></div>';
   }
-  var html='<div style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)cerrarEditarModal()">'+
+  var html='<div style="position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)cerrarEditarModal()">'+
     '<div style="background:var(--surface);border-radius:16px;max-width:440px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.4)">'+
     '<div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between"><b style="font-size:15px">'+(esVac?'Editar vacaciones':(esMedia?'Editar media jornada':'Editar permiso'))+'</b><button style="border:none;background:var(--surface2);border-radius:8px;width:28px;height:28px;cursor:pointer" onclick="cerrarEditarModal()">✕</button></div>'+
     '<div style="padding:8px 20px 20px">'+campos+'</div>'+
