@@ -2345,10 +2345,15 @@ async function _docDesdeCarpeta(s){
     var pri=(tp==='MEDIA_JORNADA')?['1','0','2']:(tp==='VACACIONES')?['2','0','1']:['0','1','2'];
     var vistos=[];
     var motivo='';
+    // Se revisan TODAS las carpetas conectadas (cada pestaña) más la predeterminada, dando prioridad
+    // a la del tipo de permiso. Antes se usaba el resolutor por pestaña, que cuando esa pestaña no
+    // tenía carpeta propia caía a la predeterminada (vacaciones) y el archivo no aparecía nunca.
     var manos=[];
-    try{ pri.concat(['0','1','2']).forEach(function(t){
-      var i=(typeof _dirInfo==='function')?_dirInfo(t):null;
-      if(i&&i.handle&&i.conectada&&manos.indexOf(i.handle)<0) manos.push(i.handle);
+    var porTab={};
+    try{ Object.keys(_dirTabs||{}).forEach(function(k){ var e=_dirTabs[k]; if(e&&e.handle) porTab[k]=e; }); }catch(e){}
+    try{ pri.concat(Object.keys(porTab)).forEach(function(t){
+      var e=porTab[String(t)];
+      if(e && e.handle && (e.conectada || (e.handle===(typeof _dirHandle!=='undefined'?_dirHandle:null) && _dirConectada)) && manos.indexOf(e.handle)<0) manos.push(e.handle);
     }); }catch(e){}
     if(_dirHandle && _dirConectada && manos.indexOf(_dirHandle)<0) manos.push(_dirHandle);
     for(var i=0;i<manos.length;i++){
