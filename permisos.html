@@ -4335,17 +4335,27 @@ function eliminarRegistroPermiso(id){
       }catch(e){ console.warn('[DEL] copia en la otra tabla', e && e.message); }
     }
     if(tabla==='solicitudes_permiso'){ try{ await docEliminar(pk_id); delete _docIds[pk_id]; }catch(e){} }
-    // Auditoría: queda el registro de qué se eliminó, quién y cuándo
+    // Auditoría: queda el registro de qué se eliminó, quién y cuándo.
+    // Si el esquema de audit_log no acepta algunos campos, se reintenta con los mínimos y,
+    // si aun así falla, se avisa en pantalla (antes fallaba en silencio).
+    var _det=(cod||'')+' '+(s.nombre||'')+' · '+(fecha||'sin fecha')+' · '+String(s.tipo_permiso||s.tipo||'')+
+             ' · filas borradas: '+borradas+' ('+det.join(' + ')+')';
+    var _usr=(_sesion&&_sesion.nombre)||'operario';
     try{
-      await d.from('audit_log').insert({
-        accion:'ELIMINAR_PERMISO',
-        detalle:(cod||'')+' '+(s.nombre||'')+' · '+(fecha||'sin fecha')+' · '+String(s.tipo_permiso||s.tipo||'')+
-                ' · filas borradas: '+borradas+' ('+det.join(' + ')+')',
-        usuario:(_sesion&&_sesion.nombre)||'operario',
-        email:(_sesion&&_sesion.email)||'',
-        sesion:Math.random().toString(36).slice(2)
-      });
-    }catch(e){ console.warn('[DEL] auditoría', e && e.message); }
+      var rA=await d.from('audit_log').insert({accion:'ELIMINAR_PERMISO', detalle:_det, usuario:_usr,
+        email:(_sesion&&_sesion.email)||'', sesion:Math.random().toString(36).slice(2)});
+      if(rA.error){
+        console.warn('[DEL] auditoría (campos completos):', rA.error.message);
+        var rA2=await d.from('audit_log').insert({accion:'ELIMINAR_PERMISO', detalle:_det, usuario:_usr});
+        if(rA2.error){
+          console.warn('[DEL] auditoría (mínimo):', rA2.error.message);
+          toast('⚠️ El permiso se eliminó, pero no se pudo registrar en la auditoría: '+(rA2.error.message||rA2.error),'warn',10000);
+        }
+      }
+    }catch(e){
+      console.warn('[DEL] auditoría', e && e.message);
+      toast('⚠️ El permiso se eliminó, pero no se pudo registrar en la auditoría','warn',9000);
+    }
     toast('Permiso eliminado de forma definitiva — '+borradas+' fila'+(borradas!==1?'s':'')+' ('+det.join(' + ')+')','success',6500);
     _diaExpand={};_diaExpandC={}; await cargarSolicitudes(); render();
   })();
