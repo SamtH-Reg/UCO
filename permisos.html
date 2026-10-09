@@ -572,6 +572,16 @@ input:focus,select:focus,textarea:focus{background:var(--surface);border-color:v
 
 /* ── Entrada de la aplicación tras el login ── */
 .app:not(.hidden){animation:animFadeIn .5s var(--ease-out) backwards}
+/* ── Ventanas emergentes: entrada suave (fundido del fondo + el cuadro sube con leve zoom) ── */
+@keyframes _popFondo{ from{opacity:0} to{opacity:1} }
+@keyframes _popCaja{ from{opacity:0;transform:translateY(10px) scale(.97)} to{opacity:1;transform:none} }
+#auditOverlay, #comOverlay{ animation:_popFondo .22s ease-out both }
+#auditOverlay > div, #comOverlay > div{ animation:_popCaja .26s cubic-bezier(.22,.9,.3,1) backwards }
+#editModalWrap{ animation:_popFondo .2s ease-out both }
+#editModalWrap > div > div{ animation:_popCaja .26s cubic-bezier(.22,.9,.3,1) backwards }
+@media (prefers-reduced-motion: reduce){
+  #auditOverlay, #comOverlay, #editModalWrap, #auditOverlay > div, #comOverlay > div, #editModalWrap > div > div{ animation:none }
+}
 </style>
 <!-- Anticipar conexiones: ahorra DNS+TLS en el arranque -->
 <link rel="preconnect" href="https://qvtztwqbbbzortkodtla.supabase.co" crossorigin>
