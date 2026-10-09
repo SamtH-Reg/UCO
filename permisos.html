@@ -4309,8 +4309,8 @@ async function verEliminaciones(){
     var body=filas.length? filas.map(function(x){
       var f=String(x.fecha||x.created_at||x.ts||x.fecha_hora||'').replace('T',' ').slice(0,16)||'—';
       return '<tr><td style="padding:6px 8px;white-space:nowrap;color:var(--hint);font-size:11.5px">'+esc(f)+'</td>'+
-             '<td style="padding:6px 8px;font-size:12px">'+esc(x.usuario||'—')+'</td>'+
-             '<td style="padding:6px 8px;font-size:12px">'+esc(x.detalle||'')+'</td></tr>';
+             '<td style="padding:6px 8px;font-size:12.5px">'+esc(x.detalle||'')+'</td>'+
+             '<td style="padding:6px 8px;font-size:12px;color:var(--muted)">'+esc(x.usuario||'—')+'</td></tr>';
     }).join('') : '<tr><td colspan="3" style="padding:14px;color:var(--hint)">Todavía no hay eliminaciones registradas.</td></tr>';
     var html='<div id="auditOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px" onclick="if(event.target===this)this.remove()">'+
       '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:940px;width:100%;max-height:82vh;overflow:auto;padding:16px 18px">'+
@@ -4323,8 +4323,8 @@ async function verEliminaciones(){
         '</div>'+
         '<table style="width:100%;border-collapse:collapse"><thead><tr>'+
           '<th style="text-align:left;padding:6px 8px;font-size:10.5px;color:var(--hint);letter-spacing:.6px">FECHA</th>'+
-          '<th style="text-align:left;padding:6px 8px;font-size:10.5px;color:var(--hint);letter-spacing:.6px">USUARIO</th>'+
           '<th style="text-align:left;padding:6px 8px;font-size:10.5px;color:var(--hint);letter-spacing:.6px">PERMISO ELIMINADO</th>'+
+          '<th style="text-align:left;padding:6px 8px;font-size:10.5px;color:var(--hint);letter-spacing:.6px">QUIÉN</th>'+
         '</tr></thead><tbody>'+body+'</tbody></table>'+
         '<div style="margin-top:10px;font-size:11.5px;color:var(--hint)">Cada fila corresponde a un permiso borrado desde la app (queda registrado quién y cuándo).</div>'+
       '</div></div>';
@@ -4362,8 +4362,7 @@ function eliminarRegistroPermiso(id){
     // Auditoría: queda el registro de qué se eliminó, quién y cuándo.
     // Si el esquema de audit_log no acepta algunos campos, se reintenta con los mínimos y,
     // si aun así falla, se avisa en pantalla (antes fallaba en silencio).
-    var _det=(cod||'')+' '+(s.nombre||'')+' · '+(fecha||'sin fecha')+' · '+String(s.tipo_permiso||s.tipo||'')+
-             ' · filas borradas: '+borradas+' ('+det.join(' + ')+')';
+    var _det=(cod||'')+' '+(s.nombre||'')+' · '+(fecha||'sin fecha')+' · '+String(s.tipo_permiso||s.tipo||'');
     var _usr=(_sesion&&_sesion.nombre)||'operario';
     try{
       var rA=await d.from('audit_log').insert({accion:'ELIMINAR_PERMISO', detalle:_det, usuario:_usr,
@@ -4380,7 +4379,7 @@ function eliminarRegistroPermiso(id){
       console.warn('[DEL] auditoría', e && e.message);
       toast('⚠️ El permiso se eliminó, pero no se pudo registrar en la auditoría','warn',9000);
     }
-    toast('Permiso eliminado de forma definitiva — '+borradas+' fila'+(borradas!==1?'s':'')+' ('+det.join(' + ')+')','success',6500);
+    toast('Permiso eliminado — '+(cod||'')+' '+(s.nombre||'')+' ('+(fecha||'sin fecha')+')','success',6500);
     _diaExpand={};_diaExpandC={}; await cargarSolicitudes(); render();
   })();
 }
