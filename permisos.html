@@ -2133,8 +2133,11 @@ async function cargarDocIds(){
 function _persistirStorage(){ try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){} }
 
 // Nombre de archivo: "<codigo> <nombre> - <archivo original>"
-function _docNombre(cod,nombre,orig){
+function _docNombre(cod,nombre,orig,fecha){
   var base=(String(cod||'').trim()+' '+String(nombre||'').trim()).trim();
+  // Se agrega la FECHA del permiso: así dos permisos de la misma persona no comparten nombre de archivo
+  var fe=String(fecha||'').slice(0,10);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(fe)) base=(base+' '+fe).trim();
   var ext=''; var m=String(orig||'').match(/\.[A-Za-z0-9]{1,8}$/); if(m) ext=m[0];
   base=base.replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
   return (base||'documento')+ext;
@@ -2302,7 +2305,7 @@ function quitarFormFile(){
 }
 
 async function guardarDocumentoLocal(id, fileObj, cod, nombre, meta, dirHandle){
-  var nom=_docNombre(cod,nombre,fileObj.name);
+  var nom=_docNombre(cod,nombre,fileObj.name,(meta&&(meta.fecha||meta.inicio))||'');
   var okNav=false, okDir=false;
   try{ await docGuardar(id,fileObj,nom,meta); _docIds[id]=true; okNav=true; }catch(e){ console.error('[DOC nav]',e); }
   try{
@@ -2344,6 +2347,8 @@ async function _docDesdeCarpeta(s){
     var tp=String(s.tipo||'').toUpperCase();
     var pri=(tp==='MEDIA_JORNADA')?['1','0','2']:(tp==='VACACIONES')?['2','0','1']:['0','1','2'];
     var vistos=[];
+    var candidatos=[];
+    var fechaL=String(s.inicio||s.fecha||'').slice(0,10);   // fecha del permiso, para desempatar archivos homónimos
     var motivo='';
     // Se revisan TODAS las carpetas conectadas (cada pestaña) más la predeterminada, dando prioridad
     // a la del tipo de permiso. Antes se usaba el resolutor por pestaña, que cuando esa pestaña no
@@ -2376,11 +2381,21 @@ async function _docDesdeCarpeta(s){
           if(vistos.length<6) vistos.push(ent.name);
           var calza=(nnN.indexOf(prefN)===0) || (soloCod && nn.indexOf(soloCod)===0);
           if(!calza) continue;
-          try{ var f=await ent.getFile(); if(f && f.size>0) return { blob:f, nombre:ent.name, desdeCarpeta:true }; }catch(e){}
+          var conFecha=!!(fechaL && nn.indexOf(fechaL)>=0);      // el archivo trae la fecha del permiso
+          candidatos.push({ent:ent, conFecha:conFecha, nombre:ent.name});
+          if(conFecha && fechaL) continue;                        // preferimos el que trae la fecha exacta
         }
       }catch(e){ motivo=(e && e.message)||'error al listar la carpeta'; console.warn('[DOC carpeta]', motivo); }
     }
   }catch(e){ console.warn('[DOC carpeta]', e && e.message); }
+  // Elección: el que trae la fecha del permiso; si ninguno, el único que haya; si hay varios sin fecha, aviso
+  try{
+    if(candidatos.length){
+      var eleg=candidatos.filter(function(c){ return c.conFecha; })[0] || (candidatos.length===1? candidatos[0] : null);
+      if(!eleg){ window._docAmbiguo=candidatos.map(function(c){ return c.nombre; }); }
+      if(eleg){ var ff=await eleg.ent.getFile(); if(ff && ff.size>0) return { blob:ff, nombre:eleg.nombre, desdeCarpeta:true }; }
+    }
+  }catch(e){ console.warn('[DOC elegir]', e && e.message); }
   try{ window._docUltDiag={ cod:cod, nombre:nom, buscado:(cod+' '+nom).trim(), carpetas:manos.length, vistos:vistos, motivo:motivo,
                             nombres:(manos||[]).map(function(x){ return x.name||''; }) }; }catch(e){}
   return null;
@@ -3547,10 +3562,23 @@ function _icoDoc(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="current
 function _icoEdit(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 6.5l3 3"/></svg>'; }
 function _icoDel(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M6.5 7l1 12.5A1.5 1.5 0 0 0 9 21h6a1.5 1.5 0 0 0 1.5-1.5L17.5 7"/><path d="M10 11v6M14 11v6"/></svg>'; }
 // Botón de "ver adjunto" (siempre visible; deshabilitado si el registro no tiene documento)
+// Color del ícono según el tipo de archivo adjunto: se ve de un vistazo
+function _docColor(nombre){
+  var x=String(nombre||'').toLowerCase();
+  if(/\.pdf$/.test(x)) return '#D64545';                       // PDF → rojo
+  if(/\.(doc|docx)$/.test(x)) return '#2B579A';                // Word → azul
+  if(/\.(xls|xlsx|csv)$/.test(x)) return '#1D6F42';            // Excel → verde
+  if(/\.(jpg|jpeg|png|gif|webp|bmp)$/.test(x)) return '#B0711C'; // imagen → ámbar
+  return 'var(--accent)';
+}
+
 function _docBtn(s){
   var tieneDoc=!!_docIds[s.id], tieneArchivo=!!s.archivo;
-  if(tieneDoc)    return '<button class="btn-icon" onclick="verDocumento(\''+esc(s.id||'')+'\')" title="Ver documento adjunto">'+_icoDoc()+'</button>';
-  if(tieneArchivo) return '<button class="btn-icon" onclick="verDocumento(\''+esc(s.id||'')+'\')" title="Documento registrado (no guardado localmente)" style="opacity:.55">'+_icoDoc()+'</button>';
+  if(tieneDoc)    return '<button class="btn-icon" onclick="verDocumento(\''+esc(s.id||'')+'\')" title="Ver documento adjunto" style="color:'+_docColor(s.archivo||'')+'">'+_icoDoc()+'</button>';
+  if(tieneArchivo){
+    var col=_docColor(s.archivo||'');
+    return '<button class="btn-icon" onclick="verDocumento(\''+esc(s.id||'')+'\')" title="Documento registrado: '+(esc(String(s.archivo||'')))+' (se abre desde la carpeta conectada)" style="color:'+col+';opacity:.85">'+_icoDoc()+'</button>';
+  }
   return '<button class="btn-icon" disabled title="Sin documento adjunto" style="opacity:.3;cursor:default">'+_icoDoc()+'</button>';
 }
 // Panel del comentario (se abre con el ícono 💬 de la fila)
