@@ -3231,8 +3231,14 @@ async function _guardarSolicitud(){
   if(f.fileObj){
     var meta={codigo:f.emp.c,nombre:f.emp.n,centro_costo:f.cc.n,fecha:payload.inicio,tipo:payload.tipo,tipo_permiso:payload.tipo_permiso};
     try{
-      var _dt=dirDeTab(t);
-      var g=await guardarDocumentoLocal(newId, f.fileObj, f.emp.c, f.emp.n, meta, _dt?_dt.handle:null);
+      // Carpeta destino: la de la pestaña (día completo / media jornada / vacaciones); si esa pestaña
+      // no tiene carpeta propia, cualquiera conectada o la predeterminada. Antes solo usaba la de la
+      // pestaña y sin verificar permiso, así que en media jornada y vacaciones no se copiaba el archivo.
+      var _dt=dirDeTab(t) || (typeof dirAlguna==='function'? dirAlguna() : null);
+      var _h=_dt && _dt.handle ? _dt.handle : (_dirHandle||null);
+      if(_h){ try{ await _permDir(_h); }catch(e){ console.warn('[DOC permiso]', e && e.message); } }
+      var g=await guardarDocumentoLocal(newId, f.fileObj, f.emp.c, f.emp.n, meta, _h);
+      if(g && g.okNav===false) toast('Se guardó la solicitud, pero no se pudo copiar el archivo a la carpeta','warn',8000);
       if(!g.okNav) toast('Solicitud guardada, pero no se pudo guardar la copia local del documento','warn',7000);
     }catch(e){ console.error('[DOC]',e); }
   }
@@ -4638,7 +4644,11 @@ function guardarEdicion(){
       var fileObj=inpA && inpA.files && inpA.files[0] ? inpA.files[0] : null;
       if(fileObj){
         var meta={codigo:codigo, nombre:nombre, fecha:fecha||'', tipo:'PERMISO', tipo_permiso:tipo||''};
-        await guardarDocumentoLocal(pk, fileObj, codigo, nombre, meta, (typeof _dt!=='undefined'&&_dt)?_dt.handle:null);
+        var _h2=(typeof dirDeTab==='function'? dirDeTab(_tab) : null);
+        var _hh=(_h2&&_h2.handle)? _h2.handle : (_dirHandle||null);
+        if(_hh){ try{ await _permDir(_hh); }catch(e){} }
+        var _g2=await guardarDocumentoLocal(pk, fileObj, codigo, nombre, meta, _hh);
+        if(_g2 && _g2.okNav===false) toast('Se guardó el registro, pero no se pudo copiar el archivo a la carpeta','warn',8000);
         _docIds[pk]=true;
       }
     }catch(e){ toast('El registro se guarda, pero no se pudo adjuntar el archivo: '+(e.message||e),'warn',8000); }
