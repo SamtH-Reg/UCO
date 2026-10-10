@@ -4768,8 +4768,14 @@ function guardarEdicion(){
       var inpA=document.getElementById('e_archivo');
       var fileObj=inpA && inpA.files && inpA.files[0] ? inpA.files[0] : null;
       if(fileObj){
-        var meta={codigo:codigo, nombre:nombre, fecha:fecha||'', tipo:'PERMISO', tipo_permiso:tipo||''};
-        var _h2=(typeof dirDeTab==='function'? dirDeTab(_tab) : null);
+        // La carpeta se elige por el TIPO del registro (día completo / media jornada / vacaciones),
+        // no por la pestaña activa: al abrir el editor desde los registros, _tab podía quedar en 0
+        // y el adjunto terminaba guardándose en "Permisos" aunque fuera de vacaciones o media jornada.
+        var _tp=(typeof _buscarRegistro==='function')? _buscarRegistro(pk) : null;
+        var _tRec=(_tp && String(_tp.tipo)==='MEDIA_JORNADA')?1:((_tp && String(_tp.tipo)==='VACACIONES')?2:0);
+        var _tipoTxt=(_tRec===0?'COMPLETO':(_tRec===1?'MEDIA_JORNADA':'VACACIONES'));
+        var meta={codigo:codigo, nombre:nombre, fecha:fecha||'', tipo:_tipoTxt, tipo_permiso:tipo||''};
+        var _h2=(typeof dirDeTab==='function'? dirDeTab(_tRec) : null);
         var _hh=(_h2&&_h2.handle)? _h2.handle : (_dirHandle||null);
         if(_hh){ try{ await _permDir(_hh); }catch(e){} }
         var _g2=await guardarDocumentoLocal(pk, fileObj, codigo, nombre, meta, _hh);
