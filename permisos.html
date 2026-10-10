@@ -2338,6 +2338,14 @@ async function elegirCarpetaObligatoria(){
     _dirTabs[String(_tab)]={handle:h,name:_dirName,conectada:true}; await _persistirDirTabs();
     cerrarGateCarpeta();
     toast('✅ Carpeta: '+_dirName,'success');
+    // Aviso si la carpeta elegida no parece la de esta pestaña (evita guardar en la carpeta equivocada)
+    try{
+      var _lbl={0:'Permisos',1:'Permisos media jornada',2:'Vacaciones'}[_tab];
+      var _nm=String(_dirName||'').toLowerCase();
+      if(_lbl && _nm && _nm.indexOf(_lbl.toLowerCase())<0 && _lbl.toLowerCase().indexOf(_nm)<0){
+        toast('⚠️ Elegiste la carpeta «'+_dirName+'». Para esta pestaña corresponde «'+_lbl+'» (dentro de …\\Vacaciones 2027). Si te equivocaste, vuelve a elegirla.','warn',14000);
+      }
+    }catch(e){}
     render();
   }catch(e){ if(err) err.textContent=('Error: '+((e&&e.message)||e)); }
 }
