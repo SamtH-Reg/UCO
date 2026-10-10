@@ -2362,16 +2362,29 @@ async function guardarDocumentoLocal(id, fileObj, cod, nombre, meta, dirHandle){
   var nom=_docNombre(cod,nombre,fileObj.name,(meta&&(meta.fecha||meta.inicio))||'');
   var okNav=false, okDir=false;
   try{ await docGuardar(id,fileObj,nom,meta); _docIds[id]=true; okNav=true; }catch(e){ console.error('[DOC nav]',e); }
+  var dirUsada='', dirErr='';
   try{
-    var h=dirHandle || await docConfigGet('dir');
-    if(h && await _permDir(h)){
-      var fh=await h.getFileHandle(nom,{create:true});
-      var w=await fh.createWritable();
-      await w.write(fileObj); await w.close();
-      okDir=true;
-    }
-  }catch(e){ console.error('[DOC dir]',e); }
-  return {okNav:okNav, okDir:okDir, nombre:nom};
+    // Prioridad: la carpeta que el usuario conectó para ESTA pestaña/solicitud; luego cualquier
+    // carpeta conectada; y solo como último recurso la carpeta global antigua ('dir').
+    // (Antes se usaba la global primero: si quedaba vieja o sin autorizar, no copiaba nada.)
+    var h=dirHandle
+          || (typeof dirDeTab==='function'? dirDeTab(_tab):null)
+          || (typeof dirAlguna==='function'? dirAlguna():null)
+          || await docConfigGet('dir');
+    if(h){
+      dirUsada=h.name||'(carpeta sin nombre)';
+      if(await _permDir(h)){
+        var fh=await h.getFileHandle(nom,{create:true});
+        var w=await fh.createWritable();
+        await w.write(fileObj); await w.close();
+        okDir=true;
+      } else { dirErr='el navegador no autorizó la carpeta «'+dirUsada+'»'; }
+    } else { dirErr='no hay carpeta conectada'; }
+  }catch(e){ console.error('[DOC dir]',e); dirErr=(e&&e.message)||'error al escribir en la carpeta'; }
+  if(!okDir && typeof toast==='function'){
+    toast('⚠️ El archivo quedó guardado en el navegador, pero NO se copió a la carpeta ('+(dirErr||'sin detalle')+').','warn',13000);
+  }
+  return {okNav:okNav, okDir:okDir, nombre:nom, dirUsada:dirUsada, dirErr:dirErr};
 }
 function onFormFileChange(inp){
   try{
