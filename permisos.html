@@ -3658,6 +3658,7 @@ function _accRow(s){
     ? '<button class="btn-icon" onclick="verComentario(\''+esc(String(s.id||''))+'\')" title="Ver comentario del permiso">💬</button>'
     : '';
   return '<td style="white-space:nowrap"><div style="display:flex;gap:6px;justify-content:flex-end">'+comBtn+docBtn+
+    _docBtn(s)+
     '<button class="btn-icon" title="Editar" onclick="editarRegistroPermiso(\''+esc(s.id||'')+'\')">'+_icoEdit()+'</button>'+
     '<button class="btn-icon danger" title="Eliminar" onclick="eliminarRegistroPermiso(\''+esc(s.id||'')+'\')">'+_icoDel()+'</button>'+
     '</div></td>';
