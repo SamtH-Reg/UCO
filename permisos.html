@@ -1555,10 +1555,26 @@ async function _generarDocx(clave, map){
   zip.file('word/document.xml', xml);
   return await zip.generateAsync({type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
 }
-function _descargarDocx(blob, nombre){
+async function _descargarDocx(blob, nombre){
   var url=URL.createObjectURL(blob), a=document.createElement('a');
   a.href=url; a.download=nombre; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function(){ URL.revokeObjectURL(url); },60000);
+  // Además de descargarla, la papeleta se guarda en la carpeta conectada, igual que los adjuntos
+  // (antes solo se descargaba al computador y por eso "no cargaba" en la carpeta compartida).
+  try{
+    var di=(typeof dirDeTab==='function')? (dirDeTab(_tab) || (typeof dirAlguna==='function'? dirAlguna() : null)) : null;
+    var hh=(di && di.handle)? di.handle : _dirHandle;
+    if(hh && (typeof _permDir!=='function' || await _permDir(hh))){
+      var fh=await hh.getFileHandle(nombre,{create:true});
+      var w=await fh.createWritable(); await w.write(blob); await w.close();
+      if(di) di.conectada=true;
+      toast('📄 Papeleta guardada en la carpeta: '+nombre,'ok',6000);
+    } else if(!hh){
+      toast('No hay carpeta conectada: la papeleta quedó solo en tu Descargas','warn',8000);
+    } else {
+      toast('⚠️ Autoriza la carpeta para que la papeleta se guarde ahí','warn',8000);
+    }
+  }catch(e){ console.error('[PAPELETA dir]',e); toast('No se pudo guardar la papeleta en la carpeta: '+(e&&e.message),'warn',9000); }
 }
 // Campos comunes (feriado legal + progresivo) para cualquier papeleta
 function _papeletaBaseMap(f){
@@ -1611,6 +1627,11 @@ async function generarPapeletas(){
   var legalProg=(f.tomarBase||0)+(f.tomarProg||0), sind=f.tomarSind||0;
   if(legalProg+sind<=0){ toast('No hay días solicitados','warn'); return; }
   if(typeof JSZip==='undefined'){ toast('Librería Word no cargada — recarga la página','error',6000); return; }
+  // El clic de este botón es el gesto del usuario: se autoriza la carpeta ahora para poder
+  // guardar la papeleta ahí (más tarde, tras generar el .docx, el gesto ya se perdió).
+  try{ var _d0=(typeof dirDeTab==='function')?(dirDeTab(_tab)||(typeof dirAlguna==='function'?dirAlguna():null)):null;
+       var _h0=(_d0&&_d0.handle)?_d0.handle:_dirHandle;
+       if(_h0 && typeof _permDir==='function'){ _permDir(_h0).catch(function(){}); } }catch(e){}
   var _enviadaAhora=false;
   if(!_editSolId){
     if(!confirm('⚠️ La solicitud todavía no se ha enviado.\n\nSe recomienda enviarla para que quede guardada. ¿Enviar la solicitud ahora y generar la papeleta?')){
@@ -1642,6 +1663,11 @@ function _papeletaInputDeRegistro(s){
 async function generarPapeletaRegistro(id){
   var s=_buscarRegistro(id); if(!s){ toast('Registro no encontrado','error'); return; }
   if(typeof JSZip==='undefined'){ toast('Librería Word no cargada — recarga la página','error',6000); return; }
+  // El clic de este botón es el gesto del usuario: se autoriza la carpeta ahora para poder
+  // guardar la papeleta ahí (más tarde, tras generar el .docx, el gesto ya se perdió).
+  try{ var _d0=(typeof dirDeTab==='function')?(dirDeTab(_tab)||(typeof dirAlguna==='function'?dirAlguna():null)):null;
+       var _h0=(_d0&&_d0.handle)?_d0.handle:_dirHandle;
+       if(_h0 && typeof _permDir==='function'){ _permDir(_h0).catch(function(){}); } }catch(e){}
   var f=_papeletaInputDeRegistro(s);
   try{
     var n=await _generarPapeletasDe(f);
