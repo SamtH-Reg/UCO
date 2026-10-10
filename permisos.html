@@ -3287,11 +3287,25 @@ async function _guardarSolicitud(){
         dias_base:t===2?(f.tomarBase||0):null, dias_progresivo:t===2?(f.tomarProg||0):null, dias_sindical:t===2?(f.tomarSind||0):null,
         tipo_regreso:t===1?_regNorm(f.reg):null, hora_salida:t===1?_horaONull(f.hs):null,
         hora_ingreso:t===1?((f.reg==='SIN')?null:_horaONull(f.hi)):null,
-        horas_permiso:t===1?parseFloat(calcularHoras().replace(',','.'))||null:null, comentario:f.com||null
+        horas_permiso:t===1?parseFloat(calcularHoras().replace(',','.'))||null:null, comentario:f.com||null,
+        archivo:f.file||null
       };
       var rE=await d.from('solicitudes_permiso').update(updE).eq('id',_editSolId);
       if(rE.error){ toast('Error al guardar: '+(rE.error.message||rE.error),'error'); return {ok:false}; }
       var idU=_editSolId; _editSolId=null;
+      // Al EDITAR también se copia el adjunto a la carpeta. Antes solo se copiaba al crear la
+      // solicitud: "Guardar cambios" guardaba el registro pero la carpeta quedaba vacía.
+      if(f.fileObj){
+        var metaE={codigo:f.emp.c,nombre:f.emp.n,centro_costo:(f.cc?f.cc.n:null),fecha:updE.inicio,
+                   tipo:(t===0?'COMPLETO':t===1?'MEDIA_JORNADA':'VACACIONES'),tipo_permiso:f.tipo||null};
+        try{
+          var _dtE=dirDeTab(t) || (typeof dirAlguna==='function'? dirAlguna() : null);
+          var _hE=(_dtE && _dtE.handle)? _dtE.handle : (_dirHandle||null);
+          if(_hE){ try{ await _permDir(_hE); }catch(e){ console.warn('[DOC permiso edit]', e && e.message); } }
+          var gE=await guardarDocumentoLocal(idU, f.fileObj, f.emp.c, f.emp.n, metaE, _hE);
+          if(gE && gE.okDir===false) toast('El cambio se guardó, pero el archivo NO se copió a la carpeta','warn',10000);
+        }catch(e){ console.error('[DOC edit]',e); toast('El cambio se guardó, pero no se pudo copiar el archivo a la carpeta','warn',10000); }
+      }
       return {ok:true, id:idU, tipo:'update'};
     }catch(e){ toast('Error al guardar: '+e.message,'error'); return {ok:false}; }
   }
