@@ -3379,8 +3379,22 @@ function _renderPop(idPop){
   if(estaba){ try{ var p=document.getElementById(idPop); if(p) p.classList.remove('hidden'); }catch(e){} }
 }
 function recRefrescarTbody(){
+  // Día completo: repinta solo su tabla (instantáneo, es el que funciona bien).
   var tb=document.getElementById('tbodyCompleto');
-  if(tb){ tb.innerHTML=_cuerpoCompletoHTML(); }
+  if(tb && _recIdx===0){ tb.innerHTML=_cuerpoCompletoHTML(); return; }
+  // Media jornada y Vacaciones: su tabla no tiene ese id, así que antes escribir en el buscador
+  // no filtraba nada. Se repinta la vista conservando lo escrito y el foco (para no cortar el tipeo).
+  try{
+    var inp=document.querySelector('#contentBox .searchbar input');
+    var val=inp? inp.value : recQ, pos=null;
+    try{ pos=inp && inp.selectionStart!=null? inp.selectionStart : null; }catch(e){}
+    render();
+    var inp2=document.querySelector('#contentBox .searchbar input');
+    if(inp2){
+      inp2.value=val;
+      try{ inp2.focus(); if(pos!=null) inp2.setSelectionRange(pos,pos); }catch(e){}
+    }
+  }catch(e){ console.warn('[BUSCAR]', e && e.message); render(); }
 }
 function recClearFilters(){ _recAnio='';_recAnios=[];_recMeses=[];_recCC=[];_recDesde='';_recHasta=''; recQ=''; _recTipo=''; _recTurno=''; _recEstados=['EN CURSO','POR TOMAR']; _recFechaAuto=false; render(); }
 function recToggleEstado(e){ var i=_recEstados.indexOf(e); if(i>=0)_recEstados.splice(i,1); else _recEstados.push(e); _renderPop('estPop'); }
