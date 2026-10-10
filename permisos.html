@@ -2222,8 +2222,20 @@ async function cargarCarpetaConfig(){
 }
 // Carpeta de la pestaña actual (o la predeterminada si no eligió una)
 function dirDeTab(t){
+  var _lblT={0:'permisos',1:'permisos media jornada',2:'vacaciones'}[t];
   var _e0=_dirDeTabBase(t);
-  if(_e0 && _e0.handle) return _e0;
+  if(_e0 && _e0.handle){
+    var _nm0=String(_e0.name||(_e0.handle&&_e0.handle.name)||'').toLowerCase();
+    if(!_lblT || _nm0===_lblT) return _e0;      // la carpeta conectada calza con la pestaña
+    // NO calza (p. ej. Media jornada apuntando a "Vacaciones"): se busca por nombre exacto la
+    // carpeta que corresponde y, si existe, se prefiere esa; en todo caso queda el aviso.
+    for(var _k2 in _dirTabs){
+      var _x2=_dirTabs[_k2];
+      if(_x2 && _x2.handle && String(_x2.name||'').toLowerCase()===_lblT) return _x2;
+    }
+    console.warn('[CARPETA] La pestaña '+t+' tiene «'+_nm0+'» conectada; corresponde «'+_lblT+'». Se guarda en la conectada: reconecta la carpeta correcta en esa pestaña.');
+    return _e0;
+  }
   // Respaldo: si la pestaña no tiene carpeta propia registrada, buscarla por NOMBRE exacto
   // (Permisos / Permisos media jornada / Vacaciones) para no terminar guardando todo en la
   // carpeta de otra pestaña (síntoma: los adjuntos de vacaciones caían en "Permisos").
