@@ -572,6 +572,26 @@ input:focus,select:focus,textarea:focus{background:var(--surface);border-color:v
 
 /* ── Entrada de la aplicación tras el login ── */
 .app:not(.hidden){animation:animFadeIn .5s var(--ease-out) backwards}
+/* ── Registros (día completo · media jornada · vacaciones): que toda la información quepa en
+   pantalla. Se reduce el espacio lateral y el tamaño de letra, sin ocultar ninguna columna. ── */
+.tbl thead th{ padding-left:9px; padding-right:9px; font-size:9.5px; letter-spacing:.3px }
+.tbl tbody td{ padding-left:9px; padding-right:9px; font-size:11.5px }
+/* Las columnas de HORAS (las últimas de la tabla) van más juntas todavía, para que la tabla
+   entre completa en pantalla. Son las 6 últimas celdas de cada fila (hora salida, hora ingreso,
+   horas de permiso, horas trabajadas y sus encabezados). No cambia ningún dato. */
+.tbl tbody td:nth-last-child(2), .tbl tbody td:nth-last-child(3),
+.tbl tbody td:nth-last-child(4), .tbl tbody td:nth-last-child(5),
+.tbl tbody td:nth-last-child(6), .tbl tbody td:nth-last-child(7){ padding-left:4px; padding-right:4px }
+.tbl thead th:nth-last-child(2), .tbl thead th:nth-last-child(3),
+.tbl thead th:nth-last-child(4), .tbl thead th:nth-last-child(5),
+.tbl thead th:nth-last-child(6), .tbl thead th:nth-last-child(7){ padding-left:4px; padding-right:4px; letter-spacing:0 }
+.tbl.tbl-compact tbody td{ font-size:11px }
+.tbl tbody tr.fecha-head td, .tbl tbody tr.res-anio td{ padding-left:9px; padding-right:9px; font-size:11.5px }
+/* El NOMBRE y su CENTRO DE COSTO deben verse completos (esa columna usa el espacio libre).
+   Solo se recorta la columna del RESPONSABLE cuando el nombre es muy largo. Vacaciones y
+   Media jornada traen RESPONSABLE en la 3ª columna; Día completo no la trae. */
+.table-card .tbl tbody td{ max-width:none; overflow:visible; text-overflow:clip }
+.table-card .tbl tbody td:nth-child(3){ max-width:230px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 /* ── Ventanas emergentes: entrada suave (fundido del fondo + el cuadro sube con leve zoom) ── */
 @keyframes _popFondo{ from{opacity:0} to{opacity:1} }
 @keyframes _popCaja{ from{opacity:0;transform:translateY(10px) scale(.97)} to{opacity:1;transform:none} }
@@ -2326,6 +2346,24 @@ function onFormFileChange(inp){
     _form.fileObj=hay?inp.files[0]:null;
     var e=document.getElementById('formFileName');
     if(e) e.textContent=_form.file||'Haz clic para adjuntar un archivo';
+    // IMPORTANTE: se aprovecha ESTE clic (gesto del usuario) para autorizar la carpeta de la
+    // pestaña. El navegador solo permite pedir el permiso dentro de un clic; al enviar la
+    // solicitud ya se había perdido, y por eso en media jornada y vacaciones el adjunto no se
+    // copiaba a la carpeta compartida (solo quedaba en el navegador).
+    if(hay){
+      try{
+        var di=(typeof dirDeTab==='function')? (dirDeTab(_tab) || (typeof dirAlguna==='function'? dirAlguna() : null)) : null;
+        var hh=(di && di.handle)? di.handle : _dirHandle;
+        if(hh && typeof _permDir==='function'){
+          _permDir(hh).then(function(ok){
+            if(ok && di) di.conectada=true;
+            if(!ok) toast('⚠️ Autoriza la carpeta para que el adjunto se guarde también ahí','warn',8000);
+          }).catch(function(){});
+        } else if(!hh){
+          toast('No hay carpeta conectada: el adjunto quedará solo en este equipo','warn',8000);
+        }
+      }catch(e2){ console.warn('[PERM carpeta]', e2 && e2.message); }
+    }
   }catch(e){ console.error('[FILE]',e); }
 }
 function _attr(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -4452,6 +4490,12 @@ async function verEliminaciones(){
   try{
     var d=await dbReady();
     // Se leen TODAS las columnas: la tabla audit_log no tiene created_at (su esquema es otro)
+    // Purga automática: los permisos eliminados con 30 días o más se borran solos de la lista
+    try{
+      var lim=new Date(Date.now()-30*24*60*60*1000).toISOString();
+      var rP=await d.from('audit_log').delete().eq('accion','ELIMINAR_PERMISO').lt('fecha', lim).select('id');
+      if(rP && !rP.error && rP.data && rP.data.length) console.log('[AUDIT] eliminados con más de 30 días, purgados:', rP.data.length);
+    }catch(e){ console.warn('[AUDIT purga]', e && e.message); }
     var r=await d.from('audit_log').select('*').eq('accion','ELIMINAR_PERMISO').limit(60);
     if(!r.error && r.data){
       r.data.sort(function(a,b){
