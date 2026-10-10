@@ -2222,6 +2222,23 @@ async function cargarCarpetaConfig(){
 }
 // Carpeta de la pestaña actual (o la predeterminada si no eligió una)
 function dirDeTab(t){
+  var _e0=_dirDeTabBase(t);
+  if(_e0 && _e0.handle) return _e0;
+  // Respaldo: si la pestaña no tiene carpeta propia registrada, buscarla por NOMBRE exacto
+  // (Permisos / Permisos media jornada / Vacaciones) para no terminar guardando todo en la
+  // carpeta de otra pestaña (síntoma: los adjuntos de vacaciones caían en "Permisos").
+  try{
+    var _lbl={0:'permisos',1:'permisos media jornada',2:'vacaciones'}[t];
+    if(_lbl){
+      for(var _k in _dirTabs){
+        var _x=_dirTabs[_k];
+        if(_x && _x.handle && String(_x.name||'').toLowerCase()===_lbl) return _x;
+      }
+    }
+  }catch(_e1){}
+  return _e0;
+}
+function _dirDeTabBase(t){
   var e=_dirTabs[String(t)];
   if(e) return e;
   if(_dirHandle) return {handle:_dirHandle,name:_dirName,conectada:_dirConectada,esDefault:true};
@@ -2383,6 +2400,8 @@ async function guardarDocumentoLocal(id, fileObj, cod, nombre, meta, dirHandle){
   }catch(e){ console.error('[DOC dir]',e); dirErr=(e&&e.message)||'error al escribir en la carpeta'; }
   if(!okDir && typeof toast==='function'){
     toast('⚠️ El archivo quedó guardado en el navegador, pero NO se copió a la carpeta ('+(dirErr||'sin detalle')+').','warn',13000);
+  } else if(okDir && typeof toast==='function' && dirUsada){
+    toast('📁 Guardado en la carpeta «'+dirUsada+'»','success',5000);
   }
   return {okNav:okNav, okDir:okDir, nombre:nom, dirUsada:dirUsada, dirErr:dirErr};
 }
