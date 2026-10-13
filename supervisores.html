@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Disponibilidad de permisos por día · Friosur</title>
+<link rel="preconnect" href="https://qvtztwqbbbzortkodtla.supabase.co">
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+<style>
+  :root{
+    --bg:#f4f6fa; --card:#fff; --line:#dfe4ec; --ink:#12233a; --muted:#6b7a90;
+    --blue:#1b4f9c; --blue2:#123a75; --accent:#2f6fd0;
+    --ok:#0f8a4a; --okbg:#e7f6ee; --warn:#a86a00; --warnbg:#fff5e0; --bad:#b3261e; --badbg:#fdeceb;
+    --th:#1b4f9c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif}
+  header{background:linear-gradient(180deg,var(--blue),var(--blue2));color:#fff;padding:18px 22px}
+  .brand{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .logo{background:#fff;color:var(--blue);font-weight:800;letter-spacing:.5px;border-radius:8px;padding:8px 12px;font-size:13px;text-align:center;line-height:1.05}
+  .logo small{display:block;font-weight:600;font-size:8.5px;letter-spacing:1.6px}
+  h1{margin:0;font-size:clamp(20px,2.4vw,30px);font-weight:800;letter-spacing:-.02em}
+  header p{margin:6px 0 0;opacity:.9;font-size:12.5px}
+  main{max-width:1180px;margin:18px auto 60px;padding:0 18px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+  .card .k{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .card .v{font-size:26px;font-weight:800;margin-top:3px}
+  .card .s{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .bar{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}
+  .f{display:flex;flex-direction:column;gap:5px}
+  .f label{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .f input,.f select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);min-width:165px}
+  .f input[type=month]{min-width:150px}
+  button{font:inherit;font-weight:700;padding:9px 14px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--blue);cursor:pointer}
+  button:hover{background:#f0f4fa}
+  .spacer{flex:1}
+  .stamp{font-size:11.5px;color:var(--muted)}
+  .tblwrap{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:auto}
+  table{border-collapse:collapse;width:100%;min-width:760px}
+  thead th{position:sticky;top:0;background:var(--th);color:#fff;text-align:left;font-size:11px;letter-spacing:.09em;text-transform:uppercase;padding:11px 12px;z-index:2}
+  thead th.num{text-align:right}
+  td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:middle}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+  tr.turno>td{background:#e9eff8;font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-size:12px;color:var(--blue2)}
+  tr.dia>td{background:#f7f9fc;font-weight:700}
+  tr.dia .tw{width:22px;display:inline-block;text-align:center;color:var(--blue);cursor:pointer;user-select:none}
+  tr.dia .cnt{font-weight:700}
+  tr.persona td:first-child{border-left:3px solid transparent}
+  .pill{display:inline-block;font-size:10.5px;font-weight:800;border-radius:999px;padding:2px 8px;margin-left:7px;vertical-align:1px}
+  .pill.legal{background:var(--okbg);color:var(--ok)}
+  .pill.media{background:var(--warnbg);color:var(--warn)}
+  .cupo{display:inline-block;font-size:10.5px;font-weight:800;border-radius:999px;padding:2px 8px}
+  .cupo.c1{background:var(--okbg);color:var(--ok)}
+  .cupo.c2{background:var(--warnbg);color:var(--warn)}
+  .cupo.c3{background:var(--badbg);color:var(--bad)}
+  tfoot td{background:#eef2f8;font-weight:800;border-top:2px solid var(--blue)}
+  tfoot tr.total td{background:var(--blue);color:#fff;font-size:15px}
+  .msg{padding:22px;text-align:center;color:var(--muted)}
+  .err{padding:14px;background:var(--badbg);color:var(--bad);border:1px solid #f3c9c6;border-radius:10px;margin-bottom:12px;font-weight:600}
+  .nota{font-size:11.5px;color:var(--muted);margin-top:12px;line-height:1.6}
+  .hint{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .hint span.t{font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">FRIOSUR<small>SISTEMA DE ASISTENCIA</small></div>
+    <div>
+      <h1>Disponibilidad de permisos por día</h1>
+      <p>Consulta para supervisores · cuántos permisos hay pedidos cada día y si queda cupo en el turno</p>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="aviso"></div>
+
+  <div class="cards">
+    <div class="card"><div class="k">Permisos en el mes</div><div class="v" id="kTotal">—</div><div class="s" id="kTotalS">&nbsp;</div></div>
+    <div class="card"><div class="k">Días con permisos</div><div class="v" id="kDias">—</div><div class="s">en el mes consultado</div></div>
+    <div class="card"><div class="k">Día más cargado</div><div class="v" id="kTop">—</div><div class="s" id="kTopS">&nbsp;</div></div>
+  </div>
+
+  <div class="bar">
+    <div class="f"><label for="fMes">Mes</label><input type="month" id="fMes"></div>
+    <div class="f"><label for="fTurno">Turno</label><select id="fTurno"><option value="">Todos los turnos</option></select></div>
+    <div class="f"><label for="fQ">Buscar</label><input type="search" id="fQ" placeholder="Código o nombre…"></div>
+    <button id="btnVer">Actualizar</button>
+    <div class="spacer"></div>
+    <div class="stamp" id="stamp"></div>
+  </div>
+
+  <div class="tblwrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Turno</th>
+          <th>Fecha que requiere permiso</th>
+          <th>Código nombre</th>
+          <th class="num">Total</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"><tr><td colspan="4" class="msg">Cargando…</td></tr></tbody>
+      <tfoot id="tfoot"></tfoot>
+    </table>
+  </div>
+
+  <div class="hint">
+    <span class="t">Cupo del día:</span>
+    <span class="cupo c1">1 a 2 permisos</span>
+    <span class="cupo c2">3 a 4</span>
+    <span class="cupo c3">5 o más</span>
+  </div>
+  <div class="nota">
+    Se cuentan los permisos <b>de día completo</b> y las <b>medias jornadas</b> pedidos para cada fecha
+    (aprobados y pendientes). Las medias jornadas aparecen marcadas como <span class="pill media">½ jornada</span>:
+    la persona trabaja parte del día. Las vacaciones no se incluyen en este listado.
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL      = 'https://qvtztwqbbbzortkodtla.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2dHp0d3FiYmJ6b3J0a29kdGxhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0NDA4NTMsImV4cCI6MjA4OTAxNjg1M30.zMcRweclE46qwOCTduo7sLfduZxXjKvFLmim7nZyiok';
+
+let SB=null;
+function db(){ if(!SB) SB=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY); return SB; }
+
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const DIAS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+function iso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function hoyISO(){ return iso(new Date()); }
+function mesActual(){ return hoyISO().slice(0,7); }
+function fechaLarga(y){                       // "martes, 13 de 10 de 2026"
+  const d=new Date(y+'T12:00:00');
+  if(isNaN(d)) return y;
+  return DIAS[d.getDay()]+', '+d.getDate()+' de '+String(d.getMonth()+1).padStart(2,'0')+' de '+d.getFullYear();
+}
+function esc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function turnoLbl(t){
+  const s=String(t||'').trim().toUpperCase();
+  if(!s) return 'Sin turno';
+  return s.charAt(0)+s.slice(1).toLowerCase();   // DIA → Dia
+}
+
+// ── Datos ────────────────────────────────────────────────────────────────
+async function traer(mes){
+  // Se traen los registros y el mes se filtra en la página: así no depende del formato en que
+  // esté guardada la fecha en la base (el filtro por fecha en la consulta devolvía vacío).
+  const { data, error } = await db()
+    .from('solicitudes_permiso')
+    .select('id,codigo,nombre,turno,inicio,termino,tipo,tipo_permiso,estado,centro_costo')
+    .limit(4000);
+  if(error) throw error;
+  window._leidas=(data||[]).length;          // filas visibles para esta página (RLS)
+  return (data||[]).filter(function(r){
+    const t=String(r.tipo||'').toUpperCase();
+    if(t!=='COMPLETO' && t!=='MEDIA_JORNADA') return false;          // vacaciones aparte
+    const e=String(r.estado||'').toUpperCase();
+    if(e && e!=='APROBADO' && e!=='PENDIENTE' && e!=='EN CURSO') return false;
+    const f=String(r.inicio||'').slice(0,10);
+    return f.slice(0,7)===mes;                                      // solo el mes consultado
+  });
+}
+
+// ── Pintado ─────────────────────────────────────────────────────────────
+let _datos=[], _abiertos={}, _filtroTurno='', _q='';
+function agrupar(rows){
+  const out={};
+  rows.forEach(function(r){
+    const t=turnoLbl(r.turno);
+    const f=String(r.inicio).slice(0,10);
+    (out[t]=out[t]||{}); (out[t][f]=out[t][f]||[]).push(r);
+  });
+  Object.keys(out).forEach(function(t){
+    Object.keys(out[t]).forEach(function(f){
+      out[t][f].sort(function(a,b){ return String(a.nombre||'').localeCompare(String(b.nombre||''),'es'); });
+    });
+  });
+  return out;
+}
+function cupoClase(n){ return n<=2?'c1':(n<=4?'c2':'c3'); }
+function pintar(){
+  const tb=document.getElementById('tbody'), tf=document.getElementById('tfoot');
+  const rows=_datos.filter(function(r){
+    if(_filtroTurno && turnoLbl(r.turno)!==_filtroTurno) return false;
+    if(_q){
+      const q=_q.toLowerCase();
+      const s=(String(r.codigo||'')+' '+String(r.nombre||'')).toLowerCase();
+      if(s.indexOf(q)<0) return false;
+    }
+    return true;
+  });
+  if(!rows.length){
+    const nada=(window._leidas||0)===0 && !_q && !_filtroTurno;
+    tb.innerHTML='<tr><td colspan="4" class="msg">'+(nada
+      ? 'Esta página no puede leer los permisos: falta autorizar la lectura para supervisores (política de solo lectura en la base). Mientras tanto, ábrela con tu usuario desde el sistema.'
+      : 'No hay permisos pedidos en este mes con esos filtros.')+'</td></tr>';
+    tf.innerHTML=''; pintarKpis(rows); return;
+  }
+  const g=agrupar(rows);
+  const turnos=Object.keys(g).sort();
+  let html='', suma=0;
+  turnos.forEach(function(t){
+    const dias=Object.keys(g[t]).sort();
+    const totalTurno=dias.reduce(function(a,f){ return a+g[t][f].length; },0);
+    suma+=totalTurno;
+    html+='<tr class="turno"><td colspan="4">'+esc(t)+' · '+totalTurno+' permiso'+(totalTurno===1?'':'s')+'</td></tr>';
+    dias.forEach(function(f){
+      const lista=g[t][f], n=lista.length;
+      const abierto=_abiertos[t+'|'+f]!==false;               // por defecto abiertos
+      html+='<tr class="dia" data-g="'+esc(t+'|'+f)+'">'+
+              '<td><span class="tw">'+(abierto?'−':'+')+'</span></td>'+
+              '<td colspan="2">'+esc(fechaLarga(f))+'</td>'+
+              '<td class="num"><span class="cupo '+cupoClase(n)+'">'+n+'</span></td></tr>';
+      html+='<tr class="dia-total" data-g="'+esc(t+'|'+f)+'"><td></td><td colspan="2">Total '+esc(f)+'</td><td class="num"><span class="cnt">'+n+'</span></td></tr>';
+      lista.forEach(function(r){
+        const media=String(r.tipo||'').toUpperCase()==='MEDIA_JORNADA';
+        html+='<tr class="persona" data-g="'+esc(t+'|'+f)+'">'+
+                '<td></td><td></td>'+
+                '<td>'+esc(r.codigo)+' '+esc(r.nombre)+
+                  (media?'<span class="pill media">½ jornada</span>':(String(r.tipo_permiso||'').toUpperCase()==='PERSONAL'?'<span class="pill legal">Personal</span>':''))+
+                '</td><td class="num">1</td></tr>';
+      });
+    });
+    html+='<tr class="turno"><td colspan="3" style="text-align:right">Total '+esc(t)+'</td><td class="num">'+totalTurno+'</td></tr>';
+  });
+  tb.innerHTML=html;
+  tf.innerHTML='<tr class="total"><td colspan="3" style="text-align:right">Suma total</td><td class="num">'+suma+'</td></tr>';
+  // plegar/desplegar por día
+  tb.querySelectorAll('tr.dia').forEach(function(tr){
+    tr.addEventListener('click',function(){
+      const g2=tr.getAttribute('data-g');
+      _abiertos[g2]=_abiertos[g2]===false;                   // alterna
+      pintar();
+    });
+  });
+  pintarKpis(rows);
+}
+function pintarKpis(rows){
+  document.getElementById('kTotal').textContent=rows.length;
+  const porDia={};
+  rows.forEach(function(r){ const f=String(r.inicio).slice(0,10); porDia[f]=(porDia[f]||0)+1; });
+  const dias=Object.keys(porDia);
+  document.getElementById('kDias').textContent=dias.length;
+  const mes=document.getElementById('fMes').value;
+  document.getElementById('kTotalS').textContent=mes?('mes '+MESES[parseInt(mes.slice(5,7),10)-1]+' '+mes.slice(0,4)):'';
+  let top='—', topN=0;
+  dias.forEach(function(f){ if(porDia[f]>topN){ topN=porDia[f]; top=f; } });
+  document.getElementById('kTop').textContent=topN?topN:'—';
+  document.getElementById('kTopS').textContent=topN?(fechaLarga(top)):'';
+}
+
+// ── Arranque ────────────────────────────────────────────────────────────
+async function cargar(){
+  const tb=document.getElementById('tbody');
+  tb.innerHTML='<tr><td colspan="4" class="msg">Cargando…</td></tr>';
+  document.getElementById('aviso').innerHTML='';
+  try{
+    _datos=await traer(document.getElementById('fMes').value||mesActual());
+    const sel=document.getElementById('fTurno');
+    const turnos=Array.from(new Set(_datos.map(function(r){ return turnoLbl(r.turno); }))).sort();
+    sel.innerHTML='<option value="">Todos los turnos</option>'+turnos.map(function(t){ return '<option>'+esc(t)+'</option>'; }).join('');
+    sel.value=_filtroTurno;
+    document.getElementById('stamp').textContent='Actualizado '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+    pintar();
+  }catch(e){
+    tb.innerHTML='<tr><td colspan="4" class="msg">No se pudo leer la información.</td></tr>';
+    document.getElementById('aviso').innerHTML='<div class="err">Error al consultar la base: '+esc(e&&e.message?e.message:e)+'</div>';
+  }
+}
+document.getElementById('fMes').value=mesActual();
+document.getElementById('fMes').addEventListener('change',cargar);
+document.getElementById('fTurno').addEventListener('change',function(){ _filtroTurno=this.value; pintar(); });
+let _t=null;
+document.getElementById('fQ').addEventListener('input',function(){ _q=this.value.trim(); clearTimeout(_t); _t=setTimeout(pintar,160); });
+document.getElementById('btnVer').addEventListener('click',cargar);
+cargar();
+</script>
+</body>
+</html>
