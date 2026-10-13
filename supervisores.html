@@ -73,7 +73,7 @@
   <header>
     <div>
       <h1>Permisos por día</h1>
-      <p class="sub">Permisos <b>personales de día completo</b> pedidos desde hoy en adelante. Con un máximo de <b>2 cupos por día</b>: indica si el día <b>tiene cupo</b>, si quedó <b>completo</b> o si está <b>sobre cupo</b>.</p>
+      <p class="sub">Permisos <b>personales de día completo</b> pedidos desde hoy en adelante. Con un máximo de <b>2 cupos por día</b>: cada día muestra <b>cuántos cupos quedan</b> y avisa cuando está <b>sin cupos</b> o <b>sobre cupo</b>.</p>
     </div>
     <div class="stamp" id="stamp">Cargando…</div>
   </header>
@@ -90,8 +90,8 @@
   </div>
   <div class="leyenda">
     <span class="l">Referencias (2 cupos por día):</span>
-    <span class="l"><i class="a"></i> Hay cupo (0 o 1 permiso)</span>
-    <span class="l"><i class="b"></i> Cupo completo (2)</span>
+    <span class="l"><i class="a"></i> Quedan cupos</span>
+    <span class="l"><i class="b"></i> No quedan cupos (2 permisos)</span>
     <span class="l"><i class="c"></i> Sobre cupo (3 o más)</span>
   </div>
 </div>
@@ -113,10 +113,13 @@ function partes(iso){
 }
 // CUPO POR DÍA: la regla es de 2 cupos por día. Con 2 el día queda completo y desde 3 es SOBRE CUPO.
 const CUPO_POR_DIA = 2;
+// El aviso del día dice cuántos cupos QUEDAN. Con 2 permisos no quedan cupos y desde 3 es sobre cupo.
 function estadoDia(n){
-  if(n > CUPO_POR_DIA) return {t:'Sobre cupo', c:'no'};        // 3 o más
-  if(n >= CUPO_POR_DIA) return {t:'Cupo completo', c:'mid'};   // justo los 2
-  return {t:'Hay cupo', c:'ok'};                               // 0 o 1
+  const libre = CUPO_POR_DIA - n;
+  if(libre < 0) return {t:'Sobre cupo (+'+Math.abs(libre)+')', c:'no'};   // 3 o más
+  if(libre === 0) return {t:'No quedan cupos', c:'mid'};                 // los 2 ya usados
+  if(libre === 1) return {t:'Queda 1 cupo', c:'ok'};                     // 1 usado
+  return {t:'Quedan '+libre+' cupos', c:'ok'};                           // sin permisos
 }
 
 async function traer(){
