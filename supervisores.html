@@ -51,6 +51,7 @@
   .est{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:13.5px;border-radius:999px;padding:9px 16px;white-space:nowrap}
   .est .d{width:9px;height:9px;border-radius:999px;background:currentColor;box-shadow:0 0 0 4px rgba(0,0,0,.05)}
   .est.ok{background:var(--okbg);color:var(--ok)}
+  .est.mid{background:var(--warnbg);color:var(--warn)}
   .est.no{background:var(--badbg);color:var(--bad)}
   .numb{min-width:34px;text-align:center;font-weight:900;font-size:16px;color:var(--muted);font-variant-numeric:tabular-nums;background:var(--soft);border:1px solid var(--line);border-radius:11px;padding:6px 9px}
   .vacio{background:var(--card);border:1px dashed var(--line);border-radius:18px;padding:34px 24px;text-align:center;color:var(--muted)}
@@ -72,7 +73,7 @@
   <header>
     <div>
       <h1>Permisos por día</h1>
-      <p class="sub">Permisos <b>personales de día completo</b> pedidos desde hoy en adelante. Muestra si cada día <b>tiene cupo</b> o está <b>ocupado</b>, para revisar la disponibilidad antes de autorizar.</p>
+      <p class="sub">Permisos <b>personales de día completo</b> pedidos desde hoy en adelante. Con un máximo de <b>2 cupos por día</b>: indica si el día <b>tiene cupo</b>, si quedó <b>completo</b> o si está <b>sobre cupo</b>.</p>
     </div>
     <div class="stamp" id="stamp">Cargando…</div>
   </header>
@@ -88,9 +89,10 @@
     <div class="l" id="pieSub"></div>
   </div>
   <div class="leyenda">
-    <span class="l">Referencias:</span>
-    <span class="l"><i class="a"></i> Hay cupo · el número es la cantidad de permisos del día</span>
-    <span class="l"><i class="c"></i> Ocupado (3 o más permisos)</span>
+    <span class="l">Referencias (2 cupos por día):</span>
+    <span class="l"><i class="a"></i> Hay cupo (0 o 1 permiso)</span>
+    <span class="l"><i class="b"></i> Cupo completo (2)</span>
+    <span class="l"><i class="c"></i> Sobre cupo (3 o más)</span>
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -109,8 +111,13 @@ function partes(iso){
   if(isNaN(d)) return {f:iso,dow:''};
   return { f:d.getDate()+' de '+MESES[d.getMonth()], dow:DIAS[d.getDay()] };
 }
-// CUPO POR DÍA: desde este número de permisos el día queda "Ocupado" (ajustable en una línea)
-const CUPO_POR_DIA = 3;
+// CUPO POR DÍA: la regla es de 2 cupos por día. Con 2 el día queda completo y desde 3 es SOBRE CUPO.
+const CUPO_POR_DIA = 2;
+function estadoDia(n){
+  if(n > CUPO_POR_DIA) return {t:'Sobre cupo', c:'no'};        // 3 o más
+  if(n >= CUPO_POR_DIA) return {t:'Cupo completo', c:'mid'};   // justo los 2
+  return {t:'Hay cupo', c:'ok'};                               // 0 o 1
+}
 
 async function traer(){
   const { data, error } = await db()
@@ -169,12 +176,12 @@ function pintar(rows){
     html+='<section class="turno"><h2><span class="t"><span class="dot"></span>'+esc(t)+'</span>'+
           '<span class="tot">'+tot+' permiso'+(tot===1?'':'s')+'</span></h2>';
     fs.forEach(function(f){
-      const pers=g[t][f], n=pers.length, p=partes(f);
+      const pers=g[t][f], n=pers.length, p=partes(f), est=estadoDia(n);
       html+='<div class="dia'+(f===hoy?' hoy':'')+'">'+
         '<div class="col1"><div class="f">'+esc(p.f)+(f===hoy?'<span class="hoychip">HOY</span>':'')+'</div>'+
           '<div class="dow">'+esc(p.dow)+'</div></div>'+
         '<div class="col3">'+
-          '<span class="est '+(n<=CUPO_POR_DIA?'ok':'no')+'"><span class="d"></span>'+(n<=CUPO_POR_DIA?'Hay cupo':'Ocupado')+'</span>'+
+          '<span class="est '+est.c+'"><span class="d"></span>'+est.t+'</span>'+
           '<span class="numb">'+n+'</span></div>'+
       '</div>';
     });
