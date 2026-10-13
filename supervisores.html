@@ -118,7 +118,12 @@ function set(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; }
 function esc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function turnoLbl(t){
   const s=String(t||'').trim().toUpperCase();
-  if(!s) return 'Día';            // sin turno informado = jornada diurna (día completo)
+  // Un solo grupo por turno: "DIA" y el turno vacío son la MISMA jornada diurna (antes, "Dia" y
+  // "Día" quedaban como dos grupos distintos y el día aparecía repetido).
+  if(!s || s==='DIA' || s==='DÍA') return 'Día';
+  if(s==='TARDE') return 'Tarde';
+  if(s==='NOCHE') return 'Noche';
+  if(s==='MADRUGADA') return 'Madrugada';
   return s.charAt(0)+s.slice(1).toLowerCase();
 }
 function partes(iso){
