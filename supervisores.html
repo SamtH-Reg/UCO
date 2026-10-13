@@ -95,7 +95,11 @@ const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','
 function hoyISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function set(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; }
 function esc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function turnoLbl(t){ const s=String(t||'').trim().toUpperCase(); return s? s.charAt(0)+s.slice(1).toLowerCase() : 'Sin turno'; }
+function turnoLbl(t){
+  const s=String(t||'').trim().toUpperCase();
+  if(!s) return 'Día';            // sin turno informado = jornada diurna (día completo)
+  return s.charAt(0)+s.slice(1).toLowerCase();
+}
 function partes(iso){
   const d=new Date(String(iso).slice(0,10)+'T12:00:00');
   if(isNaN(d)) return {f:iso,dow:''};
@@ -156,6 +160,9 @@ function pintar(rows){
     return;
   }
   const g=agrupar(rows), hoy=hoyISO();
+  // Total de permisos por FECHA (todos los turnos): la regla de 2 cupos es por día
+  const cntDia={};
+  rows.forEach(function(r){ const f=String(r.inicio).slice(0,10); cntDia[f]=(cntDia[f]||0)+1; });
   let html='', suma=0;
   Object.keys(g).sort().forEach(function(t){
     const fs=Object.keys(g[t]).sort();
@@ -164,7 +171,9 @@ function pintar(rows){
     html+='<section class="turno"><h2><span class="t"><span class="dot"></span>'+esc(t)+'</span>'+
           '<span class="tot">'+tot+' permiso'+(tot===1?'':'s')+'</span></h2>';
     fs.forEach(function(f){
-      const pers=g[t][f], n=pers.length, p=partes(f), est=estadoDia(n);
+      const pers=g[t][f], p=partes(f);
+      const n=cntDia[f]||pers.length;              // el día completo (todos los turnos)
+      const est=estadoDia(n);
       html+='<div class="dia'+(f===hoy?' hoy':'')+'">'+
         '<div class="col1"><div class="f">'+esc(p.f)+(f===hoy?'<span class="hoychip">HOY</span>':'')+'</div>'+
           '<div class="dow">'+esc(p.dow)+'</div></div>'+
