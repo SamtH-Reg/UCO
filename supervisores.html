@@ -47,16 +47,12 @@
   .f{font-weight:800;font-size:15px;letter-spacing:-.01em}
   .dow{font-size:12.5px;color:var(--muted);text-transform:capitalize}
   .hoychip{display:inline-block;margin-left:8px;font-size:10px;font-weight:900;letter-spacing:.1em;color:#fff;background:var(--acc);border-radius:999px;padding:3px 8px;vertical-align:2px}
-  .col2{flex:1 1 320px;display:flex;flex-wrap:wrap;gap:7px;align-items:center;min-width:0}
-  .per{display:inline-flex;align-items:center;gap:7px;background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:5px 11px 5px 8px;font-size:12.5px;max-width:100%}
-  .per .cod{font-weight:800;color:var(--acc2);background:#e9f0ff;border-radius:999px;padding:1px 7px;font-size:11.5px}
-  .per .nm{color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:230px}
-  .col3{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;gap:10px}
-  .cupo{min-width:66px;text-align:center;font-weight:900;font-size:17px;border-radius:14px;padding:8px 12px;font-variant-numeric:tabular-nums;line-height:1.05}
-  .cupo.c1{background:var(--okbg);color:var(--ok)}
-  .cupo.c2{background:var(--warnbg);color:var(--warn)}
-  .cupo.c3{background:var(--badbg);color:var(--bad)}
-  .cupo small{display:block;font-size:9px;font-weight:900;letter-spacing:.07em;text-transform:uppercase;opacity:.85;margin-top:2px}
+  .col3{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;gap:9px}
+  .est{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:13.5px;border-radius:999px;padding:9px 16px;white-space:nowrap}
+  .est .d{width:9px;height:9px;border-radius:999px;background:currentColor;box-shadow:0 0 0 4px rgba(0,0,0,.05)}
+  .est.ok{background:var(--okbg);color:var(--ok)}
+  .est.no{background:var(--badbg);color:var(--bad)}
+  .numb{min-width:34px;text-align:center;font-weight:900;font-size:16px;color:var(--muted);font-variant-numeric:tabular-nums;background:var(--soft);border:1px solid var(--line);border-radius:11px;padding:6px 9px}
   .vacio{background:var(--card);border:1px dashed var(--line);border-radius:18px;padding:34px 24px;text-align:center;color:var(--muted)}
   .vacio b{color:var(--ink);display:block;font-size:16px;margin-bottom:6px}
   .err{margin-bottom:16px;padding:14px 16px;background:var(--badbg);border:1px solid #f6cdc8;border-radius:14px;color:#8f1d14;font-weight:600;font-size:13.5px}
@@ -76,7 +72,7 @@
   <header>
     <div>
       <h1>Permisos por día</h1>
-      <p class="sub">Permisos <b>personales de día completo</b> pedidos desde hoy en adelante: sirve para revisar la disponibilidad (cupo) de cada día antes de autorizar.</p>
+      <p class="sub">Permisos <b>personales de día completo</b> pedidos desde hoy en adelante. Muestra si cada día <b>tiene cupo</b> o está <b>ocupado</b>, para revisar la disponibilidad antes de autorizar.</p>
     </div>
     <div class="stamp" id="stamp">Cargando…</div>
   </header>
@@ -92,10 +88,9 @@
     <div class="l" id="pieSub"></div>
   </div>
   <div class="leyenda">
-    <span class="l">Cupo del día:</span>
-    <span class="l"><i class="a"></i> 1 a 2 permisos</span>
-    <span class="l"><i class="b"></i> 3 a 4</span>
-    <span class="l"><i class="c"></i> 5 o más</span>
+    <span class="l">Referencias:</span>
+    <span class="l"><i class="a"></i> Hay cupo · el número es la cantidad de permisos del día</span>
+    <span class="l"><i class="c"></i> Ocupado (3 o más permisos)</span>
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -114,8 +109,8 @@ function partes(iso){
   if(isNaN(d)) return {f:iso,dow:''};
   return { f:d.getDate()+' de '+MESES[d.getMonth()], dow:DIAS[d.getDay()] };
 }
-function cupoClase(n){ return n<=2?'c1':(n<=4?'c2':'c3'); }
-function cupoLbl(n){ return n<=2?'Disponible':(n<=4?'Atención':'Cargado'); }
+// CUPO POR DÍA: desde este número de permisos el día queda "Ocupado" (ajustable en una línea)
+const CUPO_POR_DIA = 3;
 
 async function traer(){
   const { data, error } = await db()
@@ -178,10 +173,9 @@ function pintar(rows){
       html+='<div class="dia'+(f===hoy?' hoy':'')+'">'+
         '<div class="col1"><div class="f">'+esc(p.f)+(f===hoy?'<span class="hoychip">HOY</span>':'')+'</div>'+
           '<div class="dow">'+esc(p.dow)+'</div></div>'+
-        '<div class="col2">'+pers.map(function(r){
-          return '<span class="per"><span class="cod">'+esc(r.codigo)+'</span><span class="nm">'+esc(r.nombre)+'</span></span>';
-        }).join('')+'</div>'+
-        '<div class="col3"><span class="cupo '+cupoClase(n)+'">'+n+'<small>'+cupoLbl(n)+'</small></span></div>'+
+        '<div class="col3">'+
+          '<span class="est '+(n<=CUPO_POR_DIA?'ok':'no')+'"><span class="d"></span>'+(n<=CUPO_POR_DIA?'Hay cupo':'Ocupado')+'</span>'+
+          '<span class="numb">'+n+'</span></div>'+
       '</div>';
     });
     html+='</section>';
