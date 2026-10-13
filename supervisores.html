@@ -69,13 +69,13 @@
     .turno{border-radius:15px;margin-bottom:14px}
     .turno>h2{padding:12px 15px;font-size:14px}
     .turno>h2 .tot{font-size:12px;padding:4px 10px}
-    .dia{padding:13px 15px;gap:9px}
-    .col1{flex:1 1 100%;min-width:0}              /* la fecha ocupa el ancho */
-    .f{font-size:16px}
+    .dia{padding:13px 15px;gap:10px;align-items:center;flex-wrap:nowrap}
+    .col1{flex:1 1 auto;min-width:0}               /* fecha + estado en el mismo renglón */
+    .f{font-size:16.5px}
     .dow{font-size:12.5px}
-    .col3{width:100%;margin-left:0;justify-content:space-between}
-    .est{font-size:13px;padding:9px 14px;flex:1 1 auto;justify-content:center}
-    .numb{min-width:46px;font-size:17px;padding:7px 10px}
+    .col3{flex:0 0 auto;margin-left:auto;width:auto}
+    .est{font-size:13.5px;padding:9px 14px}
+    .numb{min-width:44px;font-size:18px;padding:7px 10px}
     .pie{padding:15px 17px;border-radius:15px}
     .pie .n{font-size:27px}
     .leyenda{font-size:11px;gap:9px}
@@ -99,9 +99,9 @@
     <div class="l" id="pieSub"></div>
   </div>
   <div class="leyenda">
-    <span class="l">Referencias (2 cupos por día):</span>
-    <span class="l"><i class="a"></i> Quedan cupos</span>
-    <span class="l"><i class="b"></i> No quedan cupos (2 permisos)</span>
+    <span class="l">2 cupos por día:</span>
+    <span class="l"><i class="a"></i> Quedan 2 / Queda 1</span>
+    <span class="l"><i class="b"></i> Sin cupo (2 permisos)</span>
     <span class="l"><i class="c"></i> Sobre cupo (3 o más)</span>
   </div>
 </div>
@@ -131,10 +131,10 @@ const CUPO_POR_DIA = 2;
 // El aviso del día dice cuántos cupos QUEDAN. Con 2 permisos no quedan cupos y desde 3 es sobre cupo.
 function estadoDia(n){
   const libre = CUPO_POR_DIA - n;
-  if(libre < 0) return {t:'Sobre cupo (+'+Math.abs(libre)+')', c:'no'};   // 3 o más
-  if(libre === 0) return {t:'No quedan cupos', c:'mid'};                 // los 2 ya usados
-  if(libre === 1) return {t:'Queda 1 cupo', c:'ok'};                     // 1 usado
-  return {t:'Quedan '+libre+' cupos', c:'ok'};                           // sin permisos
+  if(libre < 0) return {t:'Sobre cupo +'+Math.abs(libre), c:'no'};        // 3 o más
+  if(libre === 0) return {t:'Sin cupo', c:'mid'};                        // los 2 ya usados
+  if(libre === 1) return {t:'Queda 1', c:'ok'};                          // 1 usado
+  return {t:'Quedan '+libre, c:'ok'};                                    // sin permisos
 }
 
 async function traer(){
