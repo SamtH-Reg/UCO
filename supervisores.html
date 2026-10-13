@@ -142,16 +142,11 @@ function agrupar(rows){
 }
 function pintar(rows){
   const lista=document.getElementById('lista'), pie=document.getElementById('pie');
-  set('kTotal',rows.length);
-  set('kTotalS',rows.length?'':'sin permisos pedidos por ahora';
   const porDia={};
   rows.forEach(function(r){ const f=String(r.inicio).slice(0,10); porDia[f]=(porDia[f]||0)+1; });
   const dias=Object.keys(porDia);
-  set('kDias',dias.length;
   let top='', topN=0;
   dias.forEach(function(f){ if(porDia[f]>topN){ topN=porDia[f]; top=f; } });
-  set('kTop',topN||'—');
-  set('kTopS',topN?((partes(top).dow+' '+partes(top).f)):'';
   if(!rows.length){
     const nada=(window._leidas||0)===0;
     lista.innerHTML='<div class="vacio"><b>'+(nada?'La pagina no puede leer los permisos todavia':'No hay permisos personales pedidos desde hoy')+'</b>'+
