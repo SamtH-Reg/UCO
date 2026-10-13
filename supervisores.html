@@ -28,11 +28,6 @@
   .sub{margin:8px 0 0;color:var(--muted);font-size:13.5px;max-width:610px}
   .stamp{font-size:12px;color:var(--muted);background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 14px;box-shadow:0 1px 3px rgba(15,30,51,.06);white-space:nowrap}
   .stamp b{color:var(--ink)}
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:22px}
-  .stat{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:15px 18px;box-shadow:0 10px 26px -20px rgba(15,30,51,.5)}
-  .stat .k{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}
-  .stat .v{font-size:29px;font-weight:800;letter-spacing:-.02em;margin-top:5px;font-variant-numeric:tabular-nums}
-  .stat .s{font-size:12px;color:var(--muted);margin-top:1px}
   .turno{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-bottom:18px;box-shadow:0 14px 34px -26px rgba(15,30,51,.55)}
   .turno>h2{margin:0;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;
     background:linear-gradient(90deg,#f8fbff,#eff5ff);border-bottom:1px solid var(--line);font-size:14.5px;font-weight:800}
@@ -73,16 +68,10 @@
   <header>
     <div>
       <h1>Permisos por día</h1>
-      <p class="sub">Permisos <b>personales de día completo</b> pedidos desde hoy en adelante. Con un máximo de <b>2 cupos por día</b>: cada día muestra <b>cuántos cupos quedan</b> y avisa cuando está <b>sin cupos</b> o <b>sobre cupo</b>.</p>
     </div>
     <div class="stamp" id="stamp">Cargando…</div>
   </header>
   <div id="aviso"></div>
-  <div class="stats">
-    <div class="stat"><div class="k">Permisos desde hoy</div><div class="v" id="kTotal">—</div><div class="s" id="kTotalS">&nbsp;</div></div>
-    <div class="stat"><div class="k">Días con permisos</div><div class="v" id="kDias">—</div><div class="s">días hacia adelante</div></div>
-    <div class="stat"><div class="k">Día más cargado</div><div class="v" id="kTop">—</div><div class="s" id="kTopS">&nbsp;</div></div>
-  </div>
   <div id="lista"></div>
   <div class="pie" id="pie" style="display:none">
     <div><div class="l">Suma total</div><div class="n" id="kSuma">0</div></div>
@@ -104,6 +93,7 @@ function db(){ if(!SB) SB=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const DIAS=['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
 const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 function hoyISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function set(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; }
 function esc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function turnoLbl(t){ const s=String(t||'').trim().toUpperCase(); return s? s.charAt(0)+s.slice(1).toLowerCase() : 'Sin turno'; }
 function partes(iso){
@@ -123,15 +113,15 @@ function estadoDia(n){
 }
 
 async function traer(){
-  const { data, error } = await db()
-    .from('solicitudes_permiso')
-    .select('id,codigo,nombre,turno,inicio,tipo,tipo_permiso,estado')
-    .limit(4000);
-  if(error) throw error;
-  window._leidas=(data||[]).length;
+  // Primero intenta la vista de solo lectura (permisos_supervisores). Si aún no existe, usa la tabla.
+  let r = await db().from('permisos_supervisores').select('codigo,nombre,turno,inicio,tipo_permiso,estado').limit(4000);
+  if(r.error) r = await db().from('solicitudes_permiso').select('id,codigo,nombre,turno,inicio,tipo,tipo_permiso,estado').limit(4000);
+  if(r.error) throw r.error;
+  const data=r.data||[];
+  window._leidas=data.length;
   const hoy=hoyISO();
-  return (data||[]).filter(function(r){
-    if(String(r.tipo||'').toUpperCase()!=='COMPLETO') return false;
+  return data.filter(function(r){
+    if(r.tipo && String(r.tipo).toUpperCase()!=='COMPLETO') return false;      // la vista ya viene filtrada
     if(String(r.tipo_permiso||'').toUpperCase()!=='PERSONAL') return false;
     const e=String(r.estado||'').toUpperCase();
     if(e && e!=='APROBADO' && e!=='PENDIENTE') return false;
@@ -152,16 +142,16 @@ function agrupar(rows){
 }
 function pintar(rows){
   const lista=document.getElementById('lista'), pie=document.getElementById('pie');
-  document.getElementById('kTotal').textContent=rows.length;
-  document.getElementById('kTotalS').textContent=rows.length?'':'sin permisos pedidos por ahora';
+  set('kTotal',rows.length);
+  set('kTotalS',rows.length?'':'sin permisos pedidos por ahora';
   const porDia={};
   rows.forEach(function(r){ const f=String(r.inicio).slice(0,10); porDia[f]=(porDia[f]||0)+1; });
   const dias=Object.keys(porDia);
-  document.getElementById('kDias').textContent=dias.length;
+  set('kDias',dias.length;
   let top='', topN=0;
   dias.forEach(function(f){ if(porDia[f]>topN){ topN=porDia[f]; top=f; } });
-  document.getElementById('kTop').textContent=topN||'—';
-  document.getElementById('kTopS').textContent=topN?((partes(top).dow+' '+partes(top).f)):'';
+  set('kTop',topN||'—');
+  set('kTopS',topN?((partes(top).dow+' '+partes(top).f)):'';
   if(!rows.length){
     const nada=(window._leidas||0)===0;
     lista.innerHTML='<div class="vacio"><b>'+(nada?'La pagina no puede leer los permisos todavia':'No hay permisos personales pedidos desde hoy')+'</b>'+
