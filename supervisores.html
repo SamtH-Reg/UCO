@@ -144,12 +144,20 @@ function estadoDia(n){
 
 async function traer(){
   // Primero intenta la vista de solo lectura (permisos_supervisores). Si aún no existe, usa la tabla.
-  let r = await db().from('permisos_supervisores').select('codigo,nombre,turno,inicio,tipo_permiso,estado').limit(4000);
-  if(r.error) r = await db().from('solicitudes_permiso').select('id,codigo,nombre,turno,inicio,tipo,tipo_permiso,estado').limit(4000);
+  // IMPORTANTE: se pide a la base SOLO desde hoy en adelante. La vista tiene todo el histórico y,
+  // pidiendo sin filtro, el límite de filas cortaba antes de llegar a los días actuales/futuros.
+  const hoy=hoyISO();
+  let r = await db().from('permisos_supervisores')
+      .select('codigo,nombre,turno,inicio,tipo_permiso,estado')
+      .gte('inicio', hoy).order('inicio',{ascending:true}).limit(2000);
+  if(r.error){
+    r = await db().from('solicitudes_permiso')
+        .select('id,codigo,nombre,turno,inicio,tipo,tipo_permiso,estado')
+        .gte('inicio', hoy).order('inicio',{ascending:true}).limit(2000);
+  }
   if(r.error) throw r.error;
   const data=r.data||[];
   window._leidas=data.length;
-  const hoy=hoyISO();
   return data.filter(function(r){
     if(r.tipo && String(r.tipo).toUpperCase()!=='COMPLETO') return false;      // la vista ya viene filtrada
     if(String(r.tipo_permiso||'').toUpperCase()!=='PERSONAL') return false;
