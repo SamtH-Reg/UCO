@@ -1421,6 +1421,9 @@ function _recalcTomar(){
 function _setTomar(bucket, val){
   var disp=_dispPorBolsa(); if(!disp) return;
   var max=(bucket==='base')?disp.base:(bucket==='prog'?disp.prog:disp.sind);
+  // RESERVA DE FECHAS: en legales se puede marcar más que el disponible (el saldo queda pendiente
+  // y se cubre con el devengo). El progresivo y los sindicales mantienen su tope.
+  if(bucket==='base') max=_topeSel(max);
   if(_editSolId && bucket!=='prog'){   // al editar, base/sind nunca quedan por debajo de lo guardado
     var cur=(bucket==='base')?(_form.tomarBase||0):(_form.tomarSind||0);
     max=Math.max(max,cur);
