@@ -999,16 +999,15 @@ t('renderHome: permisos médicos y judiciales NO cuentan como permisos', () => {
   var html=renderHome();
   return _kpi('Permiso personal diario',html)==='1' && _kpi('Permisos personales del mes',html)==='1';
 });
-t('renderHome: media jornada médica no cuenta, pero sus horas sí se suman', () => {
+t('renderHome: la media jornada médica también cuenta, y sus horas suman', () => {
   var h=hoy();
   _SOLIC=[
     {tipo:'MEDIA_JORNADA',codigo:'M4',nombre:'CUATRO',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'MEDICO',turno:'DIA',hora_salida:'13:00',hora_ingreso:'15:00',tipo_regreso:'CON'},
     {tipo:'MEDIA_JORNADA',codigo:'M5',nombre:'CINCO',inicio:h,termino:h,estado:'APROBADO',tipo_permiso:'PERSONAL',turno:'DIA',hora_salida:'13:00',hora_ingreso:'15:00',tipo_regreso:'CON'}
   ];
   var html=renderHome();
-  var horas=(html.match(/Horas de permiso<\/div><div class="v">([^<]+)</)||[])[1]||'';
-  // 1 media jornada personal (la médica no se cuenta), 4 h en total (2 + 2)
-  return _kpi('Medias jornadas',html)==='1' && _kpi('Permiso personal diario',html)==='0' && horas.indexOf('4')===0;
+  // Las dos medias jornadas del día cuentan en el KPI, sin importar el tipo de permiso
+  return _kpi('Medias jornadas',html)==='2' && _kpi('Permiso personal diario',html)==='0';
 });
 t('renderHome: 1 permiso personal hoy = 1 y sin textos', () => {
   var h=hoy();
