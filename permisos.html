@@ -1187,8 +1187,22 @@ function _tomadosEnPeriodo(emp, i, excluirId){
 // permitan cifras distintas (antes el formulario usaba el devengo del período en
 // curso sin descontar lo tomado, y el modal el acumulado de períodos cerrados).
 // ── Saldo de las personas de la BASE OFICIAL de vacaciones (planilla de RRHH) ──────────
-// Arranca en el saldo real al corte y sigue devengando con los días por mes de la planilla.
+// Arranca en la base oficial de RRHH (legales + progresivos, al corte) y sigue devengando con los
+// días por mes de la planilla. Se descuenta lo TOMADO dentro del período vacacional vigente (desde
+// el último aniversario de ingreso), aunque sea anterior al corte: los "cumplidos" de RRHH son lo
+// devengado, no el saldo, así que las vacaciones ya tomadas deben descontarse.
 // Las vacaciones PROGRAMADAS (con inicio futuro) NO se descuentan: no afectan el cálculo.
+// Inicio del período vacacional vigente: el año de vacaciones corre con la fecha de ingreso,
+// así que es el último aniversario de ingreso (01-10-1987 → 01-10-2026 si hoy es octubre 2026).
+function _inicioPeriodoVac(ing, hIso){
+  try{
+    var i=String(ing||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(i)) return null;
+    var md=i.slice(5,10), cand=hIso.slice(0,4)+'-'+md;
+    if(cand>hIso) cand=(Number(hIso.slice(0,4))-1)+'-'+md;
+    return cand;
+  }catch(e){ return null; }
+}
 function _saldoBaseOficial(emp, excluirId){
   var r=function(x){ return Math.round(x*100)/100; };
   var corte=emp.vacCorte?String(emp.vacCorte).slice(0,10):null;
@@ -1204,6 +1218,7 @@ function _saldoBaseOficial(emp, excluirId){
   var rp=(emp.vacProgMes!=null?Number(emp.vacProgMes):0);
   var devengadoL=leg0+rl*meses, devengadoP=prg0+rp*meses;
   var devengado=devengadoL+devengadoP;
+  var perIni=_inicioPeriodoVac(emp.ing, hIso);       // período vacacional vigente (por fecha de ingreso)
   var cod=String(emp.c||'').trim().toUpperCase(), tomadoL=0, tomadoP=0;
   (typeof _SOLIC!=='undefined'?_SOLIC:[]).forEach(function(s){
     if(String(s.tipo||'')!=='VACACIONES') return;
@@ -1211,13 +1226,13 @@ function _saldoBaseOficial(emp, excluirId){
     if(excluirId && String(s.id)===String(excluirId)) return;
     var ini=String(s.inicio||'').slice(0,10);
     if(!ini || ini>hIso) return;                       // programadas a futuro: no descuentan
-    if(corte && ini<=corte) return;                    // anteriores al corte: ya vienen descontadas en el saldo de la planilla
+    if(perIni && ini<perIni) return;                   // de períodos anteriores: no afectan este saldo
     var db_=parseFloat(s.dias_base), dp_=parseFloat(s.dias_progresivo);
     if(db_>0 || dp_>0){ tomadoL+=(db_>0?db_:0); tomadoP+=(dp_>0?dp_:0); }
     else { var d=parseFloat(s.dias_habiles); if(!(d>0)) d=1; tomadoL+=d; }
   });
   // SINDICALES: no vienen en la planilla, son un acuerdo (5 días al año). Se respeta lo que se
-  // escriba con el lápiz (sindOverride) y se descuentan los días sindicales ya pedidos tras el corte.
+  // escriba con el lápiz (sindOverride) y se descuentan los días sindicales ya pedidos (mismo período).
   var sindAsig=(emp.sindOverride!=null?Number(emp.sindOverride):DIAS_SINDICALES);
   if(!(sindAsig>=0)) sindAsig=DIAS_SINDICALES;
   var tomadoS=0;
@@ -1227,7 +1242,7 @@ function _saldoBaseOficial(emp, excluirId){
     if(excluirId && String(s.id)===String(excluirId)) return;
     var ini=String(s.inicio||'').slice(0,10);
     if(!ini || ini>hIso) return;
-    if(corte && ini<=corte) return;
+    if(perIni && ini<perIni) return;
     var ds=parseFloat(s.dias_sindical); if(ds>0) tomadoS+=ds;
   });
   var dispS=Math.max(0, sindAsig-tomadoS);
