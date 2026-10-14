@@ -1430,7 +1430,7 @@ function _setTomar(bucket, val){
   _form.dias=(_form.tomarBase||0)+(_form.tomarProg||0)+(_form.tomarSind||0);
   render();
 }
-function _tomarTodo(){
+function _tomarTodo(){  // toma el saldo disponible real
   var d=_dispPorBolsa(); if(!d) return;
   _form.tomarBase=d.base; _form.tomarProg=d.prog; _form.tomarSind=d.sind;
   _form.dias=d.base+d.prog+d.sind;
@@ -2703,13 +2703,19 @@ function renderForm(){
         _progd=Math.round((uFut.base+uFut.prog+uFut.sind)*100)/100;
         // Devengado acumulado (sin sindicales: no forman saldo legal)
         _saldoReal=Math.round((saldo.devengado.base+saldo.devengado.prog)*100)/100;
-        if((f.tomarProg||0)>dProg) f.tomarProg=dProg;
-        if(!_editSolId){   // al editar se conservan base/sindicales aunque el saldo esté sobregirado
-          if((f.tomarBase||0)>dBase) f.tomarBase=dBase;
+        // RESERVAR FECHAS: se permite marcar más días que el saldo disponible (p. ej. reservar para
+        // febrero de 2027 y que se vaya cubriendo con el devengo). La lógica de sumar/descontar no
+        // cambia: el saldo solo puede quedar pendiente (negativo) y la app lo avisa en pantalla.
+        var _saldoReal=Math.round((dBase+dProg)*100)/100;
+        var _tope=Math.max(_saldoReal, 45);            // tope de seguridad del formulario
+        if((f.tomarProg||0)>_tope) f.tomarProg=_tope;
+        if(!_editSolId){
+          if((f.tomarBase||0)>_tope) f.tomarBase=_tope;
           if((f.tomarSind||0)>dSind) f.tomarSind=dSind;
         }
         f.dias=(f.tomarBase||0)+(f.tomarProg||0)+(f.tomarSind||0);
-        f.maxDias=Math.round((dBase+dProg)*100)/100;   // el saldo no incluye sindicales
+        f.maxDias=_tope;                                // hasta dónde deja marcar el formulario
+        f.saldoReal=_saldoReal;                         // saldo disponible real (para avisar)
         fInfo=_diasRow('base','Feriados Legales','#4B44C9',asig.base,uso.base,dBase,f.tomarBase||0,FERIADO_BASE,true,{dev:saldo.devengado.base,tom:saldo.tomado.base})+
           _diasRow('prog','Progresivo','#16794E',asig.prog,uso.prog,dProg,f.tomarProg||0,progAuto,true,{dev:saldo.devengado.prog,tom:saldo.tomado.prog})+
           _diasRow('sind','Sindicales','#9A6516',asig.sind,uso.sind,dSind,f.tomarSind||0,DIAS_SINDICALES,true,{dev:saldo.devengado.sind,tom:saldo.tomado.sind});
@@ -2772,12 +2778,13 @@ function renderForm(){
       fInfo+
       '<div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;margin-top:4px;border-top:2px solid var(--border)"><span style="font-size:13.5px;font-weight:600">Total solicitado</span>'+
         '<span style="font-size:26px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums">'+f.dias+'</span></div>'+
-      (f.maxDias!=null?'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px"><span style="font-size:11.5px;color:var(--hint)">Disponible total: <b style="color:var(--accent)">'+f.maxDias+' días</b></span><button class="btn btn-ghost btn-sm" onclick="_tomarTodo()">Tomar todo</button></div>':'')+
+      (f.maxDias!=null?'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px"><span style="font-size:11.5px;color:var(--hint)">Disponible total: <b style="color:var(--accent)">'+_chartVal(f.saldoReal!=null?f.saldoReal:f.maxDias)+' días</b></span><button class="btn btn-ghost btn-sm" onclick="_tomarTodo()">Tomar todo</button></div>':'')+
+      ((f.maxDias!=null && (f.dias||0)>(f.saldoReal||0))?'<div class="notice" style="margin-top:8px;border-left:3px solid var(--orange,#C2701B)">📌 Reserva de <b>'+_chartVal(f.dias)+' días</b>: al saldo disponible ('+_chartVal(f.saldoReal)+') le faltan <b>'+_chartVal(Math.round(((f.dias||0)-(f.saldoReal||0))*100)/100)+' días</b>, que se cubren con lo que se devengue hasta la fecha pedida. El saldo quedará pendiente.</div>':'')+
       ((_saldoReal!=null)?('<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px">'+
         '<div style="background:var(--oj-soft);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--oj)">Programadas</div><div style="font-size:19px;font-weight:700;color:var(--oj);font-variant-numeric:tabular-nums">'+_chartVal(_progd)+'</div></div>'+
         '<div style="background:var(--surface3);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--hint)">Proporcional</div><div style="font-size:19px;font-weight:700;font-variant-numeric:tabular-nums">'+(_prop?_chartVal(Math.round(_prop.dias)):'—')+'</div></div>'+
         '<div style="background:var(--surface3);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--hint)">Devengado</div><div style="font-size:19px;font-weight:700;font-variant-numeric:tabular-nums">'+_chartVal(_saldoReal)+'</div></div>'+
-        '<div style="background:var(--green-soft);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--green)">Quedan</div><div style="font-size:19px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums">'+_chartVal(f.maxDias)+'</div></div>'+
+        '<div style="background:var(--green-soft);border-radius:11px;padding:9px 11px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--green)">Quedan</div><div style="font-size:19px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums">'+_chartVal(f.saldoReal!=null?f.saldoReal:f.maxDias)+'</div></div>'+
       '</div><div style="font-size:10.5px;color:var(--hint);margin-top:6px">Programadas = vacaciones futuras · Proporcional = devengado del período en curso (Art. 67/68) · Devengado = acumulado de todos los períodos · Quedan = disponible que puedes solicitar hoy</div>'):'')+
       '<div style="font-size:11px;color:var(--hint);margin-top:8px">Lunes a viernes, sin feriados. El día 1 cuenta. El ✎ permite editar los días negociables.</div>'+
       '<button class="btn btn-secondary" style="width:100%;margin-top:10px" onclick="generarPapeletas()" title="Genera la papeleta con lo que tienes en el formulario: empleado, inicio y días marcados">📄 Generar papeleta</button>'+
