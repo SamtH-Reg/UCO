@@ -2062,8 +2062,11 @@ function renderHome(){
     }
     else if(s.tipo==='MEDIA_JORNADA'){
       var hh=parseFloat(calcularHorasPermiso(s))||0;
-      if(enMes && turnoOK){ horas+=hh; mesMediaTodas.push(s); if(cuenta){ nMesMedia++; } }
-      if(enHoy && turnoOK){ dHoras+=hh; if(cuenta){ nHoyMedia++; } }
+      // El KPI "Medias jornadas" cuenta TODAS las medias jornadas del día/mes (personales, médicas
+      // y judiciales), igual que "Horas de permiso": si el permiso existe, se ve. Antes se excluían
+      // las médicas y judiciales de este contador.
+      if(enMes && turnoOK){ horas+=hh; mesMediaTodas.push(s); nMesMedia++; }
+      if(enHoy && turnoOK){ dHoras+=hh; nHoyMedia++; }
     }
     else if(s.tipo==='VACACIONES'){ if(estadoDe(s)==='EN CURSO') vac++; }   // en curso (no por mes)
   });
