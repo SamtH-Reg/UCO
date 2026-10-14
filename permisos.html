@@ -2708,9 +2708,9 @@ function renderForm(){
         // cambia: el saldo solo puede quedar pendiente (negativo) y la app lo avisa en pantalla.
         var _saldoReal=Math.round((dBase+dProg)*100)/100;
         var _tope=Math.max(_saldoReal, 45);            // tope de seguridad del formulario
-        if((f.tomarProg||0)>_tope) f.tomarProg=_tope;
-        if(!_editSolId){
-          if((f.tomarBase||0)>_tope) f.tomarBase=_tope;
+        if((f.tomarProg||0)>dProg) f.tomarProg=dProg;      // el progresivo se recalcula por ley (sin cambios)
+        if(!_editSolId){   // al editar se conservan base/sindicales aunque el saldo esté sobregirado
+          if((f.tomarBase||0)>_tope) f.tomarBase=_tope;    // se puede reservar más que el saldo (queda pendiente)
           if((f.tomarSind||0)>dSind) f.tomarSind=dSind;
         }
         f.dias=(f.tomarBase||0)+(f.tomarProg||0)+(f.tomarSind||0);
