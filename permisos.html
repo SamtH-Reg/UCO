@@ -1692,6 +1692,13 @@ async function generarPapeletaRegistro(id){
 // Alias compatible
 function generarPapeleta(){ return generarPapeletas(); }
 // Fila compacta de una bolsa (con stepper para tomar y ✎ para editar el asignado)
+// Tope para marcar días en el formulario: el saldo disponible puede ser 0 y aun así se permite
+// RESERVAR fechas (el saldo queda pendiente y se cubre con el devengo). No cambia el cálculo.
+function _topeSel(disp){
+  var t=(window._maxSel!=null?window._maxSel:null);
+  if(t==null || isNaN(t)) return disp;
+  return Math.max(Number(disp)||0, Number(t)||0);
+}
 function _diasRow(key,lbl,color,asig,uso,disp,tomar,auto,editable,acum){
   var fD=function(n){ return (n==null||isNaN(n))?'—':String(Math.round(n*100)/100).replace('.',','); };
   var autoHint=(auto!=null && asig!==auto) ? ' · automático '+fD(auto) : '';
@@ -1705,7 +1712,7 @@ function _diasRow(key,lbl,color,asig,uso,disp,tomar,auto,editable,acum){
     '<div style="display:flex;align-items:center;gap:2px;background:var(--surface3);border-radius:10px;padding:2px">'+
       '<button class="btn-ghost" style="width:30px;height:30px;padding:0;border-radius:8px;font-size:16px" onclick="_setTomar(\''+key+'\',Math.max(0,('+tomar+')-1))">−</button>'+
       '<div style="min-width:30px;text-align:center;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums">'+tomar+'</div>'+
-      '<button class="btn-ghost" style="width:30px;height:30px;padding:0;border-radius:8px;font-size:16px" onclick="_setTomar(\''+key+'\',Math.min('+disp+',('+tomar+')+1))">+</button>'+
+      '<button class="btn-ghost" style="width:30px;height:30px;padding:0;border-radius:8px;font-size:16px" onclick="_setTomar(\''+key+'\',Math.min(_topeSel('+disp+'),('+tomar+')+1))">+</button>'+
     '</div></div>';
 }
 function editarAsignado(bucket){
@@ -2716,6 +2723,7 @@ function renderForm(){
         f.dias=(f.tomarBase||0)+(f.tomarProg||0)+(f.tomarSind||0);
         f.maxDias=_tope;                                // hasta dónde deja marcar el formulario
         f.saldoReal=_saldoReal;                         // saldo disponible real (para avisar)
+        window._maxSel=_tope;                           // el botón + del formulario usa este tope
         fInfo=_diasRow('base','Feriados Legales','#4B44C9',asig.base,uso.base,dBase,f.tomarBase||0,FERIADO_BASE,true,{dev:saldo.devengado.base,tom:saldo.tomado.base})+
           _diasRow('prog','Progresivo','#16794E',asig.prog,uso.prog,dProg,f.tomarProg||0,progAuto,true,{dev:saldo.devengado.prog,tom:saldo.tomado.prog})+
           _diasRow('sind','Sindicales','#9A6516',asig.sind,uso.sind,dSind,f.tomarSind||0,DIAS_SINDICALES,true,{dev:saldo.devengado.sind,tom:saldo.tomado.sind});
