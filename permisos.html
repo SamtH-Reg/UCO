@@ -921,6 +921,23 @@ async function cargarDatosBase(){
     vacLegMes:(e.vacaciones_legal_por_mes!=null?Number(e.vacaciones_legal_por_mes):null),
     vacProgMes:(e.vacaciones_progresivo_por_mes!=null?Number(e.vacaciones_progresivo_por_mes):null)}; }
   _EMP=(empRes.data||[]).map(_mapEmp);
+  // ── PERSONAL DE ASEO ────────────────────────────────────────────────────────────────
+  // Sus códigos viven en la lista 'noregistrar' y en empleados quedan INACTIVOS (no entran al
+  // control de asistencia diaria porque envían su asistencia por otra vía). Aun así deben poder
+  // recibir permisos, así que se suman a la lista de empleados buscables del formulario.
+  // (No se activan: siguen fuera del control y de la revisión de asistencia.)
+  try{
+    var _nr=await d.from('noregistrar').select('codigo');
+    var _cods=(_nr && _nr.data || []).map(function(r){ return String(r.codigo||'').trim().toUpperCase(); }).filter(Boolean);
+    if(_cods.length){
+      var _ya={}; (_EMP||[]).forEach(function(e){ _ya[String(e.c||'').trim().toUpperCase()]=1; });
+      var _falta=_cods.filter(function(c){ return !_ya[c]; });
+      if(_falta.length){
+        var _eme=await d.from('empleados').select('*').in('codigo',_falta);
+        ((_eme && _eme.data) || []).forEach(function(e){ var m=_mapEmp(e); m.aseo=true; _EMP.push(m); });
+      }
+    }
+  }catch(e){ console.warn('[personal aseo]', e && e.message); }
   _EMP_EXCL=(!ueRes.error&&ueRes.data)?ueRes.data.map(_mapEmp):[];
   // Empleados INACTIVOS: para vacaciones también aplican (los indefinidos y los de la base de RRHH)
   try{
