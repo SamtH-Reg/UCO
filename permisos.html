@@ -5098,5 +5098,79 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape') closePick();
 });
 </script>
+<script>
+/* ── GUARDIA DE SESIÓN ────────────────────────────────────────────────────────────────────
+   Si el token de la sesión vence, antes la app quedaba "sin datos" (SELECT vacío) y los envíos
+   rebotaban con "new row violates row-level security policy". Ahora: 1) al cargar se revisa y
+   renueva la sesión; 2) si la base rechaza por sesión inválida, se avisa claro y se pide volver
+   a ingresar, en vez de mostrar 0 o el error técnico.
+   ---------------------------------------------------------------------------------------- */
+(function(){
+  function avisar(t){ try{ if(typeof toast==='function') toast(t,'warn',15000); else console.warn(t); }catch(e){ console.warn(t); } }
+  function pedirIngreso(msg){
+    avisar(msg);
+    try{
+      var l=document.getElementById('loginScreen'); if(l) l.classList.remove('hidden');
+      var a=document.getElementById('app');          if(a) a.classList.add('hidden');
+      window.scrollTo(0,0);
+    }catch(e){}
+  }
+  window._pedirIngreso=pedirIngreso;
+  function chequear(cli){
+    try{
+      if(!cli || !cli.auth || !cli.auth.getSession) return;
+      cli.auth.getSession().then(function(r){
+        var ss=r && r.data && r.data.session;
+        if(!ss){ pedirIngreso('Tu sesión terminó. Vuelve a ingresar para ver y enviar registros.'); return; }
+        var exp=ss.expires_at ? ss.expires_at*1000 : 0;
+        if(exp && (exp-Date.now())<300000){
+          cli.auth.refreshSession().then(function(rr){
+            if(rr && (rr.error || !(rr.data && rr.data.session))) pedirIngreso('Tu sesión venció y no se pudo renovar. Vuelve a ingresar.');
+            else console.log('[sesion] renovada');
+          }).catch(function(){ pedirIngreso('Tu sesión venció. Vuelve a ingresar.'); });
+        }
+      }).catch(function(){});
+    }catch(e){ console.warn('[sesion]', e && e.message); }
+  }
+  function revisar(){
+    try{
+      if(typeof _sbClient!=='undefined' && _sbClient){ chequear(_sbClient); return; }
+      if(typeof dbReady==='function'){ dbReady().then(chequear).catch(function(){}); }
+    }catch(e){ console.warn('[sesion]', e && e.message); }
+  }
+  var _ult=0;
+  function envolver(){
+    if(window.__sesionHook) return; window.__sesionHook=true;
+    var orig=window.fetch;
+    if(typeof orig==='function'){
+      window.fetch=function(){
+        var self=this, args=arguments;
+        return orig.apply(self,args).then(function(resp){
+          try{
+            if(resp && (resp.status===401 || resp.status===403) && (Date.now()-_ult>60000)){
+              _ult=Date.now(); pedirIngreso('Tu sesión expiró: la base rechazó la operación. Vuelve a ingresar.');
+            }
+          }catch(e){}
+          return resp;
+        });
+      };
+    }
+    var _t=window.toast;
+    if(typeof _t==='function'){
+      window.toast=function(msg, tipo, ms){
+        try{
+          if(typeof msg==='string' && /row-level security|violates row-level/i.test(msg)){
+            pedirIngreso('Tu sesión venció: vuelve a ingresar y reintenta el envío. (El registro NO se guardó.)');
+            return;
+          }
+        }catch(e){}
+        return _t.call(this, msg, tipo, ms);
+      };
+    }
+  }
+  function init(){ envolver(); setTimeout(revisar, 1200); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
 </body>
 </html>
