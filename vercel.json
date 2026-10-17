@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/asistencia",
-      "destination": "/index.html"
+      "destination": "/"
     }
   ],
   "headers": [
