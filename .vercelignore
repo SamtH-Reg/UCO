@@ -1,0 +1,10 @@
+# Archivos que NO se publican en Vercel (se quedan en el repo).
+# Las 4 páginas HTML, papeletas.js y todo lo necesario para la app SÍ se publican.
+*.sql
+*.md
+*.py
+test-*.js
+papeletas-ocr/**
+papeletas/*.docx
+.git/**
+README*
